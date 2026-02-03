@@ -311,8 +311,13 @@ class CodeRunner:
         self.tensor_order = getattr(self._golden_module, 'TENSOR_ORDER', None)
 
         # Runtime configuration
-        self.aicpu_thread_num = 3
-        self.block_dim = 3
+        if self.runtime_name == "aicpu_build_graph":
+            # Fixed split for this runtime: 1 builder + 3 schedulers.
+            self.aicpu_thread_num = 4
+            self.block_dim = 4
+        else:
+            self.aicpu_thread_num = 3
+            self.block_dim = 3
 
     def _load_kernel_config(self):
         """Load kernel_config.py from kernels directory."""
