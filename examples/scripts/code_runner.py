@@ -35,6 +35,7 @@ Golden.py interface:
 import importlib.util
 import os
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -257,6 +258,61 @@ def _ensure_pto_isa_root(verbose: bool = False) -> Optional[str]:
     return pto_isa_root
 
 
+def _default_runtime_env(runtime_name: str, kernels_dir: Path) -> Dict[str, str]:
+    """
+    Default per-runtime environment variables used during runtime compilation.
+
+    Keep these defaults minimal. Examples can override/extend them via
+    `RUNTIME_ENV` in `kernel_config.py`.
+    """
+    # Always expose the kernels dir. Runtimes may optionally use it in their
+    # build_config.py (e.g., to pick up `kernels/aicpu/*.cpp` sources).
+    return {"PTO_KERNELS_DIR": str(kernels_dir)}
+
+
+def _kernel_config_runtime_env(kernel_config_module, kernels_dir: Path) -> Dict[str, str]:
+    """
+    Optional per-example environment variables for runtime compilation.
+
+    `kernel_config.py` may define:
+        RUNTIME_ENV = {"ENV_KEY": "value", ...}
+
+    If a value looks like a path (ENV key ends with _DIR/_PATH) and is not
+    absolute, it is resolved relative to `kernels_dir`.
+    """
+    runtime_env = getattr(kernel_config_module, "RUNTIME_ENV", None)
+    if not isinstance(runtime_env, dict):
+        return {}
+
+    out: Dict[str, str] = {}
+    for k, v in runtime_env.items():
+        if not isinstance(k, str):
+            continue
+        s = str(v)
+        if (k.endswith("_DIR") or k.endswith("_PATH")) and s:
+            p = Path(s)
+            if not p.is_absolute():
+                s = str((kernels_dir / p).resolve())
+        out[k] = s
+    return out
+
+
+@contextmanager
+def _temporary_env(env_updates: Dict[str, str]):
+    """Temporarily apply env vars for the duration of the context."""
+    old = {k: os.environ.get(k) for k in env_updates.keys()}
+    for k, v in env_updates.items():
+        os.environ[k] = v
+    try:
+        yield
+    finally:
+        for k, prev in old.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
 class CodeRunner:
     """
     Simplified test runner that loads kernel config and golden script.
@@ -461,7 +517,10 @@ class CodeRunner:
         builder = RuntimeBuilder(runtime_root=self.project_root, platform=self.platform)
         pto_compiler = builder.get_pto_compiler()
         try:
-            host_binary, aicpu_binary, aicore_binary = builder.build(self.runtime_name)
+            runtime_env = _default_runtime_env(self.runtime_name, self.kernels_dir)
+            runtime_env.update(_kernel_config_runtime_env(self._kernel_config, self.kernels_dir))
+            with _temporary_env(runtime_env):
+                host_binary, aicpu_binary, aicore_binary = builder.build(self.runtime_name)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to build runtime '{self.runtime_name}' for platform '{self.platform}'.\n"
@@ -537,7 +596,11 @@ class CodeRunner:
             # Create and initialize runtime
             print("\n=== Initializing Runtime ===")
             runtime = Runtime()
-            runtime.initialize(orch_so_binary, self.orchestration["function_name"], func_args)
+            run_env = _kernel_config_runtime_env(self._kernel_config, self.kernels_dir)
+            if run_env:
+                print(f"Runtime init env overrides: {run_env}")
+            with _temporary_env(run_env):
+                runtime.initialize(orch_so_binary, self.orchestration["function_name"], func_args)
 
             # Launch runtime
             print("\n=== Launching Runtime ===")
