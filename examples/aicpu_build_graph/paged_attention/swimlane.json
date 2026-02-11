@@ -1,0 +1,273 @@
+{
+  "metadata": {
+    "title": "Paged Attention Case2 - Concurrent Build/Schedule",
+    "total_tasks": 16,
+    "builder_done_us": 1964
+  },
+  "lanes": {
+    "AIC_0": {
+      "tasks": [
+        8,
+        10
+      ]
+    },
+    "AIC_16": {
+      "tasks": [
+        2,
+        12
+      ]
+    },
+    "AIC_19": {
+      "tasks": [
+        4
+      ]
+    },
+    "AIC_3": {
+      "tasks": [
+        0
+      ]
+    },
+    "AIC_8": {
+      "tasks": [
+        6,
+        14
+      ]
+    },
+    "AIV_24": {
+      "tasks": [
+        3,
+        9
+      ]
+    },
+    "AIV_40": {
+      "tasks": [
+        5,
+        7,
+        11
+      ]
+    },
+    "AIV_41": {
+      "tasks": [
+        13
+      ]
+    },
+    "AIV_66": {
+      "tasks": [
+        15
+      ]
+    },
+    "AIV_70": {
+      "tasks": [
+        1
+      ]
+    }
+  },
+  "tasks": [
+    {
+      "task_id": 0,
+      "core_type": "AIC",
+      "core_id": 3,
+      "dispatch_thread": 1,
+      "start_us": 0,
+      "end_us": 206,
+      "duration_us": 206
+    },
+    {
+      "task_id": 1,
+      "core_type": "AIV",
+      "core_id": 70,
+      "dispatch_thread": 3,
+      "start_us": 269,
+      "end_us": 317,
+      "duration_us": 48
+    },
+    {
+      "task_id": 2,
+      "core_type": "AIC",
+      "core_id": 16,
+      "dispatch_thread": 3,
+      "start_us": 368,
+      "end_us": 846,
+      "duration_us": 478
+    },
+    {
+      "task_id": 3,
+      "core_type": "AIV",
+      "core_id": 24,
+      "dispatch_thread": 1,
+      "start_us": 975,
+      "end_us": 1324,
+      "duration_us": 349
+    },
+    {
+      "task_id": 4,
+      "core_type": "AIC",
+      "core_id": 19,
+      "dispatch_thread": 3,
+      "start_us": 484,
+      "end_us": 928,
+      "duration_us": 444
+    },
+    {
+      "task_id": 5,
+      "core_type": "AIV",
+      "core_id": 40,
+      "dispatch_thread": 2,
+      "start_us": 962,
+      "end_us": 1066,
+      "duration_us": 104
+    },
+    {
+      "task_id": 6,
+      "core_type": "AIC",
+      "core_id": 8,
+      "dispatch_thread": 2,
+      "start_us": 1361,
+      "end_us": 1493,
+      "duration_us": 132
+    },
+    {
+      "task_id": 7,
+      "core_type": "AIV",
+      "core_id": 40,
+      "dispatch_thread": 2,
+      "start_us": 1551,
+      "end_us": 1644,
+      "duration_us": 93
+    },
+    {
+      "task_id": 8,
+      "core_type": "AIC",
+      "core_id": 0,
+      "dispatch_thread": 1,
+      "start_us": 883,
+      "end_us": 1074,
+      "duration_us": 191
+    },
+    {
+      "task_id": 9,
+      "core_type": "AIV",
+      "core_id": 24,
+      "dispatch_thread": 1,
+      "start_us": 1392,
+      "end_us": 1507,
+      "duration_us": 115
+    },
+    {
+      "task_id": 10,
+      "core_type": "AIC",
+      "core_id": 0,
+      "dispatch_thread": 1,
+      "start_us": 1599,
+      "end_us": 1766,
+      "duration_us": 167
+    },
+    {
+      "task_id": 11,
+      "core_type": "AIV",
+      "core_id": 40,
+      "dispatch_thread": 2,
+      "start_us": 1797,
+      "end_us": 1877,
+      "duration_us": 80
+    },
+    {
+      "task_id": 12,
+      "core_type": "AIC",
+      "core_id": 16,
+      "dispatch_thread": 3,
+      "start_us": 1332,
+      "end_us": 1522,
+      "duration_us": 190
+    },
+    {
+      "task_id": 13,
+      "core_type": "AIV",
+      "core_id": 41,
+      "dispatch_thread": 2,
+      "start_us": 1573,
+      "end_us": 1667,
+      "duration_us": 94
+    },
+    {
+      "task_id": 14,
+      "core_type": "AIC",
+      "core_id": 8,
+      "dispatch_thread": 2,
+      "start_us": 1692,
+      "end_us": 1756,
+      "duration_us": 64
+    },
+    {
+      "task_id": 15,
+      "core_type": "AIV",
+      "core_id": 66,
+      "dispatch_thread": 3,
+      "start_us": 1920,
+      "end_us": 1964,
+      "duration_us": 44
+    }
+  ],
+  "edges": [
+    {
+      "from": 0,
+      "to": 1
+    },
+    {
+      "from": 1,
+      "to": 2
+    },
+    {
+      "from": 2,
+      "to": 3
+    },
+    {
+      "from": 4,
+      "to": 5
+    },
+    {
+      "from": 5,
+      "to": 6
+    },
+    {
+      "from": 6,
+      "to": 7
+    },
+    {
+      "from": 3,
+      "to": 7
+    },
+    {
+      "from": 8,
+      "to": 9
+    },
+    {
+      "from": 9,
+      "to": 10
+    },
+    {
+      "from": 10,
+      "to": 11
+    },
+    {
+      "from": 7,
+      "to": 11
+    },
+    {
+      "from": 12,
+      "to": 13
+    },
+    {
+      "from": 13,
+      "to": 14
+    },
+    {
+      "from": 14,
+      "to": 15
+    },
+    {
+      "from": 11,
+      "to": 15
+    }
+  ]
+}
