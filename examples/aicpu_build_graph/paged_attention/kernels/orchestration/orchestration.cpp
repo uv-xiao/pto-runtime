@@ -181,19 +181,30 @@ extern "C" int orchestration(Runtime* runtime) {
             const uint64_t dev_mij = buf_scalar_ptr(mij_base, buf_idx);
             const uint64_t dev_lij = buf_scalar_ptr(lij_base, buf_idx);
 
-            // Create tasks.
+            // Immediate Publish Pattern: create -> edge -> publish for each task
+            // This allows earlier task visibility and better concurrency.
+
+            // Task 0: QK MatMul (no predecessors)
             uint64_t qk_args[3] = {qi_ptr, kj_ptr, dev_sij};
             int t_qk = api.add_task(runtime, qk_args, 3, FUNC_QK_MATMUL, CoreType::AIC, /*function_bin_addr=*/0);
             if (t_qk < 0) return -1;
+            api.publish_task(runtime, t_qk);  // Publish immediately - no predecessors
 
+            // Task 1: Softmax Prepare (depends on QK)
             uint64_t sf_args[5] = {dev_sij, scale_value_bits, dev_pij, dev_mij, dev_lij};
             int t_sf = api.add_task(runtime, sf_args, 5, FUNC_SOFTMAX_PREPARE, CoreType::AIV, /*function_bin_addr=*/0);
             if (t_sf < 0) return -1;
+            api.add_successor_conditional(runtime, t_qk, t_sf);  // Edge: QK -> SF
+            api.publish_task(runtime, t_sf);
 
+            // Task 2: PV MatMul (depends on SF)
             uint64_t pv_args[3] = {dev_pij, vj_ptr, dev_oi_new};
             int t_pv = api.add_task(runtime, pv_args, 3, FUNC_PV_MATMUL, CoreType::AIC, /*function_bin_addr=*/0);
             if (t_pv < 0) return -1;
+            api.add_successor_conditional(runtime, t_sf, t_pv);  // Edge: SF -> PV
+            api.publish_task(runtime, t_pv);
 
+            // Task 3: Online Update (depends on PV and previous UP)
             const int is_first = (bn == 0) ? 1 : 0;
             const int is_last = (bn == bn_this_batch - 1) ? 1 : 0;
 
@@ -208,19 +219,10 @@ extern "C" int orchestration(Runtime* runtime) {
                 out_ptr};
             int t_up = api.add_task(runtime, up_args, 9, FUNC_ONLINE_UPDATE, CoreType::AIV, /*function_bin_addr=*/0);
             if (t_up < 0) return -1;
-
-            // Add edges (safe for concurrent build||schedule).
-            api.add_successor_conditional(runtime, t_qk, t_sf);
-            api.add_successor_conditional(runtime, t_sf, t_pv);
-            api.add_successor_conditional(runtime, t_pv, t_up);
+            api.add_successor_conditional(runtime, t_pv, t_up);  // Edge: PV -> UP
             if (t_up_prev >= 0) {
-                api.add_successor_conditional(runtime, t_up_prev, t_up);
+                api.add_successor_conditional(runtime, t_up_prev, t_up);  // Edge: UP(prev) -> UP
             }
-
-            // Publish tasks (builder order: create -> edges -> publish).
-            api.publish_task(runtime, t_qk);
-            api.publish_task(runtime, t_sf);
-            api.publish_task(runtime, t_pv);
             api.publish_task(runtime, t_up);
 
             t_up_prev = t_up;
