@@ -28,6 +28,29 @@ bool g_is_log_enable_error = true;
 
 const char* TILE_FWK_DEVICE_MACHINE = "SIM_CPU";
 
+// Optional log file (shares PTO_LOG_FILE with host logger).
+// In simulation, we *tee* logs to both stdout and the file (if configured)
+// so profiling runs remain visible while still being parsable offline.
+static FILE* g_device_log_file = nullptr;
+
+static FILE* get_device_log_file() {
+    if (g_device_log_file != nullptr) {
+        return g_device_log_file;
+    }
+
+    const char* file_path = std::getenv("PTO_LOG_FILE");
+    if (file_path == nullptr || file_path[0] == '\0') {
+        return nullptr;
+    }
+
+    g_device_log_file = std::fopen(file_path, "a");
+    if (g_device_log_file != nullptr) {
+        // Line-buffered to keep lines intact for parsing.
+        std::setvbuf(g_device_log_file, nullptr, _IOLBF, 0);
+    }
+    return g_device_log_file;
+}
+
 // =============================================================================
 // Log Initialization (Read from PTO_LOG_LEVEL environment variable)
 // =============================================================================
@@ -85,47 +108,62 @@ void init_log_switch() {
 // Platform-Specific Logging Functions (Simulation: use printf)
 // =============================================================================
 
+static void vdev_log(FILE* fp, const char* level, const char* func, const char* fmt, va_list args) {
+    ::flockfile(fp);
+    std::fprintf(fp, "[%s] %s: ", level, func);
+    std::vfprintf(fp, fmt, args);
+    std::fprintf(fp, "\n");
+    ::funlockfile(fp);
+}
+
+static void dev_log_tee(const char* level, const char* func, const char* fmt, va_list args) {
+    // Always print to stdout for interactive visibility.
+    va_list args_stdout;
+    va_copy(args_stdout, args);
+    vdev_log(stdout, level, func, fmt, args_stdout);
+    va_end(args_stdout);
+
+    // Optionally append to PTO_LOG_FILE.
+    FILE* fp = get_device_log_file();
+    if (fp != nullptr) {
+        va_list args_file;
+        va_copy(args_file, args);
+        vdev_log(fp, level, func, fmt, args_file);
+        va_end(args_file);
+    }
+}
+
 void dev_log_debug(const char* func, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    printf("[DEBUG] %s: ", func);
-    vprintf(fmt, args);
-    printf("\n");
+    dev_log_tee("DEBUG", func, fmt, args);
     va_end(args);
 }
 
 void dev_log_info(const char* func, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    printf("[INFO] %s: ", func);
-    vprintf(fmt, args);
-    printf("\n");
+    dev_log_tee("INFO", func, fmt, args);
     va_end(args);
 }
 
 void dev_log_warn(const char* func, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    printf("[WARN] %s: ", func);
-    vprintf(fmt, args);
-    printf("\n");
+    dev_log_tee("WARN", func, fmt, args);
     va_end(args);
 }
 
 void dev_log_error(const char* func, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    printf("[ERROR] %s: ", func);
-    vprintf(fmt, args);
-    printf("\n");
+    dev_log_tee("ERROR", func, fmt, args);
     va_end(args);
 }
 
 void dev_log_always(const char* func, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    printf("[ALWAYS] %s: ", func);
-    vprintf(fmt, args);
-    printf("\n");
+    dev_log_tee("ALWAYS", func, fmt, args);
     va_end(args);
 }

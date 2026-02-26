@@ -41,6 +41,14 @@
 #define PTO2_ORCH_PROFILING 1
 #endif
 
+#ifndef PTO2_PERF_TS_UPDATE_SEARCH_WINDOW
+#define PTO2_PERF_TS_UPDATE_SEARCH_WINDOW 8
+#endif
+
+#ifndef PTO2_PERF_TS_UPDATE_RETRY_ITERS
+#define PTO2_PERF_TS_UPDATE_RETRY_ITERS 64
+#endif
+
 #if PTO2_ORCH_PROFILING
 // Accumulated nanoseconds per sub-step
 #define CYCLE_COUNT_START() uint64_t _t0 = get_sys_cnt_aicpu(), _t1
@@ -492,6 +500,9 @@ int AicpuExecutor::resolve_and_dispatch_pto2(Runtime* runtime, int thread_idx,
     // Fanout traversal statistics
     uint64_t total_fanout_traversed = 0;
     int32_t max_fanout_len = 0;
+    // PerfRecord timestamp patching stats (AICPU dispatch/finish)
+    uint64_t perf_ts_update_ok = 0;
+    uint64_t perf_ts_update_fail = 0;
 
     while (true) {
 #if PTO2_ORCH_PROFILING
@@ -612,16 +623,68 @@ int AicpuExecutor::resolve_and_dispatch_pto2(Runtime* runtime, int thread_idx,
                 if (profiling_enabled) {
                     Handshake* h = &hank[core_id];
                     uint64_t finish_ts = get_sys_cnt_aicpu();
-                    PerfBuffer* perf_buf = (PerfBuffer*)h->perf_records_addr;
-                    rmb();
-                    uint32_t count = perf_buf->count;
-                    if (count > 0) {
-                        PerfRecord* record = &perf_buf->records[count - 1];
-                        if (record->task_id == static_cast<uint32_t>(payload->task_id)) {
-                            perf_aicpu_record_dispatch_and_finish_time(record,
-                                                                        dispatch_timestamps_[core_id],
-                                                                        finish_ts);
+
+                    const uint32_t want_task_id = static_cast<uint32_t>(payload->task_id);
+                    const uint64_t dispatch_ts = dispatch_timestamps_[core_id];
+
+                    auto find_record_near_tail = [&](PerfBuffer* buf) -> PerfRecord* {
+                        if (buf == nullptr) return nullptr;
+                        rmb();
+                        uint32_t count = buf->count;
+                        if (count == 0) return nullptr;
+                        // Search a small window near the tail to tolerate ordering/visibility quirks.
+                        uint32_t start = (count > PTO2_PERF_TS_UPDATE_SEARCH_WINDOW)
+                                             ? (count - PTO2_PERF_TS_UPDATE_SEARCH_WINDOW)
+                                             : 0;
+                        for (uint32_t idx = count; idx > start; --idx) {
+                            PerfRecord* rec = &buf->records[idx - 1];
+                            if (rec->task_id == want_task_id) {
+                                return rec;
+                            }
                         }
+                        return nullptr;
+                    };
+
+                    auto try_update = [&](PerfBuffer* buf) -> bool {
+                        PerfRecord* rec = find_record_near_tail(buf);
+                        if (rec == nullptr) return false;
+                        perf_aicpu_record_dispatch_and_finish_time(rec, dispatch_ts, finish_ts);
+                        return true;
+                    };
+
+                    bool updated = false;
+
+                    // Fast path: try the current buffer first.
+                    PerfBuffer* cur_buf = reinterpret_cast<PerfBuffer*>(h->perf_records_addr);
+                    updated = try_update(cur_buf);
+
+                    // Fallback: also try both buffers in the core's DoubleBuffer.
+                    // This makes dispatch/finish timestamps robust across buffer switches.
+                    if (!updated && runtime->perf_data_base != 0) {
+                        void* perf_base = reinterpret_cast<void*>(runtime->perf_data_base);
+                        DoubleBuffer* db = get_core_double_buffer(perf_base, core_id);
+                        if (cur_buf != &db->buffer1) updated = try_update(&db->buffer1);
+                        if (!updated && cur_buf != &db->buffer2) updated = try_update(&db->buffer2);
+                    }
+
+                    // Last resort: brief retry in case AICore record visibility lags behind COND IDLE.
+                    if (!updated) {
+                        for (int r = 0; r < PTO2_PERF_TS_UPDATE_RETRY_ITERS && !updated; ++r) {
+                            PTO2_SPIN_PAUSE_LIGHT();
+                            updated = try_update(cur_buf);
+                            if (!updated && runtime->perf_data_base != 0) {
+                                void* perf_base = reinterpret_cast<void*>(runtime->perf_data_base);
+                                DoubleBuffer* db = get_core_double_buffer(perf_base, core_id);
+                                if (cur_buf != &db->buffer1) updated = try_update(&db->buffer1);
+                                if (!updated && cur_buf != &db->buffer2) updated = try_update(&db->buffer2);
+                            }
+                        }
+                    }
+
+                    if (updated) {
+                        perf_ts_update_ok++;
+                    } else {
+                        perf_ts_update_fail++;
                     }
                 }
 
@@ -795,6 +858,86 @@ int AicpuExecutor::resolve_and_dispatch_pto2(Runtime* runtime, int thread_idx,
         cur_thread_completed > 0 ? (double)total_fanout_traversed / cur_thread_completed : 0.0);
 
     DEV_ALWAYS("Thread %d: PTO2 execution complete, completed %d tasks", thread_idx, cur_thread_completed);
+
+    // Machine-readable JSON line for post-processing into a report.
+    // NOTE: Printed only once per scheduler thread at the end, so overhead is negligible.
+    if (profiling_enabled) {
+        int32_t task_count_final = total_tasks_.load(std::memory_order_acquire);
+        int32_t completed_final = completed_tasks_.load(std::memory_order_acquire);
+        DEV_ALWAYS(
+            "PTO2_SCHED_PROFILE_JSON {"
+            "\"thread_idx\":%d,"
+            "\"core_num\":%d,"
+            "\"task_count_final\":%d,"
+            "\"completed_final\":%d,"
+            "\"loops\":%llu,"
+            "\"yield_calls\":%llu,"
+            "\"completed_by_thread\":%d,"
+            "\"total_us\":%.3f,"
+            "\"scan_us\":%.3f,"
+            "\"orch_drain_us\":%.3f,"
+            "\"complete_us\":%.3f,"
+            "\"dispatch_us\":%.3f,"
+            "\"yield_us\":%.3f,"
+            "\"fanout_total_traversed\":%llu,"
+            "\"fanout_max_len\":%d,"
+            "\"perf_ts_update_ok\":%llu,"
+            "\"perf_ts_update_fail\":%llu"
+            "}",
+            thread_idx,
+            core_num,
+            task_count_final,
+            completed_final,
+            (unsigned long long)sched_loop_count,
+            (unsigned long long)sched_yield_count,
+            cur_thread_completed,
+            cycles_to_us(sched_total),
+            cycles_to_us(sched_scan_cycle),
+            cycles_to_us(sched_orch_drain_cycle),
+            cycles_to_us(sched_complete_cycle),
+            cycles_to_us(sched_dispatch_cycle),
+            cycles_to_us(sched_yield_cycle),
+            (unsigned long long)total_fanout_traversed,
+            max_fanout_len,
+            (unsigned long long)perf_ts_update_ok,
+            (unsigned long long)perf_ts_update_fail);
+    }
+#endif
+
+#if PTO2_ORCH_PROFILING
+    // Export scheduler phase stats into perf shared memory so Host can generate a report on real hardware
+    // (where device logs may not be captured into a file).
+    if (profiling_enabled && runtime->perf_data_base != 0 && thread_idx >= 0 &&
+        thread_idx < PLATFORM_MAX_AICPU_THREADS) {
+        void* perf_base = reinterpret_cast<void*>(runtime->perf_data_base);
+        PerfDataHeader* hdr = get_perf_header(perf_base);
+        SchedulerProfile* sp = &hdr->sched_profiles[thread_idx];
+
+        int32_t task_count_final = total_tasks_.load(std::memory_order_acquire);
+        int32_t completed_final = completed_tasks_.load(std::memory_order_acquire);
+
+        sp->core_num = static_cast<uint32_t>(core_num);
+        sp->task_count_final = static_cast<uint32_t>(task_count_final > 0 ? task_count_final : 0);
+        sp->completed_final = static_cast<uint32_t>(completed_final > 0 ? completed_final : 0);
+        sp->completed_by_thread = static_cast<uint32_t>(cur_thread_completed > 0 ? cur_thread_completed : 0);
+
+        sp->fanout_total_traversed = total_fanout_traversed;
+        sp->fanout_max_len = static_cast<uint32_t>(max_fanout_len > 0 ? max_fanout_len : 0);
+
+        sp->scan_cycles = sched_scan_cycle;
+        sp->orch_drain_cycles = sched_orch_drain_cycle;
+        sp->complete_cycles = sched_complete_cycle;
+        sp->dispatch_cycles = sched_dispatch_cycle;
+        sp->yield_cycles = sched_yield_cycle;
+        sp->loops = sched_loop_count;
+        sp->yield_calls = sched_yield_count;
+        sp->perf_ts_update_ok = perf_ts_update_ok;
+        sp->perf_ts_update_fail = perf_ts_update_fail;
+
+        wmb();
+        __atomic_fetch_or(&hdr->sched_profiles_ready_mask, (1u << thread_idx), __ATOMIC_SEQ_CST);
+        wmb();
+    }
 #endif
 
     // Flush performance buffers for cores managed by this thread

@@ -6,6 +6,7 @@
 
 - **[swimlane_converter.py](#swimlane_converterpy)** - 转换为 Chrome Trace Event 可视化格式
 - **[perf_to_mermaid.py](#perf_to_mermaidpy)** - 转换为 Mermaid 依赖图
+- **pto2_schedule_report.py** - 生成 PTO2 调度开销报告（Markdown，重点面向 tensormap_and_ringbuffer）
 
 ---
 
@@ -101,6 +102,7 @@ python examples/scripts/run_example.py \
 2. 从 `-k` 指定的 kernel_config.py 加载函数名
 3. 生成 `merged_swimlane_*.json` 用于可视化
 4. 将任务统计信息打印到控制台
+5. 生成 `outputs/pto2_schedule_report_*.md`（调度/执行开销报告）
 
 ---
 

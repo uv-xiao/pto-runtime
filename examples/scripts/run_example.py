@@ -117,6 +117,13 @@ Golden.py interface:
         help="Enable profiling and generate swimlane.json"
     )
 
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        help="Optional log file path for C++ logs (sets PTO_LOG_FILE). "
+             "In a2a3sim, device logs will also be appended to this file."
+    )
+
     args = parser.parse_args()
 
     # Determine log level from arguments
@@ -148,6 +155,8 @@ Golden.py interface:
     
     # Set environment variable for C++ side
     os.environ['PTO_LOG_LEVEL'] = log_level_str
+    if args.log_file:
+        os.environ['PTO_LOG_FILE'] = args.log_file
 
     # Add script_dir for code_runner (now co-located)
     sys.path.insert(0, str(script_dir))
@@ -169,6 +178,45 @@ Golden.py interface:
         logger.error(f"kernel_config.py not found in {kernels_path}")
         return 1
 
+    def _postprocess_profiling() -> None:
+        if not args.enable_profiling:
+            return
+        logger.info("Generating swimlane visualization...")
+        swimlane_script = project_root / "tools" / "swimlane_converter.py"
+        if not swimlane_script.exists():
+            logger.warning(f"Swimlane converter script not found: {swimlane_script}")
+            return
+
+        import subprocess
+        try:
+            cmd = [sys.executable, str(swimlane_script), "-k", str(kernel_config_path)]
+            if log_level_str == "debug":
+                cmd.append("-v")
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if result.stdout.strip():
+                logger.info(result.stdout.strip())
+            logger.info("Swimlane JSON generation completed")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to generate swimlane JSON: {e}")
+            if log_level_str == "debug":
+                logger.debug(f"stderr: {e.stderr}")
+
+        # Generate PTO2 scheduling report (Markdown).
+        sched_report_script = project_root / "tools" / "pto2_schedule_report.py"
+        if not sched_report_script.exists():
+            return
+        try:
+            report_cmd = [sys.executable, str(sched_report_script), "-k", str(kernel_config_path)]
+            if args.log_file:
+                report_cmd += ["--log", args.log_file]
+            report_res = subprocess.run(report_cmd, check=True, capture_output=True, text=True)
+            if report_res.stdout.strip():
+                logger.info(report_res.stdout.strip())
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to generate scheduling report: {e}")
+            if log_level_str == "debug":
+                logger.debug(f"stderr: {e.stderr}")
+
     # Import and run
     try:
         from code_runner import create_code_runner
@@ -186,29 +234,7 @@ Golden.py interface:
         logger.info("TEST PASSED")
         logger.info("=" * 60)
 
-        # If profiling was enabled, generate merged swimlane JSON
-        if args.enable_profiling:
-            logger.info("Generating swimlane visualization...")
-            kernel_config_path = kernels_path / "kernel_config.py"
-            swimlane_script = project_root / "tools" / "swimlane_converter.py"
-
-            if swimlane_script.exists():
-                import subprocess
-                try:
-                    # Call swimlane_converter.py with kernel_config.py path
-                    cmd = [sys.executable, str(swimlane_script), "-k", str(kernel_config_path)]
-                    if log_level_str == "debug":
-                        cmd.append("-v")
-
-                    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-                    logger.info(result.stdout)
-                    logger.info("Swimlane JSON generation completed")
-                except subprocess.CalledProcessError as e:
-                    logger.warning(f"Failed to generate swimlane JSON: {e}")
-                    if log_level_str == "debug":
-                        logger.debug(f"stderr: {e.stderr}")
-            else:
-                logger.warning(f"Swimlane converter script not found: {swimlane_script}")
+        _postprocess_profiling()
 
         return 0
 
@@ -222,6 +248,8 @@ Golden.py interface:
         if log_level_str == "debug":
             import traceback
             traceback.print_exc()
+        # Try to generate profiling outputs even on failure (useful for perf debugging).
+        _postprocess_profiling()
         return 1
 
 

@@ -148,6 +148,39 @@ struct ReadyQueueEntry {
 } __attribute__((aligned(16)));
 
 // =============================================================================
+// Scheduler Profiling (PTO2)
+// =============================================================================
+
+/**
+ * Per-AICPU-thread scheduler phase timing (cycles) and counters.
+ *
+ * Written by AICPU scheduler threads at the end of execution.
+ * Read by Host to generate a scheduling report.
+ */
+struct SchedulerProfile {
+    uint32_t core_num;
+    uint32_t task_count_final;
+    uint32_t completed_final;
+    uint32_t completed_by_thread;
+
+    uint64_t fanout_total_traversed;
+    uint32_t fanout_max_len;
+    uint32_t _reserved0;
+
+    uint64_t scan_cycles;
+    uint64_t orch_drain_cycles;
+    uint64_t complete_cycles;
+    uint64_t dispatch_cycles;
+    uint64_t yield_cycles;
+
+    uint64_t loops;
+    uint64_t yield_calls;
+
+    uint64_t perf_ts_update_ok;
+    uint64_t perf_ts_update_fail;
+} __attribute__((aligned(64)));
+
+// =============================================================================
 // PerfDataHeader - Fixed Header
 // =============================================================================
 
@@ -177,6 +210,10 @@ struct PerfDataHeader {
     // Metadata (Host initializes, Device read-only)
     uint32_t num_cores;                              // Actual number of cores launched
     volatile uint32_t total_tasks;                   // Total tasks (AICPU writes after orchestration)
+
+    // PTO2 scheduler profiling (AICPU writes, Host reads)
+    SchedulerProfile sched_profiles[PLATFORM_MAX_AICPU_THREADS];
+    volatile uint32_t sched_profiles_ready_mask;     // Bit i set when thread i has written sched_profiles[i]
 } __attribute__((aligned(64)));
 
 // =============================================================================

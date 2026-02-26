@@ -83,15 +83,10 @@ int PerformanceCollector::initialize(Runtime& runtime,
 
     // Step 4: Initialize header
     PerfDataHeader* header = get_perf_header(perf_host_ptr);
-
-    for (int t = 0; t < PLATFORM_MAX_AICPU_THREADS; t++) {
-        memset(header->queues[t], 0, sizeof(header->queues[t]));
-        header->queue_heads[t] = 0;
-        header->queue_tails[t] = 0;
-    }
-
+    memset(header, 0, sizeof(PerfDataHeader));
     header->num_cores = num_aicore;
     header->total_tasks = 0;
+    header->sched_profiles_ready_mask = 0;
 
     LOG_DEBUG("Initialized PerfDataHeader:");
     LOG_DEBUG("  num_cores:        %d", header->num_cores);
@@ -320,6 +315,57 @@ int PerformanceCollector::export_swimlane_json(const std::string& output_path) {
     // Step 7: Write JSON data
     outfile << "{\n";
     outfile << "  \"version\": 1,\n";
+    // Optional: include PTO2 scheduler profiling (if available)
+    if (perf_shared_mem_host_ != nullptr) {
+        PerfDataHeader* header = get_perf_header(perf_shared_mem_host_);
+        uint32_t ready_mask = header->sched_profiles_ready_mask;
+        if (ready_mask != 0) {
+            outfile << "  \"scheduler_profiles\": [\n";
+            for (int t = 0; t < PLATFORM_MAX_AICPU_THREADS; t++) {
+                if ((ready_mask & (1u << t)) == 0) {
+                    continue;
+                }
+                const SchedulerProfile& sp = header->sched_profiles[t];
+                double scan_us = cycles_to_us(sp.scan_cycles);
+                double orch_drain_us = cycles_to_us(sp.orch_drain_cycles);
+                double complete_us = cycles_to_us(sp.complete_cycles);
+                double dispatch_us = cycles_to_us(sp.dispatch_cycles);
+                double yield_us = cycles_to_us(sp.yield_cycles);
+                double total_us = scan_us + orch_drain_us + complete_us + dispatch_us + yield_us;
+
+                outfile << "    {\n";
+                outfile << "      \"thread_idx\": " << t << ",\n";
+                outfile << "      \"core_num\": " << sp.core_num << ",\n";
+                outfile << "      \"task_count_final\": " << sp.task_count_final << ",\n";
+                outfile << "      \"completed_final\": " << sp.completed_final << ",\n";
+                outfile << "      \"completed_by_thread\": " << sp.completed_by_thread << ",\n";
+                outfile << "      \"fanout_total_traversed\": " << sp.fanout_total_traversed << ",\n";
+                outfile << "      \"fanout_max_len\": " << sp.fanout_max_len << ",\n";
+                outfile << "      \"loops\": " << sp.loops << ",\n";
+                outfile << "      \"yield_calls\": " << sp.yield_calls << ",\n";
+                outfile << "      \"perf_ts_update_ok\": " << sp.perf_ts_update_ok << ",\n";
+                outfile << "      \"perf_ts_update_fail\": " << sp.perf_ts_update_fail << ",\n";
+                outfile << "      \"scan_us\": " << std::fixed << std::setprecision(3) << scan_us << ",\n";
+                outfile << "      \"orch_drain_us\": " << std::fixed << std::setprecision(3) << orch_drain_us << ",\n";
+                outfile << "      \"complete_us\": " << std::fixed << std::setprecision(3) << complete_us << ",\n";
+                outfile << "      \"dispatch_us\": " << std::fixed << std::setprecision(3) << dispatch_us << ",\n";
+                outfile << "      \"yield_us\": " << std::fixed << std::setprecision(3) << yield_us << ",\n";
+                outfile << "      \"total_us\": " << std::fixed << std::setprecision(3) << total_us << "\n";
+                outfile << "    }";
+
+                // Look-ahead for comma (only among ready threads)
+                bool has_more = false;
+                for (int t2 = t + 1; t2 < PLATFORM_MAX_AICPU_THREADS; t2++) {
+                    if (ready_mask & (1u << t2)) { has_more = true; break; }
+                }
+                if (has_more) {
+                    outfile << ",";
+                }
+                outfile << "\n";
+            }
+            outfile << "  ],\n";
+        }
+    }
     outfile << "  \"tasks\": [\n";
 
     for (size_t i = 0; i < sorted_records.size(); ++i) {
