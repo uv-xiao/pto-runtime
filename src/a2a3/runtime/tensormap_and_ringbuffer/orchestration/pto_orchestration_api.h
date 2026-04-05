@@ -76,7 +76,7 @@ inline Tensor from_tensor_arg(const ContinuousTensor &t, bool manual_dep = false
 // =============================================================================
 
 enum class PTO2ScopeMode : uint8_t {
-    NORMAL = 0,
+    AUTO = 0,
     MANUAL = 1,
 };
 
@@ -204,7 +204,7 @@ static inline void pto2_rt_add_dependency(PTO2TaskId producer, PTO2TaskId consum
     rt->ops->add_dependency(rt, producer, consumer);
 }
 
-static inline void pto2_rt_scope_begin(PTO2ScopeMode mode = PTO2ScopeMode::NORMAL) {
+static inline void pto2_rt_scope_begin(PTO2ScopeMode mode = PTO2ScopeMode::AUTO) {
     PTO2Runtime *rt = pto2_current_runtime();
     rt->ops->scope_begin(rt, mode);
 }
@@ -299,7 +299,7 @@ static inline void set_tensor_data(const Tensor &tensor, uint32_t ndims, const u
  */
 class PTO2ScopeGuard {
 public:  // NOLINT(whitespace/indent)
-    explicit PTO2ScopeGuard(PTO2ScopeMode mode = PTO2ScopeMode::NORMAL) :
+    explicit PTO2ScopeGuard(PTO2ScopeMode mode = PTO2ScopeMode::AUTO) :
         rt_(pto2_current_runtime()) {
         rt_->ops->scope_begin(rt_, mode);
     }

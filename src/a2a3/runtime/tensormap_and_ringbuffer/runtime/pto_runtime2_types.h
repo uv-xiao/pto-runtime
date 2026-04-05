@@ -137,7 +137,7 @@ constexpr uint64_t PTO2_TENSOR_DATA_TIMEOUT_CYCLES = 15 * 1000 * 1000 * 1000ULL;
 // =============================================================================
 
 enum class PTO2ScopeMode : uint8_t {
-    NORMAL = 0,
+    AUTO = 0,
     MANUAL = 1,
 };
 

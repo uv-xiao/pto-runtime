@@ -177,7 +177,7 @@ void pto2_set_orch_thread_idx(int idx);
  * bounded by the scope. When scope_end() is called, the scope
  * releases its reference to all enclosed tasks.
  */
-void pto2_rt_scope_begin(PTO2Runtime *rt, PTO2ScopeMode mode = PTO2ScopeMode::NORMAL);
+void pto2_rt_scope_begin(PTO2Runtime *rt, PTO2ScopeMode mode = PTO2ScopeMode::AUTO);
 
 /**
  * End current scope
