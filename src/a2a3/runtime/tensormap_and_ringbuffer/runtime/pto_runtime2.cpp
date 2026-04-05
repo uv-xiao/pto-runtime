@@ -72,6 +72,16 @@ static bool in_manual_scope_runtime(PTO2Runtime *rt) {
     return orch.scope_stack_top >= 0 && orch.scope_modes[orch.scope_stack_top] == PTO2ScopeMode::MANUAL;
 }
 
+static void fail_manual_tensor_access(PTO2Runtime *rt, const char *caller) {
+    PTO2OrchestratorState &orch = rt->orchestrators[pto2_current_orch_idx];
+    orch.sm_handle->header->orch_error_code.store(PTO2_ERROR_INVALID_ARGS, std::memory_order_release);
+    orch.fatal = true;
+    unified_log_error(
+        caller,
+        "blocking tensor data access is not supported inside PTO2_SCOPE(PTO2ScopeMode::MANUAL); exit the manual scope first"
+    );
+}
+
 // Wait for all producers of this tensor to be safe for data access.
 // Checks owner metadata (lifecycle anchor) and OverlapMap (modifier writers).
 // For reads: wait until each producer COMPLETED (done writing).
@@ -157,9 +167,7 @@ MAYBE_UNINITIALIZED_END
 
 uint64_t pto2_get_tensor_data(PTO2Runtime *rt, const Tensor &tensor, uint32_t ndims, const uint32_t indices[]) {
     if (in_manual_scope_runtime(rt)) {
-        unified_log_error(
-            __FUNCTION__, "blocking tensor data access is not supported inside PTO2_SCOPE(PTO2ScopeMode::MANUAL)"
-        );
+        fail_manual_tensor_access(rt, __FUNCTION__);
         return 0;
     }
     if (tensor.buffer.addr == 0) {
@@ -186,9 +194,7 @@ void pto2_set_tensor_data(
     PTO2Runtime *rt, const Tensor &tensor, uint32_t ndims, const uint32_t indices[], uint64_t value
 ) {
     if (in_manual_scope_runtime(rt)) {
-        unified_log_error(
-            __FUNCTION__, "blocking tensor data access is not supported inside PTO2_SCOPE(PTO2ScopeMode::MANUAL)"
-        );
+        fail_manual_tensor_access(rt, __FUNCTION__);
         return;
     }
     if (tensor.buffer.addr == 0) {
