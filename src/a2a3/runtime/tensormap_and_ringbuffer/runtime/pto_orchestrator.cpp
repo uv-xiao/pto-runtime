@@ -202,16 +202,14 @@ bool pto2_orchestrator_init(
     int32_t init_cap = PTO2_SCOPE_TASKS_INIT_CAP;
     orch->scope_tasks = reinterpret_cast<PTO2TaskSlotState **>(malloc(init_cap * sizeof(PTO2TaskSlotState *)));
     orch->scope_begins = reinterpret_cast<int32_t *>(malloc(max_depth * sizeof(int32_t)));
-    orch->scope_modes = reinterpret_cast<PTO2ScopeMode *>(malloc(max_depth * sizeof(PTO2ScopeMode)));
     orch->manual_task_meta_begins = reinterpret_cast<int32_t *>(malloc(max_depth * sizeof(int32_t)));
     orch->manual_edge_begins = reinterpret_cast<int32_t *>(malloc(max_depth * sizeof(int32_t)));
     orch->manual_task_meta = reinterpret_cast<PTO2ManualTaskMeta *>(malloc(init_cap * sizeof(PTO2ManualTaskMeta)));
     orch->manual_edges = reinterpret_cast<PTO2ManualEdge *>(malloc(init_cap * sizeof(PTO2ManualEdge)));
-    if (!orch->scope_tasks || !orch->scope_begins || !orch->scope_modes || !orch->manual_task_meta_begins ||
-        !orch->manual_edge_begins || !orch->manual_task_meta || !orch->manual_edges) {
+    if (!orch->scope_tasks || !orch->scope_begins || !orch->manual_task_meta_begins || !orch->manual_edge_begins ||
+        !orch->manual_task_meta || !orch->manual_edges) {
         free(orch->scope_tasks);
         free(orch->scope_begins);
-        free(orch->scope_modes);
         free(orch->manual_task_meta_begins);
         free(orch->manual_edge_begins);
         free(orch->manual_task_meta);
@@ -226,6 +224,7 @@ bool pto2_orchestrator_init(
     orch->scope_tasks_capacity = init_cap;
     orch->scope_stack_top = -1;
     orch->scope_stack_capacity = max_depth;
+    orch->manual_scope_active = false;
     orch->manual_task_meta_size = 0;
     orch->manual_task_meta_capacity = init_cap;
     orch->manual_edges_size = 0;
@@ -246,8 +245,6 @@ void pto2_orchestrator_destroy(PTO2OrchestratorState *orch) {
     orch->scope_tasks = NULL;
     free(orch->scope_begins);
     orch->scope_begins = NULL;
-    free(orch->scope_modes);
-    orch->scope_modes = NULL;
     free(orch->manual_task_meta_begins);
     orch->manual_task_meta_begins = NULL;
     free(orch->manual_edge_begins);
@@ -306,7 +303,7 @@ static int32_t manual_edge_push(PTO2OrchestratorState *orch, const PTO2ManualEdg
 }
 
 static bool in_manual_scope(const PTO2OrchestratorState *orch) {
-    return orch->scope_stack_top >= 0 && orch->scope_modes[orch->scope_stack_top] == PTO2ScopeMode::MANUAL;
+    return orch->manual_scope_active;
 }
 
 static int32_t current_manual_scope_begin(const PTO2OrchestratorState *orch) {
@@ -371,7 +368,7 @@ void pto2_scope_begin(PTO2OrchestratorState *orch, PTO2ScopeMode mode) {
 
     ++orch->scope_stack_top;
     orch->scope_begins[orch->scope_stack_top] = orch->scope_tasks_size;
-    orch->scope_modes[orch->scope_stack_top] = mode;
+    orch->manual_scope_active = (mode == PTO2ScopeMode::MANUAL);
     if (mode == PTO2ScopeMode::MANUAL) {
         orch->manual_task_meta_begins[orch->scope_stack_top] = orch->manual_task_meta_size;
         orch->manual_edge_begins[orch->scope_stack_top] = orch->manual_edges_size;
@@ -391,10 +388,11 @@ void pto2_scope_end(PTO2OrchestratorState *orch) {
     int32_t top = orch->scope_stack_top;
     int32_t begin = orch->scope_begins[top];
     int32_t count = orch->scope_tasks_size - begin;
-    PTO2ScopeMode mode = orch->scope_modes[top];
+    bool manual_scope = orch->manual_scope_active;
 
-    if (mode != PTO2ScopeMode::MANUAL) {
+    if (!manual_scope) {
         orch->scope_stack_top--;
+        orch->manual_scope_active = false;
 
         if (orch->scheduler && count > 0) {
             orch->scheduler->on_scope_end(&orch->scope_tasks[begin], count);
@@ -565,6 +563,7 @@ void pto2_scope_end(PTO2OrchestratorState *orch) {
     orch->manual_task_meta_size = manual_meta_begin;
     orch->manual_edges_size = manual_edge_begin;
     orch->scope_stack_top--;
+    orch->manual_scope_active = false;
 
 #if PTO2_ORCH_PROFILING
     uint64_t _se1 = get_sys_cnt_aicpu();

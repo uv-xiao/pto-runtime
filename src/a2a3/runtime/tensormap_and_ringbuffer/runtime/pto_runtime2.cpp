@@ -69,7 +69,7 @@ static bool is_fatal_impl(PTO2Runtime *rt) { return rt->orchestrators[pto2_curre
 
 static bool in_manual_scope_runtime(PTO2Runtime *rt) {
     PTO2OrchestratorState &orch = rt->orchestrators[pto2_current_orch_idx];
-    return orch.scope_stack_top >= 0 && orch.scope_modes[orch.scope_stack_top] == PTO2ScopeMode::MANUAL;
+    return orch.manual_scope_active;
 }
 
 static void fail_manual_tensor_access(PTO2Runtime *rt, const char *caller) {
