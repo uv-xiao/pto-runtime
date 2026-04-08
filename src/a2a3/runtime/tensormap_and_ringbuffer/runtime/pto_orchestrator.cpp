@@ -447,6 +447,7 @@ void pto2_scope_end(PTO2OrchestratorState *orch) {
             return;
         }
 
+        int32_t dep_pool_needed[PTO2_MAX_RING_DEPTH] = {0};
         for (int32_t task_idx = 0; task_idx < count; task_idx++) {
             PTO2ManualTaskMeta &meta = orch->manual_task_meta[manual_meta_begin + task_idx];
             PTO2TaskSlotState *slot_state = orch->scope_tasks[begin + task_idx];
@@ -459,7 +460,6 @@ void pto2_scope_end(PTO2OrchestratorState *orch) {
 
             PTO2TaskPayload *payload = slot_state->payload;
             PTO2TaskId task_id = slot_state->task->task_id;
-            PTO2TaskSlotState *fanin_states[PTO2_MAX_INPUTS];
             int32_t cached_external_count = payload->fanin_actual_count;
             int32_t local_edge_count = meta.incoming_edge_count;
             int32_t fanin_count = cached_external_count + local_edge_count;
@@ -479,8 +479,30 @@ void pto2_scope_end(PTO2OrchestratorState *orch) {
                 return;
             }
 
-            for (int32_t i = 0; i < cached_external_count; i++) {
-                fanin_states[i] = payload->fanin_slot_states[i];
+            dep_pool_needed[slot_state->ring_id] += local_edge_count;
+        }
+
+        for (int32_t ring_id = 0; ring_id < PTO2_MAX_RING_DEPTH; ring_id++) {
+            int32_t needed = dep_pool_needed[ring_id];
+            if (needed <= 0) {
+                continue;
+            }
+            auto &dep_pool = orch->rings[ring_id].dep_pool;
+            auto &fc = orch->sm_handle->header->rings[ring_id].fc;
+            dep_pool.ensure_space(*orch->scheduler, fc, ring_id, needed);
+        }
+
+        for (int32_t task_idx = 0; task_idx < count; task_idx++) {
+            PTO2ManualTaskMeta &meta = orch->manual_task_meta[manual_meta_begin + task_idx];
+            PTO2TaskSlotState *slot_state = orch->scope_tasks[begin + task_idx];
+            PTO2TaskPayload *payload = slot_state->payload;
+            PTO2TaskSlotState **fanin_slot_states = payload->fanin_slot_states;
+            int32_t cached_external_count = payload->fanin_actual_count;
+            int32_t local_edge_count = meta.incoming_edge_count;
+            int32_t fanin_count = cached_external_count + local_edge_count;
+
+            if (local_edge_count == 0) {
+                continue;
             }
 
             // Explicit manual edges are deduped at record time, and current-scope
@@ -490,46 +512,25 @@ void pto2_scope_end(PTO2OrchestratorState *orch) {
             for (int32_t edge_idx = meta.incoming_edge_head; edge_idx >= 0;
                  edge_idx = orch->manual_edges[edge_idx].next_consumer_edge) {
                 const PTO2ManualEdge &edge = orch->manual_edges[edge_idx];
-                fanin_states[next_local_fanin++] = orch->scope_tasks[begin + edge.producer_idx];
+                fanin_slot_states[next_local_fanin++] = orch->scope_tasks[begin + edge.producer_idx];
             }
 
+            // External producers were already realized during manual submit.
+            // At manual scope_end, only same-scope explicit edges remain to wire.
             auto &dep_pool = orch->rings[slot_state->ring_id].dep_pool;
-            auto &fc = orch->sm_handle->header->rings[slot_state->ring_id].fc;
-            dep_pool.ensure_space(*orch->scheduler, fc, slot_state->ring_id, fanin_count + 1);
-
-            slot_state->task_state.store(PTO2_TASK_PENDING, std::memory_order_relaxed);
-            slot_state->fanin_count = fanin_count + 1;
-            payload->fanin_actual_count = fanin_count;
-            for (int32_t i = 0; i < fanin_count; i++) {
-                payload->fanin_slot_states[i] = fanin_states[i];
-            }
-
-            int32_t early_finished = 0;
-            for (int32_t i = 0; i < cached_external_count; i++) {
-                PTO2TaskSlotState &producer_slot_state = *fanin_states[i];
-#if PTO2_ORCH_PROFILING
-                pto2_fanout_lock(producer_slot_state, g_orch_fanin_atomic_count, g_orch_fanin_wait_cycle);
-#else
-                pto2_fanout_lock(producer_slot_state);
-#endif
-                int32_t prod_state = producer_slot_state.task_state.load(std::memory_order_acquire);
-                if (prod_state >= PTO2_TASK_COMPLETED) {
-                    early_finished++;
-                } else {
-                    producer_slot_state.fanout_head = dep_pool.prepend(producer_slot_state.fanout_head, slot_state);
-                }
-                pto2_fanout_unlock(producer_slot_state);
-            }
             for (int32_t i = cached_external_count; i < fanin_count; i++) {
-                PTO2TaskSlotState &producer_slot_state = *fanin_states[i];
+                PTO2TaskSlotState &producer_slot_state = *fanin_slot_states[i];
                 // Same-scope explicit producers are unpublished until the batch
                 // publish below, so no scheduler thread can race on fanout state.
                 producer_slot_state.fanout_count += 1;
                 producer_slot_state.fanout_head = dep_pool.prepend(producer_slot_state.fanout_head, slot_state);
+                if (producer_slot_state.fanout_head == nullptr) {
+                    orch->fatal = true;
+                    return;
+                }
             }
-            if (early_finished > 0) {
-                slot_state->fanin_refcount.fetch_add(early_finished, std::memory_order_acq_rel);
-            }
+            slot_state->fanin_count += local_edge_count;
+            payload->fanin_actual_count = fanin_count;
             slot_state->dep_pool_mark = dep_pool.top;
         }
         orch->scheduler->publish_manual_scope_tasks_and_end_scope(&orch->scope_tasks[begin], count);
@@ -872,6 +873,12 @@ static TaskOutputTensors pto2_submit_mixed_task_impl(
         cur_slot_state.next_block_idx = 0;
 
         if constexpr (kManualSubmit) {
+            // Realize outer-boundary producers immediately. The extra publish
+            // barrier in fanin_count keeps the manual task invisible until scope_end.
+            auto &dep_pool = orch->rings[ring_id].dep_pool;
+            dep_pool.ensure_space(*sched, fc, ring_id, fanin_count);
+
+            int32_t early_finished = 0;
             for (int i = 0; i < fanin_count; i++) {
                 payload->fanin_slot_states[i] = fanin_states[i];
             }
@@ -884,10 +891,31 @@ static TaskOutputTensors pto2_submit_mixed_task_impl(
                 pto2_fanout_lock(producer_slot_state);
 #endif
                 producer_slot_state.fanout_count += 1;
+                int32_t prod_state = producer_slot_state.task_state.load(std::memory_order_acquire);
+                if (prod_state >= PTO2_TASK_COMPLETED) {
+                    early_finished++;
+                } else {
+                    producer_slot_state.fanout_head =
+                        dep_pool.prepend(producer_slot_state.fanout_head, &cur_slot_state);
+                    if (producer_slot_state.fanout_head == nullptr) {
+                        pto2_fanout_unlock(producer_slot_state);
+                        orch->fatal = true;
+                        return result;
+                    }
+                }
                 pto2_fanout_unlock(producer_slot_state);
             }
-            cur_slot_state.fanin_count = 1;
-            cur_slot_state.dep_pool_mark = orch->rings[ring_id].dep_pool.top;
+            cur_slot_state.fanin_count = fanin_count + 1;
+            if (early_finished > 0) {
+                cur_slot_state.fanin_refcount.fetch_add(early_finished, std::memory_order_acq_rel);
+            }
+            cur_slot_state.dep_pool_mark = dep_pool.top;
+#if PTO2_ORCH_PROFILING
+            g_orch_fanin_atomic_count += fanin_count * 3;
+            if (early_finished > 0) {
+                g_orch_fanin_atomic_count += 1;  // fanin_refcount.fetch_add
+            }
+#endif
         } else {
             auto &dep_pool = orch->rings[ring_id].dep_pool;
             // Ensure dep pool has space: fanin_count entries + 1 pre-alloc
