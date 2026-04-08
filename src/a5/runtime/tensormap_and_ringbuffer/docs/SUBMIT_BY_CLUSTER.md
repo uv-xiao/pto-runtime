@@ -205,9 +205,9 @@ Milestone command (device):
 
 ```bash
 python examples/scripts/run_example.py \
-  -k tests/st/tensormap_and_ringbuffer/batch_paged_attention/kernels \
-  -g tests/st/tensormap_and_ringbuffer/batch_paged_attention/golden.py \
-  -p a2a3 -d 9
+  -k tests/st/a5/tensormap_and_ringbuffer/batch_paged_attention/kernels \
+  -g tests/st/a5/tensormap_and_ringbuffer/batch_paged_attention/golden.py \
+  -p a5 -d 9
 ```
 
 Final validation:
@@ -223,4 +223,3 @@ Final validation:
 3. Per-cluster concurrent capacity is lane-occupancy-driven, not a fixed constant.
 4. Submit-contract types live in one shared header-only surface.
 5. Resource-aware dispatch heuristics are allowed without a strict starvation-free guarantee.
-

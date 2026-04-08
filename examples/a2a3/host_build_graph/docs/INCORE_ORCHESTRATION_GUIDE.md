@@ -4,8 +4,8 @@
 In host_build_graph, the orchestration function runs on the host. It allocates device buffers, builds the task graph by calling `Runtime::add_task`, and wires dependencies with `Runtime::add_successor`.
 
 ## Where To Put Orchestration Code
-- Each example keeps orchestration sources under `examples/host_build_graph/<example>/kernels/orchestration/`.
-- `examples/host_build_graph/<example>/kernels/kernel_config.py` defines the orchestration entry point. Example: `ORCHESTRATION = {"source": ".../example_orch.cpp", "function_name": "build_example_graph"}`.
+- Each example keeps orchestration sources under `examples/a2a3/host_build_graph/<example>/kernels/orchestration/`.
+- `examples/a2a3/host_build_graph/<example>/kernels/kernel_config.py` defines the orchestration entry point. Example: `ORCHESTRATION = {"source": ".../example_orch.cpp", "function_name": "build_example_graph"}`.
 
 ## Function Signature
 Your orchestration entry must be `extern "C"` and match:
@@ -38,7 +38,7 @@ A typical host orchestration sequence is:
 4. Create tasks with `runtime->add_task(args, num_args, func_id, core_type)`.
 5. Add dependency edges with `runtime->add_successor(producer, consumer)`.
 
-Example: see `examples/host_build_graph/vector_example/kernels/orchestration/example_orch.cpp`.
+Example: see `examples/a2a3/host_build_graph/vector_example/kernels/orchestration/example_orch.cpp`.
 
 ## Kernel Mapping
 - `func_id` and `core_type` are defined in `kernels/kernel_config.py` under `KERNELS`.
