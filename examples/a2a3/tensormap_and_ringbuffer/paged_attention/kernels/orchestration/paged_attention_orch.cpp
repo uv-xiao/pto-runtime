@@ -110,7 +110,7 @@ __attribute__((visibility("default"))) void aicpu_orchestration_entry(const Chip
         uint64_t cur_seq = static_cast<uint64_t>(get_tensor_data<int32_t>(context_lens, 1, cl_idx));
         uint64_t bn_this_batch = (cur_seq + block_size - 1) / block_size;
         for (uint64_t q_idx = 0; q_idx < q_loop; q_idx++) {
-            PTO2_SCOPE() {
+            PTO2_SCOPE(PTO2ScopeMode::MANUAL) {
                 uint32_t cur_offset = static_cast<uint32_t>(b_idx * q_head_num + q_idx * q_tile);
 
                 uint32_t qi_offsets[2] = {cur_offset, 0};
@@ -122,6 +122,7 @@ __attribute__((visibility("default"))) void aicpu_orchestration_entry(const Chip
                 const Tensor &oi = alloc_outs.get_ref(0);
                 const Tensor &li_update = alloc_outs.get_ref(1);
                 const Tensor &mi_update = alloc_outs.get_ref(2);
+                PTO2TaskId alloc_task = alloc_outs.task_id();
 
                 for (uint64_t bn = 0; bn < bn_this_batch; bn++) {
                     uint32_t bt_idx[2] = {static_cast<uint32_t>(b_idx), static_cast<uint32_t>(bn)};
@@ -148,6 +149,7 @@ __attribute__((visibility("default"))) void aicpu_orchestration_entry(const Chip
                     params_sf.add_output(pij_bf16_ci);
                     params_sf.add_output(scalar_ci);
                     params_sf.add_output(scalar_ci);
+                    params_sf.add_dep(qk_outs.task_id());
                     params_sf.add_scalar(scale_value);
                     TaskOutputTensors sf_outs = pto2_rt_submit_aiv_task(FUNC_SOFTMAX_PREPARE, params_sf);
                     const Tensor &pij_bf16 = sf_outs.get_ref(0);
@@ -158,6 +160,7 @@ __attribute__((visibility("default"))) void aicpu_orchestration_entry(const Chip
                     params_pv.add_input(pij_bf16);
                     params_pv.add_input(vj);
                     params_pv.add_output(tile2d_ci);
+                    params_pv.add_dep(sf_outs.task_id());
                     TaskOutputTensors pv_outs = pto2_rt_submit_aic_task(FUNC_PV_MATMUL, params_pv);
                     const Tensor &oi_tmp = pv_outs.get_ref(0);
 
@@ -172,6 +175,9 @@ __attribute__((visibility("default"))) void aicpu_orchestration_entry(const Chip
                     params_up.add_inout(li_update);
                     params_up.add_inout(oi);
                     params_up.add_inout(out_view);
+                    params_up.add_dep(alloc_task);
+                    params_up.add_dep(sf_outs.task_id());
+                    params_up.add_dep(pv_outs.task_id());
                     params_up.add_scalar(is_first);
                     params_up.add_scalar(is_last);
                     pto2_rt_submit_aiv_task(FUNC_ONLINE_UPDATE, params_up);
