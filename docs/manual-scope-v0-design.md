@@ -391,15 +391,21 @@ These numbers are still useful for attribution, but they are noisier than the
 ### Current Hotspots
 
 After `371349f`, the branch has crossed the elapsed-time target in the current
-spot batch, but the `Case1` margin is still thin. The remaining large buckets
-from the latest phase breakdown before the allocator fast path were:
+spot batch, but the `Case1` margin is still thin. A fresh `Case1` profiling run
+after the allocator fast path showed:
 
-- `task+heap_alloc`
-- `lookup+dep`
-- `fanin+ready`
+- `task+heap_alloc`: `7644.260us`
+- `param_copy`: `4621.600us`
+- `lookup+dep`: `2852.460us`
+- `fanin+ready`: `2792.640us`
+- `tensormap_ins`: `1293.020us`
+- `sync_tensormap`: `971.900us`
 
-`param_copy` was reduced substantially by eager `start_offset` caching and is
-no longer the largest problem.
+Compared against the previous profiling snapshot, `task+heap_alloc` moved down
+from about `8022.640us` to `7644.260us`, which matches the intent of the new
+allocator fast path. The remaining work should now focus more on
+`lookup+dep` and `fanin+ready`, while keeping pressure on allocator work until
+the `Case1` margin is less noisy.
 
 The next optimization pass should keep focusing on:
 
