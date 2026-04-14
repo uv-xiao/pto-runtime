@@ -300,7 +300,7 @@ This status does not mean the branch is performance-ready.
 - All runs used the same local `PTO_ISA_ROOT` checkout so the runtime delta is
   measured against the same kernel dependency tree
 
-### Results
+### Results At `a682ccc` (Pre-hotpath Tuning)
 
 | Case | Runtime | Elapsed Trimmed Avg (us) | Orch Trimmed Avg (us) | Delta vs Base | Delta vs ABG |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -322,6 +322,64 @@ This status does not mean the branch is performance-ready.
 - The current v0 implementation is therefore functionally correct for the
   supported scope, but not performance-ready.
 
+## Optimization Effects
+
+The table above is the starting point before runtime hotpath tuning.
+
+The entries below record the follow-up optimizations that were applied after
+`a682ccc`. These are not all from the same benchmark batch. They are iterative
+spot measurements collected during tuning, mainly with:
+
+- platform: `a2a3`
+- device: `10`
+- workload: `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention`
+- rounds: `10`
+- metric: simple average from `tmp/measure_case.py`
+
+These numbers are still useful for attribution, but they are noisier than the
+30-round trimmed-average table above.
+
+### Kept Optimizations
+
+| Optimization | Files / Functions Touched | Why It Helps | Measured Effect |
+| --- | --- | --- | --- |
+| O(1) explicit-dep membership check | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_get_current_scope_task_slot()` `pto2_submit_mixed_task()` `pto2_scope_begin()` `pto2_prepare_task()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_ring_buffer.h` | Removed the per-dependency linear scan over current-scope tasks. Manual paged-attention emits many `add_dep(...)` edges inside the inner loop, so the old validation shape was wrong for this workload. | First spot run after replacing the scan: `Case1 49628.2 -> 36016.3us`, `Case2 33248.6 -> 17906.5us`. |
+| Exact per-scope epoch validation | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_get_current_scope_task_slot()` `pto2_scope_begin()` `pto2_prepare_task()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_ring_buffer.h`; `tests/ut/cpp/test_a2a3_pto2_manual_scope_runtime.cpp` | The first O(1) version used only `scope_depth`, which was fast but could accept a task from an older closed scope reopened at the same depth. The epoch fix keeps the O(1) path while restoring exact scope isolation. | Correctness fix. No meaningful speed target by itself; it preserves the O(1) win and closes the stale-scope hole. |
+| Skip redundant creator-retention when owner is already explicit | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` `pto2_append_explicit_manual_deps()` | For manual-local tensors, if the producer task is already present in `Arg.add_dep(...)`, the submit path does not need to look up the producer slot again just to add the same fanin and let `fanin_builder` deduplicate it. | Spot run during tuning: `Case1 36016.3 -> 33170.4us`; `Case2` was roughly flat/noisy (`17906.5 -> 18304.6us`). |
+| Canonicalize explicit dep ids once per submit | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` | Stores validated dep ids / slot pointers once, then reuses them in later branches instead of repeatedly consulting `Arg`. This is a small submit-path cleanup, not a large standalone win. | Small cleanup contribution. No isolated large gain observed beyond the creator-retention optimization above. |
+| Eager `start_offset` caching, remove hot-path recompute from payload init | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/tensor.h` `Tensor::init()` `Tensor::init_with_view()` `Tensor::init_from_create_info()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_runtime2_types.h` `PTO2TaskPayload::init()`; `tests/ut/cpp/test_a2a3_pto2_manual_scope_runtime.cpp` | `payload->init()` used to recompute `start_offset` for every tensor arg on every submit. For paged-attention this fell into the large `param_copy` bucket. Moving the work to tensor creation / view construction takes it out of the submit hot path. | AICPU phase profiling on `Case1` showed `param_copy` drop from about `9879us` to `4629us`. Spot wall-time after this change was about `Case1 34105.5us`, `Case2 18503.3us`. |
+
+### Reverted / Rejected Optimizations
+
+| Attempt | Files / Functions Touched | Result |
+| --- | --- | --- |
+| Fold output owner metadata into `payload->init()` to save the post-init output loop | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/tensor.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_runtime2_types.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` | Reverted. It did not improve end-to-end time reliably and made the code harder to reason about. |
+| Change `out_view` in paged-attention update from `INOUT` to `NO_DEP` | `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention/kernels/orchestration/paged_attention_orch.cpp`; `examples/a2a3/tensormap_and_ringbuffer/paged_attention/kernels/orchestration/paged_attention_orch.cpp` | Reverted. Real-device golden failed badly, so `NO_DEP` was too strong for this tensor. |
+| Change `out_view` in paged-attention update from `INOUT` to `OUTPUT_EXISTING` | `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention/kernels/orchestration/paged_attention_orch.cpp`; `examples/a2a3/tensormap_and_ringbuffer/paged_attention/kernels/orchestration/paged_attention_orch.cpp` | Reverted. Real-device golden also failed, so the current runtime still needs `INOUT` semantics there. |
+
+### Current Tuning Snapshot
+
+After the kept optimizations above, the current branch is materially better than
+the original `a682ccc` runtime hotpath, but it still is not yet at the target
+of clearly beating both merge-base TMR and ABG on the supported paged-attention
+cases.
+
+Current spot measurement after the latest kept runtime changes:
+
+| Case | Current TMR Spot Avg (us) | Current Orch Spot Avg (us) | Improvement vs `a682ccc` |
+| --- | ---: | ---: | ---: |
+| Case1 | 34105.5 | 34051.1 | `-15522.7us` elapsed |
+| Case2 | 18503.3 | 18246.1 | `-14745.3us` elapsed |
+
+The remaining large buckets from the latest phase breakdown are:
+
+- `task+heap_alloc`
+- `lookup+dep`
+- `fanin+ready`
+
+`param_copy` was reduced substantially by eager `start_offset` caching and is
+no longer the largest problem.
+
 ## Risks
 
 1. If explicit deps are missing, current-manual-scope-local tensors may be
@@ -342,7 +400,7 @@ Implement v0 as the minimal, explicit, submit-time-only manual scope:
 - no delayed linking
 - immediate publish
 - alloc returns `task_id`
-- scope-depth-based tensor locality check
+- scope-metadata-based tensor locality check
 
 This keeps the PR small, aligns with maintainer feedback, and preserves the
 useful part of manual scope for the current examples.
