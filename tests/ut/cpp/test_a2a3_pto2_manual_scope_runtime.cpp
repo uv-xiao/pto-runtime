@@ -171,21 +171,4 @@ TEST_F(ManualScopeRuntimeTest, ExplicitDepRejectsTaskFromClosedScopeAtSameDepth)
     EXPECT_TRUE(second.empty());
 }
 
-TEST_F(ManualScopeRuntimeTest, ViewCachesStartOffsetEagerly) {
-    pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::MANUAL);
-
-    uint32_t shapes[2] = {8, 8};
-    TensorCreateInfo create_info(shapes, 2, DataType::FLOAT32);
-    Arg args;
-    args.add_output(create_info);
-    TaskSubmitResult outputs = pto2_alloc_tensors(&rt_->orchestrator, args);
-    ASSERT_EQ(outputs.size(), 1u);
-
-    uint32_t view_shapes[2] = {2, 3};
-    uint32_t view_offsets[2] = {2, 3};
-    Tensor view = outputs.get_ref(0).view(view_shapes, view_offsets);
-
-    EXPECT_EQ(view.start_offset, 19u);
-}
-
 }  // namespace

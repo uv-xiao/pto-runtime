@@ -214,7 +214,6 @@ struct alignas(64) Tensor {
         owner_task_id = PTO2TaskId::invalid();
         producer_scope_depth = -1;
         producer_manual_scope_depth = -1;
-        update_start_offset();
     }
 
     void init(const Tensor &other) {
@@ -273,7 +272,6 @@ struct alignas(64) Tensor {
         owner_task_id = other.owner_task_id;
         producer_scope_depth = other.producer_scope_depth;
         producer_manual_scope_depth = other.producer_manual_scope_depth;
-        update_start_offset();
     }
 
     /// Compute 1D flat element offset from multi-dimensional indices.
@@ -300,7 +298,6 @@ struct alignas(64) Tensor {
         owner_task_id = PTO2TaskId::invalid();  // caller (orchestrator) overwrites with actual task_id
         producer_scope_depth = -1;
         producer_manual_scope_depth = -1;
-        start_offset = 0;
         if (ci.has_initial_value) {
             fill_initial_value(ci.initial_value);
         }

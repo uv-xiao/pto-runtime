@@ -121,39 +121,32 @@ public:
             output_size > 0 ? PTO2_ALIGN_UP(static_cast<uint64_t>(output_size), PTO2_ALIGN_SIZE) : 0;
 
         int spin_count = 0;
+        int32_t prev_last_alive = last_alive_ptr_->load(std::memory_order_acquire);
+        int32_t last_alive = prev_last_alive;
+        update_heap_tail(last_alive);
         bool blocked_on_heap = false;
 #if PTO2_ORCH_PROFILING
         uint64_t wait_start = 0;
         bool waiting = false;
 #endif
 
-        if (void *heap_ptr = try_alloc_with_last_alive(last_alive_seen_, aligned_size, &blocked_on_heap)) {
-            int32_t task_id = commit_task();
-#if PTO2_ORCH_PROFILING
-            record_wait(spin_count, wait_start, waiting);
-#endif
-            return {task_id, task_id & window_mask_, heap_ptr, static_cast<char *>(heap_ptr) + aligned_size};
-        }
-
-        int32_t prev_last_alive = last_alive_seen_;
         while (true) {
-            int32_t last_alive = last_alive_ptr_->load(std::memory_order_acquire);
-            update_heap_tail(last_alive);
-
-            if (void *heap_ptr = try_alloc_with_last_alive(last_alive, aligned_size, &blocked_on_heap)) {
-                int32_t task_id = commit_task();
+            // Check both resources; commit only if both available
+            if (local_task_id_ - last_alive + 1 < window_size_) {
+                void *heap_ptr = try_bump_heap(aligned_size);
+                if (heap_ptr) {
+                    int32_t task_id = commit_task();
 #if PTO2_ORCH_PROFILING
-                record_wait(spin_count, wait_start, waiting);
+                    record_wait(spin_count, wait_start, waiting);
 #endif
-                return {task_id, task_id & window_mask_, heap_ptr, static_cast<char *>(heap_ptr) + aligned_size};
+                    return {task_id, task_id & window_mask_, heap_ptr, static_cast<char *>(heap_ptr) + aligned_size};
+                }
+                blocked_on_heap = true;
+            } else {
+                blocked_on_heap = false;
             }
 
-            if (last_alive > prev_last_alive) {
-                spin_count = 0;
-                prev_last_alive = last_alive;
-                continue;
-            }
-
+            // Spin: wait for scheduler to advance last_task_alive
             spin_count++;
 #if PTO2_ORCH_PROFILING
             if (!waiting) {
@@ -161,18 +154,25 @@ public:
                 waiting = true;
             }
 #endif
+            last_alive = last_alive_ptr_->load(std::memory_order_acquire);
+            update_heap_tail(last_alive);
+            if (last_alive > prev_last_alive) {
+                spin_count = 0;
+                prev_last_alive = last_alive;
+            } else {
 #if PTO2_SPIN_VERBOSE_LOGGING
-            if (spin_count % PTO2_BLOCK_NOTIFY_INTERVAL == 0) {
-                LOG_WARN(
-                    "[TaskAllocator] BLOCKED: tasks=%d/%d, heap=%" PRIu64 "/%" PRIu64 ", on=%s, spins=%d",
-                    local_task_id_ - last_alive, window_size_, heap_top_, heap_size_,
-                    blocked_on_heap ? "heap" : "task", spin_count
-                );
-            }
+                if (spin_count % PTO2_BLOCK_NOTIFY_INTERVAL == 0) {
+                    LOG_WARN(
+                        "[TaskAllocator] BLOCKED: tasks=%d/%d, heap=%" PRIu64 "/%" PRIu64 ", on=%s, spins=%d",
+                        local_task_id_ - last_alive, window_size_, heap_top_, heap_size_,
+                        blocked_on_heap ? "heap" : "task", spin_count
+                    );
+                }
 #endif
-            if (spin_count >= PTO2_ALLOC_SPIN_LIMIT) {
-                report_deadlock(output_size, blocked_on_heap);
-                return {-1, -1, nullptr, nullptr};
+                if (spin_count >= PTO2_ALLOC_SPIN_LIMIT) {
+                    report_deadlock(output_size, blocked_on_heap);
+                    return {-1, -1, nullptr, nullptr};
+                }
             }
             SPIN_WAIT_HINT();
         }
@@ -243,23 +243,6 @@ private:
         int32_t task_id = local_task_id_++;
         current_index_ptr_->store(local_task_id_, std::memory_order_release);
         return task_id;
-    }
-
-    bool has_task_slot_capacity(int32_t last_alive) const { return local_task_id_ - last_alive + 1 < window_size_; }
-
-    void *try_alloc_with_last_alive(int32_t last_alive, uint64_t aligned_size, bool *blocked_on_heap) {
-        if (!has_task_slot_capacity(last_alive)) {
-            if (blocked_on_heap != nullptr) {
-                *blocked_on_heap = false;
-            }
-            return nullptr;
-        }
-
-        void *heap_ptr = try_bump_heap(aligned_size);
-        if (blocked_on_heap != nullptr) {
-            *blocked_on_heap = (heap_ptr == nullptr);
-        }
-        return heap_ptr;
     }
 
     /**
