@@ -34,6 +34,21 @@
 #define FUNC_SOFTMAX_PREPARE 1
 #define FUNC_PV_MATMUL 2
 #define FUNC_ONLINE_UPDATE 3
+
+inline bool validate_paged_attention_shape(uint64_t num_heads, uint64_t block_size, uint64_t head_dim) {
+    if (head_dim == 16 && block_size == 16 && num_heads != 0 && (num_heads % 16) == 0) {
+        return true;
+    }
+
+    pto2_rt_report_fatal(
+        PTO2_ERROR_INVALID_ARGS,
+        "example paged_attention supports only block_size=16, head_dim=16, and num_heads multiple of 16; got "
+        "num_heads=%" PRIu64 ", block_size=%" PRIu64 ", head_dim=%" PRIu64,
+        num_heads, block_size, head_dim
+    );
+    return false;
+}
+
 extern "C" {
 
 __attribute__((visibility("default"))) PTO2OrchestrationConfig
@@ -65,6 +80,9 @@ __attribute__((visibility("default"))) void aicpu_orchestration_entry(const Chip
     uint64_t q_tile = 16;
     uint64_t q_loop = (q_head_num + q_tile - 1) / q_tile;
     uint64_t elem_size = get_element_size(data_type);
+    if (!validate_paged_attention_shape(num_heads, block_size, head_dim)) {
+        return;
+    }
 
     // Reshape tensors for kernel consumption (2D flattened)
     void *query_ptr = orch_args.tensor(0).data_as<void>();
