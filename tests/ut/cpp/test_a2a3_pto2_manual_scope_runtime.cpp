@@ -251,6 +251,30 @@ TEST_F(ManualScopeRuntimeTest, AutoConsumerOfManualProducedTensorSucceedsWithExp
     EXPECT_EQ(consumer_slot.payload->fanin_inline_slot_states[0], &producer_slot);
 }
 
+TEST_F(ManualScopeRuntimeTest, ManualConsumerOfAutoProducedTensorRequiresExplicitDep) {
+    pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::AUTO);
+
+    TensorCreateInfo produced_ci = make_create_info();
+    Arg produced_args;
+    produced_args.add_output(produced_ci);
+    TaskSubmitResult produced = pto2_alloc_tensors(&rt_->orchestrator, produced_args);
+    ASSERT_TRUE(produced.task_id().is_valid());
+
+    pto2_scope_end(&rt_->orchestrator);
+    ASSERT_FALSE(rt_->orchestrator.fatal);
+
+    pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::MANUAL);
+
+    Arg consumer_args;
+    consumer_args.add_input(produced.get_ref(0));
+    MixedKernels kernels{};
+    kernels.aiv0_kernel_id = 0;
+
+    TaskSubmitResult consumer = pto2_submit_mixed_task(&rt_->orchestrator, kernels, consumer_args);
+    EXPECT_TRUE(rt_->orchestrator.fatal);
+    EXPECT_TRUE(consumer.empty());
+}
+
 TEST_F(ManualScopeRuntimeTest, ManualConsumerOfManualProducedTensorRequiresExplicitDep) {
     pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::MANUAL);
 
@@ -304,6 +328,53 @@ TEST_F(ManualScopeRuntimeTest, ManualUpdatesAdvanceLatestWriterMetadata) {
     EXPECT_EQ(state.owner_task_id, output_existing_update.task_id());
     EXPECT_EQ(state.producer_scope_depth, 0);
     EXPECT_EQ(state.producer_manual_scope_depth, 0);
+}
+
+TEST_F(ManualScopeRuntimeTest, AutoInoutOnManualTensorClearsManualProvenanceAndAdvancesLatestWriter) {
+    pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::MANUAL);
+
+    TensorCreateInfo state_ci = make_create_info();
+    Arg alloc_args;
+    alloc_args.add_output(state_ci);
+    TaskSubmitResult alloc = pto2_alloc_tensors(&rt_->orchestrator, alloc_args);
+    ASSERT_TRUE(alloc.task_id().is_valid());
+
+    Tensor state = alloc.get_ref(0);
+
+    pto2_scope_end(&rt_->orchestrator);
+    ASSERT_FALSE(rt_->orchestrator.fatal);
+
+    pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::AUTO);
+
+    Arg update_args;
+    update_args.add_inout(state);
+    update_args.add_dep(alloc.task_id());
+    MixedKernels kernels{};
+    kernels.aiv0_kernel_id = 0;
+
+    TaskSubmitResult auto_update = pto2_submit_mixed_task(&rt_->orchestrator, kernels, update_args);
+    ASSERT_FALSE(rt_->orchestrator.fatal);
+    ASSERT_TRUE(auto_update.task_id().is_valid());
+    EXPECT_EQ(state.owner_task_id, auto_update.task_id());
+    EXPECT_EQ(state.producer_manual_scope_depth, -1);
+
+    TensorCreateInfo consumer_ci = make_create_info();
+    Arg consumer_args;
+    consumer_args.add_input(state);
+    consumer_args.add_output(consumer_ci);
+
+    TaskSubmitResult consumer = pto2_submit_mixed_task(&rt_->orchestrator, kernels, consumer_args);
+    ASSERT_FALSE(rt_->orchestrator.fatal);
+    ASSERT_TRUE(consumer.task_id().is_valid());
+
+    PTO2TaskSlotState &update_slot = rt_->scheduler.ring_sched_states[auto_update.task_id().ring()].get_slot_state_by_task_id(
+        auto_update.task_id().local()
+    );
+    PTO2TaskSlotState &consumer_slot =
+        rt_->scheduler.ring_sched_states[consumer.task_id().ring()].get_slot_state_by_task_id(consumer.task_id().local());
+    ASSERT_NE(consumer_slot.payload, nullptr);
+    EXPECT_EQ(consumer_slot.payload->fanin_actual_count, 1);
+    EXPECT_EQ(consumer_slot.payload->fanin_inline_slot_states[0], &update_slot);
 }
 
 TEST_F(ManualScopeRuntimeTest, OutsideManualScopeExplicitDepIsAccepted) {

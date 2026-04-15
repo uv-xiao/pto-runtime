@@ -764,13 +764,17 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
         }
 
         const Tensor *tensor = args.tensor(i).ptr;
+        PTO2TaskId owner = tensor->owner_task_id;
         bool tensor_has_manual_provenance = pto2_tensor_has_manual_provenance(*tensor);
+        bool owner_requires_explicit_dep =
+            owner.is_valid() && (submit_is_manual || tensor_has_manual_provenance);
 
-        if (tensor_has_manual_provenance &&
-            !pto2_explicit_dep_ids_contains(explicit_dep_ids, explicit_dep_count, tensor->owner_task_id)) {
+        if (owner_requires_explicit_dep &&
+            !pto2_explicit_dep_ids_contains(explicit_dep_ids, explicit_dep_count, owner)) {
             pto2_orch_report_fatal(
                 orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__,
-                "tensor with manual provenance requires explicit dependency on latest writer"
+                submit_is_manual ? "manual scope tensor args require explicit dependency on latest writer"
+                                 : "tensor with manual provenance requires explicit dependency on latest writer"
             );
             return result;
         }
@@ -780,7 +784,6 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
         }
 
         // Step A: pure AUTO tensors keep creator retention.
-        PTO2TaskId owner = tensor->owner_task_id;
         if (!tensor_has_manual_provenance && owner.is_valid() && sched != nullptr) {
             PTO2TaskSlotState *prod_state =
                 &sched->ring_sched_states[owner.ring()].get_slot_state_by_task_id(owner.local());
@@ -830,7 +833,7 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
             TensorArgType ptype = args.tag(i);
             if (ptype == TensorArgType::INOUT || ptype == TensorArgType::OUTPUT_EXISTING) {
                 const Tensor *tensor = args.tensor(i).ptr;
-                if (!submit_is_manual && !pto2_tensor_has_manual_provenance(*tensor) && !tensor->manual_dep) {
+                if (!submit_is_manual && !tensor->manual_dep) {
                     orch->tensor_map.insert(*args.tensor(i).ptr, task_id);
                 }
             }
@@ -863,17 +866,18 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
         }
     }
 
-    if (submit_is_manual) {
-        for (int i = 0; i < args.tensor_count(); i++) {
-            TensorArgType ptype = args.tag(i);
-            if (ptype != TensorArgType::INOUT && ptype != TensorArgType::OUTPUT_EXISTING) {
-                continue;
-            }
-            Tensor *tensor = const_cast<Tensor *>(args.tensor(i).ptr);
-            tensor->set_latest_writer_metadata(
-                prepared.task_id, static_cast<int16_t>(orch->scope_stack_top), submit_manual_scope_depth
-            );
+    for (int i = 0; i < args.tensor_count(); i++) {
+        TensorArgType ptype = args.tag(i);
+        if (ptype != TensorArgType::INOUT && ptype != TensorArgType::OUTPUT_EXISTING) {
+            continue;
         }
+        Tensor *tensor = const_cast<Tensor *>(args.tensor(i).ptr);
+        if (!submit_is_manual && !pto2_tensor_has_manual_provenance(*tensor)) {
+            continue;
+        }
+        tensor->set_latest_writer_metadata(
+            prepared.task_id, static_cast<int16_t>(orch->scope_stack_top), submit_manual_scope_depth
+        );
     }
 
     CYCLE_COUNT_LAP_RECORD(g_orch_args_cycle, AicpuPhaseId::ORCH_PARAMS, task_id.raw);
