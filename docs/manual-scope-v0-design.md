@@ -344,6 +344,12 @@ pass or on different branch states.
 - timing source: device log parsing with the same `orch_start/orch_end` logic
   as `tools/benchmark_rounds.sh`
 
+Important reading rule:
+
+- compare AUTO vs manual only within the same row
+- do not compare `paged_attention` rows directly against
+  `paged_attention_unroll` rows as if they were the same workload
+
 ### Results
 
 | Example | Case | Auto Elapsed Trim (us) | Auto Orch Trim (us) | Manual Elapsed Trim (us) | Manual Orch Trim (us) | Elapsed Delta | Orch Delta |
@@ -362,6 +368,66 @@ pass or on different branch states.
 - The current v0 branch is functionally correct on hardware, but it does not
   meet the earlier non-unroll performance target.
 
+## Why Raw Non-unroll Looks Faster Than Unroll
+
+The raw elapsed columns above are not a fair cross-workload comparison.
+`paged_attention` and `paged_attention_unroll` are intentionally very different
+problem sizes.
+
+### Case Shape Comparison
+
+| Example | Case | Batch | Num Heads | Head Dim | Block Size | Context Len |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `paged_attention` | `Case1` | 1 | 16 | 16 | 16 | 33 |
+| `paged_attention_unroll` | `Case1` | 256 | 16 | 128 | 128 | 8192 |
+| `paged_attention` | `Case2` | 1 | 16 | 16 | 16 | 128 |
+| `paged_attention_unroll` | `Case2` | 64 | 64 | 128 | 64 | 8192 |
+
+So the unroll example is not a tuned version of the same small test. It is the
+production-scale workload.
+
+### Device-log Evidence
+
+From the fresh benchmark logs on device `9`:
+
+- `paged_attention Case1` submitted `13` tasks total
+- `paged_attention_unroll Case1` submitted `1280` tasks total
+
+These numbers match the orchestration structure:
+
+- non-unroll `Case1`
+  - `batch=1`
+  - `bn_this_batch=ceil(33 / 16)=3`
+  - `q_loop=1`
+  - per batch: `1 alloc + 3 * 4 kernel tasks = 13`
+- unroll `Case1`
+  - `batch=256`
+  - `bn_this_batch=ceil(8192 / 128)=64`
+  - `N_UNROLL=64`, so one unrolled group per batch
+  - per batch: `1 alloc + 4 grouped kernel tasks = 5`
+  - total: `256 * 5 = 1280`
+
+The important result is therefore not:
+
+- "non-unroll is faster than unroll"
+
+The important result is:
+
+- unroll processes a vastly larger workload, yet its runtime does not scale
+  remotely in proportion to raw work size
+- unroll dramatically reduces orchestration cost per unit of work
+
+One simple normalization is orchestration time per submitted task:
+
+| Example | Case | Orch Trim (us) | Submitted Tasks | Orch per Task (us) |
+| --- | --- | ---: | ---: | ---: |
+| `paged_attention` | `Case1` | 64.6 | 13 | 4.97 |
+| `paged_attention_unroll` | `Case1` | 777.4 | 1280 | 0.61 |
+
+So unroll is not "worse" in the meaningful sense. Its absolute latency is
+larger because the workload is massively larger, while its orchestration cost
+per submitted task is much lower.
+
 ## Why Modifier Tensors Still Use TensorMap
 
 The main correctness-sensitive runtime choice in v0 is still:
@@ -369,6 +435,35 @@ The main correctness-sensitive runtime choice in v0 is still:
 | Change | Files / Functions Touched | Why It Matters | Observed Effect |
 | --- | --- | --- | --- |
 | Keep TensorMap for manual-scope modifier tensors | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` | V0 has no returned task-id handle for zero-output updater tasks. Explicit deps can describe `qk -> softmax -> pv -> update`, but they still cannot express `update(i) -> update(i+1)` when the updater only mutates existing tensors. TensorMap publication / lookup on `INOUT` / `OUTPUT_EXISTING` keeps those repeated updates ordered correctly. | Current branch passes all eight fresh hardware golden checks. The remaining unroll gap is small but still concentrated in orchestration, which is consistent with modifier tensors continuing to pay TensorMap cost. |
+
+## Historical Optimization Notes
+
+The current PR intentionally does not carry the broader optimization branch.
+Those attempts were removed from the code to keep the PR scope small, but the
+history is still useful and should stay documented here as historical context.
+
+These entries are not claims about the current branch state. They record what
+was tried on the earlier heavier line of work and whether it was kept there,
+reverted there, or later dropped from this PR scope.
+
+### Historical Kept Attempts On The Earlier Branch
+
+| Optimization | Files / Functions Touched | Historical Effect |
+| --- | --- | --- |
+| O(1) explicit-dep membership check | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_get_current_scope_task_slot()` `pto2_submit_mixed_task()` `pto2_scope_begin()` `pto2_prepare_task()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_ring_buffer.h` | Large win on the old branch because it removed a linear current-scope scan from each `add_dep(...)` validation. |
+| Exact per-scope epoch validation | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_get_current_scope_task_slot()` `pto2_scope_begin()` `pto2_prepare_task()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_ring_buffer.h`; `tests/ut/cpp/test_a2a3_pto2_manual_scope_runtime.cpp` | Correctness fix that preserved the O(1) validation path while closing the stale-scope hole. |
+| Skip redundant creator-retention when owner is already explicit | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` `pto2_append_explicit_manual_deps()` | Reduced duplicate submit-path work when explicit deps already named the producer. |
+| Canonicalize explicit dep ids once per submit | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` | Small hotpath cleanup on the earlier branch. |
+| Eager `start_offset` caching, remove hot-path recompute from payload init | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/tensor.h` `Tensor::init()` `Tensor::init_with_view()` `Tensor::init_from_create_info()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_runtime2_types.h` `PTO2TaskPayload::init()`; `tests/ut/cpp/test_a2a3_pto2_manual_scope_runtime.cpp` | Reduced the earlier branch's `param_copy` hotspot substantially, but this was later dropped from the PR to keep the diff tightly coupled to manual-scope v0 itself. |
+| Cached allocator-state fast path before shared reload | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_ring_buffer.h` `PTO2TaskAllocator::alloc()` `has_task_slot_capacity()` `try_alloc_with_last_alive()` | Reduced allocator overhead on the earlier branch, but this was also dropped from the PR because it is a general runtime optimization, not a manual-scope-v0-specific change. |
+
+### Historical Reverted / Rejected Attempts
+
+| Attempt | Files / Functions Touched | Historical Result |
+| --- | --- | --- |
+| Fold output owner metadata into `payload->init()` to save the post-init output loop | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/tensor.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_runtime2_types.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` | Reverted on the earlier branch. End-to-end gains were not reliable and the code became harder to reason about. |
+| Change `out_view` in paged-attention update from `INOUT` to `NO_DEP` | earlier `paged_attention` orchestration files on the heavy branch | Reverted. Real-device golden failed. |
+| Change `out_view` in paged-attention update from `INOUT` to `OUTPUT_EXISTING` | earlier `paged_attention` orchestration files on the heavy branch | Reverted. Real-device golden also failed. |
 
 ## Risks
 
