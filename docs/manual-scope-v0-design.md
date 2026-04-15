@@ -361,6 +361,7 @@ It includes:
 - explicit `update(i) -> update(i+1)` chaining in the two manual paged-attention
   examples
 
+- current benchmark head: `a6ddebb`
 - base commit before the example-side chaining fix: `3d36370`
 - platform: `a2a3`
 - device: `9`
@@ -384,10 +385,10 @@ Important reading rule:
 
 | Example | Case | Auto Elapsed Trim (us) | Auto Orch Trim (us) | Manual Elapsed Trim (us) | Manual Orch Trim (us) | Elapsed Delta | Orch Delta |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `paged_attention` | `Case1` | 77.5 | 62.4 | 124.0 | 108.6 | +46.5 us (+60.0%) | +46.2 us (+74.0%) |
-| `paged_attention` | `Case2` | 96.2 | 74.1 | 146.7 | 124.6 | +50.5 us (+52.5%) | +50.5 us (+68.2%) |
-| `paged_attention_unroll` | `Case1` | 1138.4 | 800.7 | 1131.3 | 694.9 | -7.1 us (-0.6%) | -105.8 us (-13.2%) |
-| `paged_attention_unroll` | `Case2` | 519.7 | 319.1 | 511.3 | 282.6 | -8.4 us (-1.6%) | -36.5 us (-11.4%) |
+| `paged_attention` | `Case1` | 200.8 | 200.8 | 269.6 | 269.5 | +68.8 us (+34.3%) | +68.7 us (+34.2%) |
+| `paged_attention` | `Case2` | 211.8 | 211.7 | 287.9 | 287.9 | +76.1 us (+35.9%) | +76.2 us (+36.0%) |
+| `paged_attention_unroll` | `Case1` | 1137.2 | 972.1 | 1132.5 | 880.5 | -4.7 us (-0.4%) | -91.6 us (-9.4%) |
+| `paged_attention_unroll` | `Case2` | 526.9 | 506.2 | 515.7 | 460.5 | -11.2 us (-2.1%) | -45.7 us (-9.0%) |
 
 ### Reading The Batch
 
@@ -451,8 +452,8 @@ One simple normalization is orchestration time per submitted task:
 
 | Example | Case | Orch Trim (us) | Submitted Tasks | Orch per Task (us) |
 | --- | --- | ---: | ---: | ---: |
-| `paged_attention` | `Case1` | 64.6 | 13 | 4.97 |
-| `paged_attention_unroll` | `Case1` | 777.4 | 1280 | 0.61 |
+| `paged_attention` | `Case1` | 200.8 | 13 | 15.45 |
+| `paged_attention_unroll` | `Case1` | 972.1 | 1280 | 0.76 |
 
 So unroll is not "worse" in the meaningful sense. Its absolute latency is
 larger because the workload is massively larger, while its orchestration cost
