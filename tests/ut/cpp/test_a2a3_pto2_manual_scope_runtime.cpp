@@ -122,6 +122,26 @@ TEST_F(ManualScopeRuntimeTest, TaskSlotRecordsSubmissionScopeDepth) {
     EXPECT_EQ(inner_slot.scope_depth, 1);
 }
 
+TEST_F(ManualScopeRuntimeTest, AutoSubmitInsideManualScopeDoesNotStampManualProvenance) {
+    pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::MANUAL);
+    pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::AUTO);
+
+    TensorCreateInfo ci = make_create_info();
+    Arg args;
+    args.add_output(ci);
+    MixedKernels kernels{};
+    kernels.aiv0_kernel_id = 0;
+
+    TaskSubmitResult outputs = pto2_submit_mixed_task(&rt_->orchestrator, kernels, args);
+    ASSERT_FALSE(rt_->orchestrator.fatal);
+    ASSERT_EQ(outputs.size(), 1u);
+
+    const Tensor &out = outputs.get_ref(0);
+    EXPECT_TRUE(out.owner_task_id.is_valid());
+    EXPECT_EQ(out.producer_scope_depth, 1);
+    EXPECT_EQ(out.producer_manual_scope_depth, -1);
+}
+
 TEST_F(ManualScopeRuntimeTest, ExplicitDepAcceptsTaskFromOuterScopeWhenCurrentScopeIsAuto) {
     pto2_scope_begin(&rt_->orchestrator, PTO2ScopeMode::MANUAL);
 

@@ -641,6 +641,8 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
     PTO2TaskSlotState *explicit_dep_slots[Arg::kMaxExplicitDeps] = {};
     uint32_t explicit_dep_count = 0;
     bool submit_is_manual = orch->current_scope_is_manual();
+    int16_t submit_manual_scope_depth =
+        submit_is_manual ? static_cast<int16_t>(orch->current_manual_scope_depth) : static_cast<int16_t>(-1);
     if (args.explicit_dep_count() > 0) {
         for (uint32_t i = 0; i < args.explicit_dep_count(); i++) {
             PTO2TaskId dep_task_id = args.explicit_dep(i);
@@ -856,8 +858,7 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
     for (int i = 0; i < args.tensor_count(); i++) {
         if (args.tag(i) == TensorArgType::OUTPUT) {
             payload->tensors[i].set_latest_writer_metadata(
-                prepared.task_id, static_cast<int16_t>(orch->scope_stack_top),
-                static_cast<int16_t>(orch->current_manual_scope_depth)
+                prepared.task_id, static_cast<int16_t>(orch->scope_stack_top), submit_manual_scope_depth
             );
         }
     }
@@ -870,8 +871,7 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
             }
             Tensor *tensor = const_cast<Tensor *>(args.tensor(i).ptr);
             tensor->set_latest_writer_metadata(
-                prepared.task_id, static_cast<int16_t>(orch->scope_stack_top),
-                static_cast<int16_t>(orch->current_manual_scope_depth)
+                prepared.task_id, static_cast<int16_t>(orch->scope_stack_top), submit_manual_scope_depth
             );
         }
     }
@@ -981,6 +981,8 @@ TaskSubmitResult pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args
     PTO2RingFlowControl &fc = orch->sm_handle->header->rings[ring_id].fc;
     PTO2TaskDescriptor &task = *prepared.task;
     PTO2TaskPayload *payload = prepared.payload;
+    int16_t alloc_manual_scope_depth =
+        orch->current_scope_is_manual() ? static_cast<int16_t>(orch->current_manual_scope_depth) : static_cast<int16_t>(-1);
 
     CYCLE_COUNT_LAP_RECORD(g_orch_alloc_cycle, AicpuPhaseId::ORCH_ALLOC, prepared.task_id.raw);
 
@@ -1010,8 +1012,7 @@ TaskSubmitResult pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args
     payload->fanin_spill_pool = nullptr;
     for (int32_t i = 0; i < args.tensor_count(); i++) {
         payload->tensors[i].set_latest_writer_metadata(
-            prepared.task_id, static_cast<int16_t>(orch->scope_stack_top),
-            static_cast<int16_t>(orch->current_manual_scope_depth)
+            prepared.task_id, static_cast<int16_t>(orch->scope_stack_top), alloc_manual_scope_depth
         );
     }
 
