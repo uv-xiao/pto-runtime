@@ -15,6 +15,14 @@ import pytest
 from simpler_setup import SceneTestCase, scene_test
 
 
+def _compile_cache_key(case_cls, platform: str):
+    return (case_cls.__qualname__, platform, case_cls._st_runtime)
+
+
+def _sanitize_case_name(orch_source: str):
+    return "".join(char if char.isalnum() else "_" for char in orch_source)
+
+
 def _make_case(orch_source: str):
     @scene_test(level=2, runtime="tensormap_and_ringbuffer")
     class _ManualScopeValidation(SceneTestCase):
@@ -35,7 +43,17 @@ def _make_case(orch_source: str):
             ],
         }
 
+    case_name = f"ManualScopeValidation_{_sanitize_case_name(orch_source)}"
+    _ManualScopeValidation.__name__ = case_name
+    _ManualScopeValidation.__qualname__ = case_name
     return _ManualScopeValidation
+
+
+def test_make_case_uses_unique_compile_cache_keys_per_orchestration_source():
+    first = _make_case("missing_dep_on_manual_tensor.cpp")
+    second = _make_case("nested_manual_scope.cpp")
+
+    assert _compile_cache_key(first, "a2a3sim") != _compile_cache_key(second, "a2a3sim")
 
 
 @pytest.mark.platforms(["a2a3sim"])
