@@ -134,7 +134,7 @@ TEST(A2A3ManualScopeApi, SubmitAndAllocExposeTaskIds) {
     EXPECT_EQ(alloc_out.task_id(), PTO2TaskId::make(0, 23));
 }
 
-TEST(A2A3ManualScopeApi, ArgStoresExplicitDeps) {
+TEST(A2A3ManualScopeApi, ArgAcceptsExplicitDepsOutsideManualScope) {
     Arg args;
 
     args.add_dep(PTO2TaskId::make(0, 9));

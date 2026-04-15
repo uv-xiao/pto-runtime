@@ -43,7 +43,7 @@ def _make_case(orch_source: str):
 @pytest.mark.parametrize(
     "orch_source",
     [
-        "outside_scope_add_dep.cpp",
+        "missing_dep_on_manual_tensor.cpp",
         "nested_manual_scope.cpp",
         "foreign_manual_dep.cpp",
     ],

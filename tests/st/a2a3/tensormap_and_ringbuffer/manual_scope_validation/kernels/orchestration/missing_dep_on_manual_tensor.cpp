@@ -25,17 +25,22 @@ aicpu_orchestration_config(const ChipStorageTaskArgs &orch_args) {
 
 __attribute__((visibility("default"))) void aicpu_orchestration_entry(const ChipStorageTaskArgs &orch_args) {
     (void)orch_args;
+
     uint32_t shape[1] = {1};
     TensorCreateInfo ci(shape, 1, DataType::FLOAT32);
+    TaskOutputTensors manual_out;
 
-    Arg alloc_args;
-    alloc_args.add_output(ci);
-    TaskOutputTensors produced = alloc_tensors(alloc_args);
+    PTO2_SCOPE(PTO2ScopeMode::MANUAL) {
+        Arg alloc_args;
+        alloc_args.add_output(ci);
+        manual_out = alloc_tensors(alloc_args);
+    }
 
-    Arg args;
-    args.add_input(produced.get_ref(0));
-    args.add_dep(produced.task_id());
-    (void)pto2_rt_submit_aiv_task(0, args);
+    PTO2_SCOPE() {
+        Arg use_args;
+        use_args.add_input(manual_out.get_ref(0));
+        (void)pto2_rt_submit_aiv_task(0, use_args);
+    }
 }
 
 }  // extern "C"
