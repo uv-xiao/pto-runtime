@@ -15,9 +15,6 @@ import pytest
 from simpler_setup import SceneTestCase, scene_test
 
 
-_OUTSIDE_SCOPE_ADD_DEP_XFAIL_REASON = "Task 2 removes the runtime-side rejection of Arg.add_dep(...) outside manual scope"
-
-
 def _compile_cache_key(case_cls, platform: str):
     return (case_cls.__qualname__, platform, case_cls._st_runtime)
 
@@ -92,9 +89,4 @@ def test_manual_scope_outside_scope_add_dep_positive_intent(st_platform, st_devi
     monkeypatch.setenv("PTO_LOG_LEVEL", "error")
 
     case = _make_case("outside_scope_add_dep.cpp")
-    try:
-        _run_case(case, st_platform, st_device_ids)
-    except RuntimeError as exc:
-        if "run_runtime failed with code -5" in str(exc):
-            pytest.xfail(_OUTSIDE_SCOPE_ADD_DEP_XFAIL_REASON)
-        raise
+    _run_case(case, st_platform, st_device_ids)
