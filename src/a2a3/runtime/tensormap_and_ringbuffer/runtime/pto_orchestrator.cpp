@@ -140,9 +140,22 @@ static PTO2TaskSlotState *pto2_get_current_scope_task_slot(const PTO2Orchestrato
     return slot_state;
 }
 
-static bool pto2_is_current_manual_scope_local(const PTO2OrchestratorState *orch, const Tensor &tensor) {
-    return orch->in_manual_scope() && tensor.owner_task_id.is_valid() &&
-           tensor.producer_manual_scope_depth == orch->current_manual_scope_depth;
+static PTO2TaskSlotState *pto2_get_live_task_slot(const PTO2OrchestratorState *orch, PTO2TaskId task_id) {
+    if (orch->scheduler == nullptr || orch->sm_handle == nullptr || orch->sm_handle->header == nullptr || !task_id.is_valid()) {
+        return nullptr;
+    }
+
+    auto &ring_sched = orch->scheduler->ring_sched_states[task_id.ring()];
+    PTO2TaskSlotState *slot_state = &ring_sched.get_slot_state_by_task_id(task_id.local());
+    if (slot_state->task == nullptr || slot_state->task->task_id != task_id) {
+        return nullptr;
+    }
+
+    return slot_state;
+}
+
+bool pto2_tensor_has_manual_provenance(const Tensor &tensor) {
+    return tensor.owner_task_id.is_valid() && tensor.producer_manual_scope_depth >= 0;
 }
 
 static bool
@@ -627,27 +640,29 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
     PTO2TaskId explicit_dep_ids[Arg::kMaxExplicitDeps] = {};
     PTO2TaskSlotState *explicit_dep_slots[Arg::kMaxExplicitDeps] = {};
     uint32_t explicit_dep_count = 0;
+    bool submit_is_manual = orch->current_scope_is_manual();
     if (args.explicit_dep_count() > 0) {
-        if (!orch->in_manual_scope()) {
-            pto2_orch_report_fatal(
-                orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "Arg.add_dep(...) is only valid inside manual scope"
-            );
-            return result;
-        }
         for (uint32_t i = 0; i < args.explicit_dep_count(); i++) {
             PTO2TaskId dep_task_id = args.explicit_dep(i);
             if (!dep_task_id.is_valid()) {
                 pto2_orch_report_fatal(
-                    orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "manual dependency task_id is invalid"
+                    orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "explicit dependency task_id is invalid"
                 );
                 return result;
             }
-            PTO2TaskSlotState *dep_slot_state = pto2_get_current_scope_task_slot(orch, dep_task_id);
+            PTO2TaskSlotState *dep_slot_state =
+                submit_is_manual ? pto2_get_current_scope_task_slot(orch, dep_task_id) : pto2_get_live_task_slot(orch, dep_task_id);
             if (dep_slot_state == nullptr) {
-                pto2_orch_report_fatal(
-                    orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__,
-                    "manual dependency must target a task created in the current manual scope"
-                );
+                if (submit_is_manual) {
+                    pto2_orch_report_fatal(
+                        orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__,
+                        "manual dependency must target a task created in the current manual scope"
+                    );
+                } else {
+                    pto2_orch_report_fatal(
+                        orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "explicit dependency must target a live task"
+                    );
+                }
                 return result;
             }
             if (!pto2_explicit_dep_ids_contains(explicit_dep_ids, explicit_dep_count, dep_task_id)) {
@@ -747,12 +762,24 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
         }
 
         const Tensor *tensor = args.tensor(i).ptr;
-        bool manual_local = pto2_is_current_manual_scope_local(orch, *tensor);
+        bool tensor_has_manual_provenance = pto2_tensor_has_manual_provenance(*tensor);
 
-        // Step A: boundary tensors keep creator retention; manual-local tensors
-        // rely only on explicit deps in v0.
+        if (tensor_has_manual_provenance &&
+            !pto2_explicit_dep_ids_contains(explicit_dep_ids, explicit_dep_count, tensor->owner_task_id)) {
+            pto2_orch_report_fatal(
+                orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__,
+                "tensor with manual provenance requires explicit dependency on latest writer"
+            );
+            return result;
+        }
+
+        if (submit_is_manual) {
+            continue;
+        }
+
+        // Step A: pure AUTO tensors keep creator retention.
         PTO2TaskId owner = tensor->owner_task_id;
-        if (!manual_local && owner.is_valid() && sched != nullptr) {
+        if (!tensor_has_manual_provenance && owner.is_valid() && sched != nullptr) {
             PTO2TaskSlotState *prod_state =
                 &sched->ring_sched_states[owner.ring()].get_slot_state_by_task_id(owner.local());
             if (!pto2_append_fanin_or_fail(
@@ -762,8 +789,8 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
             }
         }
 
-        // Step B: boundary INPUT/INOUT tensors still use TensorMap for modifier chaining.
-        if (manual_local) {
+        // Step B: only pure AUTO INPUT/INOUT tensors use TensorMap for modifier chaining.
+        if (tensor_has_manual_provenance) {
             continue;
         }
         if (ptype != TensorArgType::INPUT && ptype != TensorArgType::INOUT) {
@@ -801,7 +828,7 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
             TensorArgType ptype = args.tag(i);
             if (ptype == TensorArgType::INOUT || ptype == TensorArgType::OUTPUT_EXISTING) {
                 const Tensor *tensor = args.tensor(i).ptr;
-                if (!pto2_is_current_manual_scope_local(orch, *tensor) && !tensor->manual_dep) {
+                if (!submit_is_manual && !pto2_tensor_has_manual_provenance(*tensor) && !tensor->manual_dep) {
                     orch->tensor_map.insert(*args.tensor(i).ptr, task_id);
                 }
             }
@@ -828,9 +855,23 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
     // tracking remains available even when manual_dep skips OverlapMap publication.
     for (int i = 0; i < args.tensor_count(); i++) {
         if (args.tag(i) == TensorArgType::OUTPUT) {
-            payload->tensors[i].owner_task_id = prepared.task_id;
-            payload->tensors[i].set_producer_scope_metadata(
-                static_cast<int16_t>(orch->scope_stack_top), static_cast<int16_t>(orch->current_manual_scope_depth)
+            payload->tensors[i].set_latest_writer_metadata(
+                prepared.task_id, static_cast<int16_t>(orch->scope_stack_top),
+                static_cast<int16_t>(orch->current_manual_scope_depth)
+            );
+        }
+    }
+
+    if (submit_is_manual) {
+        for (int i = 0; i < args.tensor_count(); i++) {
+            TensorArgType ptype = args.tag(i);
+            if (ptype != TensorArgType::INOUT && ptype != TensorArgType::OUTPUT_EXISTING) {
+                continue;
+            }
+            Tensor *tensor = const_cast<Tensor *>(args.tensor(i).ptr);
+            tensor->set_latest_writer_metadata(
+                prepared.task_id, static_cast<int16_t>(orch->scope_stack_top),
+                static_cast<int16_t>(orch->current_manual_scope_depth)
             );
         }
     }
@@ -968,9 +1009,9 @@ TaskSubmitResult pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args
     payload->fanin_spill_start = 0;
     payload->fanin_spill_pool = nullptr;
     for (int32_t i = 0; i < args.tensor_count(); i++) {
-        payload->tensors[i].owner_task_id = prepared.task_id;
-        payload->tensors[i].set_producer_scope_metadata(
-            static_cast<int16_t>(orch->scope_stack_top), static_cast<int16_t>(orch->current_manual_scope_depth)
+        payload->tensors[i].set_latest_writer_metadata(
+            prepared.task_id, static_cast<int16_t>(orch->scope_stack_top),
+            static_cast<int16_t>(orch->current_manual_scope_depth)
         );
     }
 

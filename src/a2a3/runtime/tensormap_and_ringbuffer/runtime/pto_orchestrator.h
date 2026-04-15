@@ -36,6 +36,8 @@
 #include "pto_tensormap.h"
 #include "pto_types.h"
 
+struct Tensor;
+
 // =============================================================================
 // Orchestrator State
 // =============================================================================
@@ -116,7 +118,12 @@ struct PTO2OrchestratorState {
     }
 
     bool in_manual_scope() const { return current_manual_scope_depth >= 0; }
+    bool current_scope_is_manual() const {
+        return scope_stack_top >= 0 && scope_modes[scope_stack_top] == PTO2ScopeMode::MANUAL;
+    }
 };
+
+bool pto2_tensor_has_manual_provenance(const Tensor &tensor);
 
 // =============================================================================
 // Orchestrator API

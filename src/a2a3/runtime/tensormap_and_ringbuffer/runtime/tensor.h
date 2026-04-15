@@ -308,6 +308,11 @@ struct alignas(64) Tensor {
         producer_manual_scope_depth = manual_scope_depth;
     }
 
+    void set_latest_writer_metadata(PTO2TaskId task_id, int16_t scope_depth, int16_t manual_scope_depth) {
+        owner_task_id = task_id;
+        set_producer_scope_metadata(scope_depth, manual_scope_depth);
+    }
+
     void fill_initial_value(uint64_t initial_value) {
         always_assert(reinterpret_cast<char *>(buffer.addr) != nullptr);
         uint64_t elem_size = get_element_size(dtype);
