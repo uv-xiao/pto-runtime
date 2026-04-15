@@ -1,10 +1,12 @@
 # Manual Scope V0 Design
 
-Date: 2026-04-14
+Date: 2026-04-15
 
 Branch: `manual_scope_v0`
 
-Base: `upstream/main` at `617add6`
+Base: current branch fork point `e3e4bd5`
+
+Fetched `upstream/main` while writing this document: `6800c38`
 
 ## Goal
 
@@ -117,10 +119,13 @@ Inside manual scope, submit should do this:
 3. Validate that explicit deps belong to the current manual scope.
 4. Turn explicit deps into ordinary fanins immediately.
 5. Classify tensor args as current-manual-scope-local or boundary.
-6. Skip TensorMap lookup/insert only for current-manual-scope-local cases
-   where explicit ordering is already provided by task ids.
-7. Keep normal creator-retention and TensorMap behavior for boundary tensors.
-8. Publish the task immediately, same as AUTO mode.
+6. Skip TensorMap lookup for manual-local producer-flow tensors only when the
+   explicit task ids already cover the producing tasks.
+7. Keep TensorMap lookup/insert for modifier tensors (`INOUT`,
+   `OUTPUT_EXISTING`) because v0 does not expose a returned task id for
+   zero-output updater tasks.
+8. Keep normal creator-retention and TensorMap behavior for boundary tensors.
+9. Publish the task immediately, same as AUTO mode.
 
 ### Scope-end behavior
 
@@ -160,10 +165,11 @@ Treat a tensor as manual-local only when:
 
 Behavior:
 
-- explicit task ids are the ordering source
-- skip TensorMap lookup for same-scope ordering
-- skip TensorMap insert for same-scope local update cases where the dependency
-  stays entirely inside the current manual scope
+- for producer-flow inputs, explicit task ids are the primary ordering source
+- if the producing task is already covered by `Arg.add_dep(...)`, lookup can
+  skip the manual-local creator / modifier rediscovery
+- modifier tensors (`INOUT`, `OUTPUT_EXISTING`) still publish through
+  TensorMap so later updates can chain correctly
 
 ### Boundary tensor
 
@@ -236,6 +242,25 @@ PTO2_SCOPE(PTO2ScopeMode::MANUAL) {
 This keeps the orchestration shape readable while avoiding a separate manual
 submit API family.
 
+## Important Limitation
+
+V0 cannot express every same-scope chain only with `Arg.add_dep(...)`.
+
+Reason:
+
+- `alloc_tensors(...)` returns a task id because it returns materialized outputs
+- normal producer tasks also expose task ids through their returned outputs
+- a zero-output updater does not expose a returned task-id handle in
+  `TaskOutputTensors`
+
+Practical consequence:
+
+- explicit deps are enough for `qk -> softmax -> pv -> update`
+- they are not enough to express `update(i) -> update(i+1)` when the updater
+  only modifies existing tensors
+- v0 therefore keeps TensorMap publication / lookup for modifier tensors even
+  inside manual scope
+
 ## Validation Plan
 
 ### Unit / behavior
@@ -261,195 +286,127 @@ submit API family.
 
 ## Validation Status
 
-The supported v0 scope is currently functionally correct for the cases we
-intend to support now.
+This document now reflects the rebased v0 state actually validated on
+2026-04-15.
 
-Verified on `manual_scope_v0`:
+### Automated checks
 
 - C++ UT passed:
   - `test_a2a3_pto2_manual_scope_api`
   - `test_a2a3_pto2_manual_scope_runtime`
-  - `test_a2a3_pto2_fatal`
-- Simulation ST passed:
-  - `tests/st/a2a3/tensormap_and_ringbuffer/test_manual_scope_validation.py`
-- Real-device golden checks passed:
-  - `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention` `Case1`
-  - `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention` `Case2`
-  - `examples/a2a3/tensormap_and_ringbuffer/paged_attention` `Case1`
-  - `examples/a2a3/tensormap_and_ringbuffer/paged_attention` `CaseVarSeq2`
-- Unsupported shapes now fail fast with runtime invalid-args instead of
-  silently reaching a bad golden comparison:
-  - `tests/st/a2a3/tensormap_and_ringbuffer/test_paged_attention_validation.py`
+- These were rerun on the rebased branch before the device pass.
 
-This status does not mean the branch is performance-ready.
+### Real-device golden checks
 
-## Benchmark Status
-
-### Authoritative Current vs Baselines
-
-This is the current branch-status table. Only same-method, same-device,
-same-round-count reruns go here.
-
-### Method For The Authoritative Table
-
-- Platform: `a2a3` real device
-- Device: `10`
-- Workload: supported production `paged_attention` cases only
-  - `Case1`: `batch=256, num_heads=16, head_dim=128, block_size=128`
-  - `Case2`: `batch=64, num_heads=64, head_dim=128, block_size=64`
-- Rounds: `10`
-- Aggregation: simple average from `tmp/measure_case.py`
-- Current TMR measured commit: `371349f`
-- Baseline TMR measured commit: merge-base `617add6`
-- ABG measured source: current branch `examples/a2a3/aicpu_build_graph/paged_attention`
-- All three runs used the same local `PTO_ISA_ROOT` checkout so the runtime
-  delta is measured against the same kernel dependency tree
-
-| Case | Runtime | Commit / Source | Elapsed Avg (us) | Orch Avg (us) | Elapsed Delta vs Base TMR | Elapsed Delta vs ABG |
-| --- | --- | --- | ---: | ---: | ---: | ---: |
-| Case1 | TMR merge-base | `617add6` | 32579.9 | 32442.7 | baseline | +162.8 (+0.5%) |
-| Case1 | TMR optimized current | `371349f` | 32288.2 | 32275.2 | -291.7 (-0.9%) | -128.9 (-0.4%) |
-| Case1 | ABG current | current branch | 32417.1 | 32127.0 (`orch_func_cost`) | -162.8 (-0.5%) | baseline |
-| Case2 | TMR merge-base | `617add6` | 18749.7 | 18305.1 | baseline | +1920.6 (+11.4%) |
-| Case2 | TMR optimized current | `371349f` | 16548.1 | 16482.1 | -2201.6 (-11.7%) | -281.0 (-1.7%) |
-| Case2 | ABG current | current branch | 16829.1 | 16246.0 (`orch_func_cost`) | -1920.6 (-10.2%) | baseline |
-
-Notes:
-
-- `371349f` is the first measured state where current TMR beats both merge-base
-  TMR and ABG on elapsed time for the two supported non-unroll paged-attention
-  cases.
-- `Case1` is still nearly tied. The elapsed win is real in this batch, but it
-  is small enough that more tuning is still needed before calling it robust.
-- ABG's `orch` column comes from `orch_func_cost`, so it is informative but not
-  identical to the TMR orchestration-span metric.
-
-### Historical Pre-tuning Snapshot
-
-These numbers explain where tuning started. They are not the current
-branch-status table.
-
-- Platform: `a2a3` real device
-- Device: `5`
-- Rounds: `30`
-- Aggregation: trimmed average, dropping `10` low and `10` high rounds
-- Current TMR measured commit: `a682ccc`
-
-| Case | Runtime | Elapsed Trimmed Avg (us) | Orch Trimmed Avg (us) | Delta vs Base | Delta vs ABG |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Case1 | TMR merge-base | 30206.8 | 30161.7 | baseline | -2823.2 |
-| Case1 | TMR current | 49628.2 | 49627.9 | +19421.4 (+64.3%) | +16598.2 (+50.3%) |
-| Case1 | ABG current | 33030.0 | 32723.6 (`orch_func_cost`) | +2823.2 (+9.3%) vs base TMR | baseline |
-| Case2 | TMR merge-base | 15576.6 | 15339.3 | baseline | -2009.4 |
-| Case2 | TMR current | 33248.6 | 33248.1 | +17672.0 (+113.5%) | +15662.6 (+89.1%) |
-| Case2 | ABG current | 17586.0 | 17018.7 (`orch_func_cost`) | +2009.4 (+12.9%) vs base TMR | baseline |
-
-### Reading The Tables
-
-- The current tuning direction has recovered the branch from clearly slower
-  than both baselines to slightly faster on elapsed time for the two supported
-  cases.
-- The remaining gap is not "manual scope is broken". It is now about making the
-  small `Case1` win more stable and reducing the still-visible orchestration
-  cost.
-- The heavy regression was in orchestration, and the recovery also came from
-  orchestration-path changes rather than worker-side math changes.
-
-## Optimization Effects
-
-The entries below record the follow-up optimizations that were applied after
-`a682ccc`. These are iterative tuning measurements, mainly with:
+Environment:
 
 - platform: `a2a3`
-- device: `10`
-- workload: `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention`
-- rounds: `10`
-- metric: simple average from `tmp/measure_case.py`
+- device: `3`
+- `PTO_ISA_ROOT=/data/uvxiao/pto-runtime/build/pto-isa`
 
-These numbers are still useful for attribution, but they are noisier than the
-30-round trimmed-average table above.
+Fresh hardware reruns passed for all four rebased paged-attention paths:
 
-### Kept Optimizations
+- `examples/a2a3/tensormap_and_ringbuffer/paged_attention`
+  - `Case1`
+  - `Case2`
+- `examples/a2a3/tensormap_and_ringbuffer/paged_attention_manual_scope`
+  - `Case1`
+  - `Case2`
+- `examples/a2a3/tensormap_and_ringbuffer/paged_attention_unroll`
+  - `Case1`
+  - `Case2`
+- `examples/a2a3/tensormap_and_ringbuffer/paged_attention_unroll_manual_scope`
+  - `Case1`
+  - `Case2`
 
-| Optimization | Files / Functions Touched | Why It Helps | Measured Effect |
+### What broke during rebased validation
+
+`paged_attention_unroll_manual_scope` `Case2` initially failed on hardware.
+
+Root cause:
+
+- the example uses repeated modifier tensors (`mi_update`, `li_update`, `oi`,
+  `out_view`) across multiple update iterations
+- v0 explicit deps can describe `qk -> softmax -> pv -> update`
+- v0 cannot directly describe `update(i) -> update(i+1)` when `update` returns
+  no output tensor handle and therefore no returned task id
+- the runtime was skipping TensorMap publication / lookup too aggressively for
+  manual-local tensors once any explicit dep existed
+
+Fix:
+
+- keep manual-scope producer-flow fast paths
+- but preserve TensorMap publication / lookup for modifier tensors
+  (`INOUT`, `OUTPUT_EXISTING`) so repeated updates still serialize correctly
+
+## Rebased Benchmark Status
+
+### Method
+
+This benchmark block is the authoritative rebased batch for the current branch.
+Older pre-rebase numbers were removed because they are no longer comparable.
+
+- commit under test: `b9deae0`
+- platform: `a2a3`
+- device: `3`
+- rounds: `30`
+- aggregation: trimmed average, dropping `10` low and `10` high rounds
+- runner:
+  - scene-test entrypoint for `paged_attention`
+  - `run_example.py` for `*_manual_scope` and `*_unroll*`
+- benchmark mode: `--skip-golden`
+- timing source: device log parsing with the same `orch_start/orch_end` logic
+  as `tools/benchmark_rounds.sh`
+
+### Results
+
+| Example | Case | Auto Elapsed Trim (us) | Auto Orch Trim (us) | Manual Elapsed Trim (us) | Manual Orch Trim (us) | Manual Delta |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `paged_attention` | `Case1` | 127.2 | 112.8 | 125.6 | 110.9 | -1.6 us (-1.3%) |
+| `paged_attention` | `Case2` | 146.2 | 126.9 | 136.2 | 118.1 | -10.0 us (-6.8%) |
+| `paged_attention_unroll` | `Case1` | 1137.1 | 784.2 | 1141.5 | 795.4 | +4.4 us (+0.4%) |
+| `paged_attention_unroll` | `Case2` | 521.8 | 322.4 | 525.8 | 330.8 | +4.0 us (+0.8%) |
+
+### Reading The Batch
+
+- Non-unroll manual scope is slightly faster than auto in this rebased batch.
+- Unroll manual scope is still slightly slower than auto, and the gap is mainly
+  orchestration (`+11.2us` / `+8.4us` on orch trim).
+- The correctness fix for repeated modifier tensors is not free. It restores
+  TensorMap work on the modifier path, which is exactly where the unroll cases
+  still pay a small penalty.
+
+## Rebased Runtime Change
+
+### Kept change
+
+| Change | Files / Functions Touched | Why It Matters | Observed Effect |
 | --- | --- | --- | --- |
-| Cached allocator-state fast path before shared reload | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_ring_buffer.h` `PTO2TaskAllocator::alloc()` `has_task_slot_capacity()` `try_alloc_with_last_alive()` | The allocator used to pay an acquire-load of `last_task_alive` and a heap-tail refresh before every submit, even when the cached window and heap state were already sufficient. The new path first tries the monotonic cached state, then falls back to the shared refresh only when the cached view says "not enough room". | Measured commit `371349f`, compared against the previous best-known spot snapshot at `eeaa456`: `Case1 34105.5 -> 32288.2us`, `Case2 18503.3 -> 16548.1us`. The same-batch current-vs-baseline table above shows this was enough to move current TMR slightly ahead of both baselines on elapsed time. |
-| O(1) explicit-dep membership check | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_get_current_scope_task_slot()` `pto2_submit_mixed_task()` `pto2_scope_begin()` `pto2_prepare_task()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_ring_buffer.h` | Removed the per-dependency linear scan over current-scope tasks. Manual paged-attention emits many `add_dep(...)` edges inside the inner loop, so the old validation shape was wrong for this workload. | First spot run after replacing the scan: `Case1 49628.2 -> 36016.3us`, `Case2 33248.6 -> 17906.5us`. |
-| Exact per-scope epoch validation | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_get_current_scope_task_slot()` `pto2_scope_begin()` `pto2_prepare_task()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_ring_buffer.h`; `tests/ut/cpp/test_a2a3_pto2_manual_scope_runtime.cpp` | The first O(1) version used only `scope_depth`, which was fast but could accept a task from an older closed scope reopened at the same depth. The epoch fix keeps the O(1) path while restoring exact scope isolation. | Correctness fix. No meaningful speed target by itself; it preserves the O(1) win and closes the stale-scope hole. |
-| Skip redundant creator-retention when owner is already explicit | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` `pto2_append_explicit_manual_deps()` | For manual-local tensors, if the producer task is already present in `Arg.add_dep(...)`, the submit path does not need to look up the producer slot again just to add the same fanin and let `fanin_builder` deduplicate it. | Spot run during tuning: `Case1 36016.3 -> 33170.4us`; `Case2` was roughly flat/noisy (`17906.5 -> 18304.6us`). |
-| Canonicalize explicit dep ids once per submit | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` | Stores validated dep ids / slot pointers once, then reuses them in later branches instead of repeatedly consulting `Arg`. This is a small submit-path cleanup, not a large standalone win. | Small cleanup contribution. No isolated large gain observed beyond the creator-retention optimization above. |
-| Eager `start_offset` caching, remove hot-path recompute from payload init | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/tensor.h` `Tensor::init()` `Tensor::init_with_view()` `Tensor::init_from_create_info()`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_runtime2_types.h` `PTO2TaskPayload::init()`; `tests/ut/cpp/test_a2a3_pto2_manual_scope_runtime.cpp` | `payload->init()` used to recompute `start_offset` for every tensor arg on every submit. For paged-attention this fell into the large `param_copy` bucket. Moving the work to tensor creation / view construction takes it out of the submit hot path. | AICPU phase profiling on `Case1` showed `param_copy` drop from about `9879us` to `4629us`. Spot wall-time after this change was about `Case1 34105.5us`, `Case2 18503.3us`. |
+| Keep TensorMap for manual-scope modifier tensors | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` | V0 has no returned task-id handle for zero-output updater tasks. Without TensorMap publication / lookup on `INOUT` / `OUTPUT_EXISTING`, repeated same-scope updates are under-constrained even when producer-flow deps are explicit. | Fixed the rebased hardware failure in `paged_attention_unroll_manual_scope` `Case2`. Current batch shows correctness restored across all eight device checks; performance remains slightly slower than auto on unroll because modifier tensors still pay TensorMap cost. |
 
-### Reverted / Rejected Optimizations
+### Removed stale history
 
-| Attempt | Files / Functions Touched | Result |
-| --- | --- | --- |
-| Fold output owner metadata into `payload->init()` to save the post-init output loop | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/tensor.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_runtime2_types.h`; `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` | Reverted. It did not improve end-to-end time reliably and made the code harder to reason about. |
-| Change `out_view` in paged-attention update from `INOUT` to `NO_DEP` | `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention/kernels/orchestration/paged_attention_orch.cpp`; `examples/a2a3/tensormap_and_ringbuffer/paged_attention/kernels/orchestration/paged_attention_orch.cpp` | Reverted. Real-device golden failed badly, so `NO_DEP` was too strong for this tensor. |
-| Change `out_view` in paged-attention update from `INOUT` to `OUTPUT_EXISTING` | `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention/kernels/orchestration/paged_attention_orch.cpp`; `examples/a2a3/tensormap_and_ringbuffer/paged_attention/kernels/orchestration/paged_attention_orch.cpp` | Reverted. Real-device golden also failed, so the current runtime still needs `INOUT` semantics there. |
+The earlier optimization ledger in this file referred to:
 
-### Current Hotspots
+- pre-rebase commits
+- reverted runtime changes
+- benchmark batches gathered with different runners and different workloads
 
-After `371349f`, the branch has crossed the elapsed-time target in the current
-spot batch, but the `Case1` margin is still thin. A fresh `Case1` profiling run
-after the allocator fast path showed:
-
-- `task+heap_alloc`: `7644.260us`
-- `param_copy`: `4621.600us`
-- `lookup+dep`: `2852.460us`
-- `fanin+ready`: `2792.640us`
-- `tensormap_ins`: `1293.020us`
-- `sync_tensormap`: `971.900us`
-
-Compared against the previous profiling snapshot, `task+heap_alloc` moved down
-from about `8022.640us` to `7644.260us`, which matches the intent of the new
-allocator fast path. The remaining work should now focus more on
-`lookup+dep` and `fanin+ready`, while keeping pressure on allocator work until
-the `Case1` margin is less noisy.
-
-The next optimization pass should keep focusing on:
-
-1. More submit-path cost reduction in allocator / fanin materialization.
-2. Scheduler wiring fast paths for small `fanin` counts.
-3. Avoiding work that only protects AUTO-style lookup paths when the manual
-   scope already supplied explicit ordering.
-
-## Mandatory Update Checklist
-
-After every optimization try, update this document before moving on:
-
-1. Add one entry under either `Kept Optimizations` or `Reverted / Rejected`.
-2. Record the attempt name and outcome: kept, reverted, or rejected.
-3. Record the measured commit and the exact compared-against commit.
-4. Record the touched files and functions only, not a vague subsystem label.
-5. Record the hypothesis: which cost bucket or branch the change was meant to
-   reduce.
-6. Record the exact workload, platform, device, runner, round count, and
-   aggregation method.
-7. Record whether the same `PTO_ISA_ROOT` and runtime environment were used.
-8. Record before/after elapsed numbers per measured case.
-9. Record before/after orch numbers per measured case when available.
-10. Record the correctness checks that were run, or what failed.
-11. If the branch best-known state changed, refresh the `Authoritative Current
-    vs Baselines` table immediately.
-12. If a number is only a noisy spot result, keep it in the optimization log
-    and do not promote it into the authoritative table.
-13. If the measurement method changes, update the method section in the same
-    edit so later readers do not compare mismatched numbers.
+Those entries were removed instead of being carried forward as historical noise.
 
 ## Risks
 
-1. If explicit deps are missing, current-manual-scope-local tensors may be
-   under-constrained.
-2. Treating a tensor as local from wrong metadata would cause missing TensorMap
-   ordering.
-3. Allocation tasks need clear ownership metadata so downstream explicit deps
-   behave like normal produced tensors.
-4. The lighter API is less expressive than the previous delayed-wiring design.
+1. Manual scope still relies on orchestration authors to supply producer-flow
+   explicit deps correctly.
+2. V0 cannot fully replace TensorMap for modifier chains when the updater task
+   does not return an output-backed task id.
+3. Wrong scope metadata would still cause incorrect locality classification.
+4. The lighter API remains intentionally less expressive than the old
+   delayed-wiring design.
 
 ## Recommendation
 
-Implement v0 as the minimal, explicit, submit-time-only manual scope:
+Keep v0 narrow and explicit:
 
 - same submit APIs as AUTO
 - `Arg.add_dep(task_id)` only inside manual scope
@@ -457,11 +414,10 @@ Implement v0 as the minimal, explicit, submit-time-only manual scope:
 - no delayed linking
 - immediate publish
 - alloc returns `task_id`
-- scope-metadata-based tensor locality check
+- scope-depth metadata decides locality
+- modifier tensors keep TensorMap chaining until the API can expose zero-output
+  updater task ids in a lighter way
 
-This keeps the PR small, aligns with maintainer feedback, and preserves the
-useful part of manual scope for the current examples.
-
-The implementation direction still looks right, but the current measured state
-shows we need more runtime/orchestration optimization before this branch is
-ready to present as a performance improvement.
+This is the smallest rebased design that is functionally correct on the current
+hardware batch. The next optimization work should focus on reducing the
+remaining unroll orchestration gap without widening the API again.

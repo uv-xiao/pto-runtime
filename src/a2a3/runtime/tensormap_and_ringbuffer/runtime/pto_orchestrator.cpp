@@ -768,7 +768,7 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
         if (ptype != TensorArgType::INPUT && ptype != TensorArgType::INOUT) {
             continue;
         }
-        if (tensor->manual_dep || (manual_local && explicit_dep_count > 0)) {
+        if (tensor->manual_dep) {
             continue;
         }
 
@@ -799,8 +799,11 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
         for (int i = 0; i < args.tensor_count(); i++) {
             TensorArgType ptype = args.tag(i);
             if (ptype == TensorArgType::INOUT || ptype == TensorArgType::OUTPUT_EXISTING) {
-                bool manual_local = pto2_is_current_manual_scope_local(orch, *args.tensor(i).ptr);
-                if (!args.tensor(i).ptr->manual_dep && !(manual_local && explicit_dep_count > 0)) {
+                // Manual scope still needs TensorMap publication for modifier tensors.
+                // V0 can express producer->consumer edges via returned task IDs, but a
+                // zero-output updater has no returned task-id handle, so later INOUT /
+                // OUTPUT_EXISTING uses still rely on TensorMap chaining.
+                if (!args.tensor(i).ptr->manual_dep) {
                     orch->tensor_map.insert(*args.tensor(i).ptr, task_id);
                 }
             }
