@@ -15,6 +15,9 @@ import pytest
 from simpler_setup import SceneTestCase, scene_test
 
 
+_OUTSIDE_SCOPE_ADD_DEP_XFAIL_REASON = "Task 2 removes the runtime-side rejection of Arg.add_dep(...) outside manual scope"
+
+
 def _compile_cache_key(case_cls, platform: str):
     return (case_cls.__qualname__, platform, case_cls._st_runtime)
 
@@ -56,6 +59,15 @@ def test_make_case_uses_unique_compile_cache_keys_per_orchestration_source():
     assert _compile_cache_key(first, "a2a3sim") != _compile_cache_key(second, "a2a3sim")
 
 
+def _run_case(case_cls, st_platform, st_device_ids):
+    callable_obj = case_cls.compile_chip_callable(st_platform)
+    worker = case_cls._create_worker(st_platform, st_device_ids[0])
+    try:
+        worker.run(callable_obj, ChipStorageTaskArgs(), block_dim=24, aicpu_thread_num=4)
+    finally:
+        worker.finalize()
+
+
 @pytest.mark.platforms(["a2a3sim"])
 @pytest.mark.device_count(1)
 @pytest.mark.parametrize(
@@ -70,11 +82,19 @@ def test_manual_scope_invalid_usage_reports_invalid_args(st_platform, st_device_
     monkeypatch.setenv("PTO_LOG_LEVEL", "error")
 
     case = _make_case(orch_source)
-    callable_obj = case.compile_chip_callable(st_platform)
-    worker = case._create_worker(st_platform, st_device_ids[0])
+    with pytest.raises(RuntimeError, match=r"run_runtime failed with code -5"):
+        _run_case(case, st_platform, st_device_ids)
 
+
+@pytest.mark.platforms(["a2a3sim"])
+@pytest.mark.device_count(1)
+def test_manual_scope_outside_scope_add_dep_positive_intent(st_platform, st_device_ids, monkeypatch):
+    monkeypatch.setenv("PTO_LOG_LEVEL", "error")
+
+    case = _make_case("outside_scope_add_dep.cpp")
     try:
-        with pytest.raises(RuntimeError, match=r"run_runtime failed with code -5"):
-            worker.run(callable_obj, ChipStorageTaskArgs(), block_dim=24, aicpu_thread_num=4)
-    finally:
-        worker.finalize()
+        _run_case(case, st_platform, st_device_ids)
+    except RuntimeError as exc:
+        if "run_runtime failed with code -5" in str(exc):
+            pytest.xfail(_OUTSIDE_SCOPE_ADD_DEP_XFAIL_REASON)
+        raise
