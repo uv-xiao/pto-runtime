@@ -4,10 +4,6 @@ Date: 2026-04-15
 
 Branch: `manual_scope_v0`
 
-Base: current branch fork point `e3e4bd5`
-
-Fetched `upstream/main` while writing this document: `6800c38`
-
 ## Goal
 
 Add a lighter manual-scope mode to `a2a3/tensormap_and_ringbuffer` that:
@@ -280,13 +276,16 @@ Practical consequence:
 
 ### Regression / examples
 
-- paged attention partial-manual example rewritten to `Arg.add_dep(...)`
-- compare against AUTO and `aicpu_build_graph`
-- verify correctness against golden outputs
+- add explicit-manual variants for the two paged-attention workloads:
+  `paged_attention_manual_scope` and `paged_attention_unroll_manual_scope`
+- keep the existing AUTO paths as the comparison baseline
+- verify `Case1` and `Case2` against golden outputs on real hardware
+- benchmark AUTO vs manual-scope with the same 30-round trimmed-average method
+  used by `tools/benchmark_rounds.sh`
 
 ## Validation Status
 
-This document now reflects the rebased v0 state actually validated on
+This document reflects the cleaned `manual_scope_v0` branch state validated on
 2026-04-15.
 
 ### Automated checks
@@ -294,17 +293,22 @@ This document now reflects the rebased v0 state actually validated on
 - C++ UT passed:
   - `test_a2a3_pto2_manual_scope_api`
   - `test_a2a3_pto2_manual_scope_runtime`
-- These were rerun on the rebased branch before the device pass.
+- simulation negative test passed:
+  - `tests/st/a2a3/tensormap_and_ringbuffer/test_manual_scope_validation.py`
+- rerun commands:
+  - `ctest --test-dir tests/ut/cpp/build -R 'test_a2a3_pto2_manual_scope_(api|runtime)' --output-on-failure`
+  - `python -m pytest tests/st/a2a3/tensormap_and_ringbuffer/test_manual_scope_validation.py --platform a2a3sim --device 0 -q`
 
 ### Real-device golden checks
 
 Environment:
 
 - platform: `a2a3`
-- device: `3`
-- `PTO_ISA_ROOT=/data/uvxiao/pto-runtime/build/pto-isa`
+- device: `9`
+- PTO-ISA commit: `d96c8784`
+- local package rebuilt with `pip install --no-build-isolation -e .`
 
-Fresh hardware reruns passed for all four rebased paged-attention paths:
+Fresh hardware reruns passed for all four kept paged-attention paths:
 
 - `examples/a2a3/tensormap_and_ringbuffer/paged_attention`
   - `Case1`
@@ -312,87 +316,59 @@ Fresh hardware reruns passed for all four rebased paged-attention paths:
 - `examples/a2a3/tensormap_and_ringbuffer/paged_attention_manual_scope`
   - `Case1`
   - `Case2`
-- `examples/a2a3/tensormap_and_ringbuffer/paged_attention_unroll`
+- `tests/st/a2a3/tensormap_and_ringbuffer/paged_attention_unroll`
   - `Case1`
   - `Case2`
 - `examples/a2a3/tensormap_and_ringbuffer/paged_attention_unroll_manual_scope`
   - `Case1`
   - `Case2`
 
-### What broke during rebased validation
-
-`paged_attention_unroll_manual_scope` `Case2` initially failed on hardware.
-
-Root cause:
-
-- the example uses repeated modifier tensors (`mi_update`, `li_update`, `oi`,
-  `out_view`) across multiple update iterations
-- v0 explicit deps can describe `qk -> softmax -> pv -> update`
-- v0 cannot directly describe `update(i) -> update(i+1)` when `update` returns
-  no output tensor handle and therefore no returned task id
-- the runtime was skipping TensorMap publication / lookup too aggressively for
-  manual-local tensors once any explicit dep existed
-
-Fix:
-
-- keep manual-scope producer-flow fast paths
-- but preserve TensorMap publication / lookup for modifier tensors
-  (`INOUT`, `OUTPUT_EXISTING`) so repeated updates still serialize correctly
-
-## Rebased Benchmark Status
+## Fresh Benchmark Status
 
 ### Method
 
-This benchmark block is the authoritative rebased batch for the current branch.
-Older pre-rebase numbers were removed because they are no longer comparable.
+This benchmark block is the authoritative batch for the current cleaned branch.
+Older measurements were removed because they were collected before the cleanup
+pass or on different branch states.
 
-- commit under test: `b9deae0`
+- commit under test: `32fecc5`
 - platform: `a2a3`
-- device: `3`
+- device: `9`
+- PTO-ISA commit: `d96c8784`
 - rounds: `30`
 - aggregation: trimmed average, dropping `10` low and `10` high rounds
 - runner:
-  - scene-test entrypoint for `paged_attention`
-  - `run_example.py` for `*_manual_scope` and `*_unroll*`
+  - scene-test entrypoint for AUTO paths
+  - `run_example.py` for manual-scope example paths
 - benchmark mode: `--skip-golden`
 - timing source: device log parsing with the same `orch_start/orch_end` logic
   as `tools/benchmark_rounds.sh`
 
 ### Results
 
-| Example | Case | Auto Elapsed Trim (us) | Auto Orch Trim (us) | Manual Elapsed Trim (us) | Manual Orch Trim (us) | Manual Delta |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `paged_attention` | `Case1` | 127.2 | 112.8 | 125.6 | 110.9 | -1.6 us (-1.3%) |
-| `paged_attention` | `Case2` | 146.2 | 126.9 | 136.2 | 118.1 | -10.0 us (-6.8%) |
-| `paged_attention_unroll` | `Case1` | 1137.1 | 784.2 | 1141.5 | 795.4 | +4.4 us (+0.4%) |
-| `paged_attention_unroll` | `Case2` | 521.8 | 322.4 | 525.8 | 330.8 | +4.0 us (+0.8%) |
+| Example | Case | Auto Elapsed Trim (us) | Auto Orch Trim (us) | Manual Elapsed Trim (us) | Manual Orch Trim (us) | Elapsed Delta | Orch Delta |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `paged_attention` | `Case1` | 79.9 | 64.6 | 124.7 | 109.4 | +44.8 us (+56.1%) | +44.8 us (+69.3%) |
+| `paged_attention` | `Case2` | 93.0 | 72.6 | 146.2 | 126.1 | +53.2 us (+57.2%) | +53.5 us (+73.7%) |
+| `paged_attention_unroll` | `Case1` | 1134.5 | 777.4 | 1136.9 | 785.3 | +2.4 us (+0.2%) | +7.9 us (+1.0%) |
+| `paged_attention_unroll` | `Case2` | 524.8 | 319.8 | 525.2 | 329.0 | +0.4 us (+0.1%) | +9.2 us (+2.9%) |
 
 ### Reading The Batch
 
-- Non-unroll manual scope is slightly faster than auto in this rebased batch.
-- Unroll manual scope is still slightly slower than auto, and the gap is mainly
-  orchestration (`+11.2us` / `+8.4us` on orch trim).
-- The correctness fix for repeated modifier tensors is not free. It restores
-  TensorMap work on the modifier path, which is exactly where the unroll cases
-  still pay a small penalty.
+- Non-unroll manual scope is materially slower than AUTO in this fresh batch.
+  The regression is almost entirely orchestration time.
+- Unroll manual scope stays close to AUTO in total elapsed time, but it still
+  pays a measurable orchestration penalty.
+- The current v0 branch is functionally correct on hardware, but it does not
+  meet the earlier non-unroll performance target.
 
-## Rebased Runtime Change
+## Why Modifier Tensors Still Use TensorMap
 
-### Kept change
+The main correctness-sensitive runtime choice in v0 is still:
 
 | Change | Files / Functions Touched | Why It Matters | Observed Effect |
 | --- | --- | --- | --- |
-| Keep TensorMap for manual-scope modifier tensors | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` | V0 has no returned task-id handle for zero-output updater tasks. Without TensorMap publication / lookup on `INOUT` / `OUTPUT_EXISTING`, repeated same-scope updates are under-constrained even when producer-flow deps are explicit. | Fixed the rebased hardware failure in `paged_attention_unroll_manual_scope` `Case2`. Current batch shows correctness restored across all eight device checks; performance remains slightly slower than auto on unroll because modifier tensors still pay TensorMap cost. |
-
-### Removed stale history
-
-The earlier optimization ledger in this file referred to:
-
-- pre-rebase commits
-- reverted runtime changes
-- benchmark batches gathered with different runners and different workloads
-
-Those entries were removed instead of being carried forward as historical noise.
+| Keep TensorMap for manual-scope modifier tensors | `src/a2a3/runtime/tensormap_and_ringbuffer/runtime/pto_orchestrator.cpp` `pto2_submit_mixed_task()` | V0 has no returned task-id handle for zero-output updater tasks. Explicit deps can describe `qk -> softmax -> pv -> update`, but they still cannot express `update(i) -> update(i+1)` when the updater only mutates existing tensors. TensorMap publication / lookup on `INOUT` / `OUTPUT_EXISTING` keeps those repeated updates ordered correctly. | Current branch passes all eight fresh hardware golden checks. The remaining unroll gap is small but still concentrated in orchestration, which is consistent with modifier tensors continuing to pay TensorMap cost. |
 
 ## Risks
 
@@ -401,8 +377,8 @@ Those entries were removed instead of being carried forward as historical noise.
 2. V0 cannot fully replace TensorMap for modifier chains when the updater task
    does not return an output-backed task id.
 3. Wrong scope metadata would still cause incorrect locality classification.
-4. The lighter API remains intentionally less expressive than the old
-   delayed-wiring design.
+4. The current non-unroll benchmark gap is large enough that performance should
+   not be described as improved relative to AUTO.
 
 ## Recommendation
 
@@ -418,6 +394,6 @@ Keep v0 narrow and explicit:
 - modifier tensors keep TensorMap chaining until the API can expose zero-output
   updater task ids in a lighter way
 
-This is the smallest rebased design that is functionally correct on the current
-hardware batch. The next optimization work should focus on reducing the
-remaining unroll orchestration gap without widening the API again.
+This is the smallest v0 design that is functionally correct on the current
+hardware batch. The next optimization work should focus first on the
+non-unroll orchestration regression without widening the API again.
