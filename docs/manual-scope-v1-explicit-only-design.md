@@ -420,3 +420,95 @@ V0 and v1 represent different product choices:
 
 Keeping both lines separate makes evaluation clearer and reduces the risk of
 confusing correctness or benchmark results across the two designs.
+
+## Implementation Status
+
+Status at branch head `caec09a`:
+
+- implemented: `Arg.add_dep(task_id)` is accepted on the runtime submit path
+  both inside and outside manual scope
+- implemented: manual submit is explicit-only for PTO-produced tensors
+- implemented: manual submit does not infer creator-retention or TensorMap
+  fanins
+- implemented: AUTO consumers of manual-produced / manual-updated tensors must
+  carry explicit deps to the latest writer
+- implemented: manual `INOUT` / `OUTPUT_EXISTING` updates advance latest-writer
+  provenance
+- implemented: AUTO `INOUT` / `OUTPUT_EXISTING` on manual-provenance tensors
+  clears manual provenance and re-enters normal AUTO behavior
+- implemented: nested `MANUAL -> AUTO` submits stamp AUTO-produced tensors as
+  AUTO provenance (`producer_manual_scope_depth = -1`)
+- implemented: positive bridge coverage for `MANUAL -> AUTO` under
+  `examples/a2a3/tensormap_and_ringbuffer/manual_scope_v1_bridge/`
+
+## Validation Status
+
+Focused validation completed against branch head `caec09a`.
+
+### C++ / sim validation
+
+- `ctest --test-dir tests/ut/cpp/build -R 'test_a2a3_pto2_manual_scope_(api|runtime)' --output-on-failure`
+  - passed
+- `python -m pytest tests/st/a2a3/tensormap_and_ringbuffer/test_manual_scope_validation.py --platform a2a3sim --device 0 -q`
+  - passed (`5 passed`)
+- `python examples/a2a3/tensormap_and_ringbuffer/manual_scope_v1_bridge/test_manual_scope_v1_bridge.py -p a2a3sim -d 0`
+  - passed
+
+### Real-device correctness
+
+- device: `9`
+- PTO-ISA: `d96c8784`
+- `python examples/scripts/run_example.py -k examples/a2a3/tensormap_and_ringbuffer/paged_attention_manual_scope/kernels -g examples/a2a3/tensormap_and_ringbuffer/paged_attention_manual_scope/golden.py -p a2a3 -d 9 -c d96c8784 --case Case1`
+  - passed
+- `python examples/scripts/run_example.py -k examples/a2a3/tensormap_and_ringbuffer/paged_attention_unroll_manual_scope/kernels -g examples/a2a3/tensormap_and_ringbuffer/paged_attention_unroll_manual_scope/golden.py -p a2a3 -d 9 -c d96c8784 --case Case1`
+  - passed
+
+## Benchmark Method
+
+Fresh benchmark snapshot collected on branch head `caec09a`.
+
+- device: `9`
+- PTO-ISA: `d96c8784`
+- rounds: `30`
+- aggregation: trimmed average, dropping `10` low and `10` high rounds
+- timing source: device log parsing with the same `orch_start/orch_end` logic
+  used by `tools/benchmark_rounds.sh`
+- compared modes:
+  - AUTO `tensormap_and_ringbuffer`
+  - v1 manual-scope `tensormap_and_ringbuffer`
+
+## Fresh Benchmark Results
+
+| Example | Case | Auto Elapsed Trim (us) | Auto Orch Trim (us) | Manual Elapsed Trim (us) | Manual Orch Trim (us) | Elapsed Delta | Orch Delta |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `paged_attention` | `Case1` | 77.8 | 62.8 | 125.8 | 109.5 | +48.0 | +46.7 |
+| `paged_attention` | `Case2` | 97.4 | 77.1 | 140.1 | 118.2 | +42.7 | +41.1 |
+| `paged_attention_unroll` | `Case1` | 1140.2 | 815.4 | 1130.0 | 710.2 | -10.2 | -105.2 |
+| `paged_attention_unroll` | `Case2` | 523.7 | 334.3 | 514.1 | 292.4 | -9.6 | -41.9 |
+
+Interpretation:
+
+- non-unroll paged attention is still slower in v1 manual mode on both elapsed
+  and orchestrator time
+- unroll paged attention remains slightly faster in elapsed time and
+  materially faster in orchestrator time under v1 manual mode
+- the explicit-only model is therefore functionally validated, but it is not a
+  uniform performance win across both paged-attention shapes
+
+## Deviations And Open Caveats
+
+### Explicit-dep target validation
+
+The current runtime validates outside-scope `add_dep(task_id)` by task-id / slot
+resolvability, not by a strict `last_task_alive` gate.
+
+This is intentional for the current branch state:
+
+- strict `last_task_alive` rejection broke the core `MANUAL -> later AUTO`
+  explicit-dep flow after scope exit
+- the current implementation therefore preserves referability of prior writers
+  until slot reuse, which is sufficient for the validated bridge and paged
+  attention examples
+
+This remains an area to refine if the runtime later gains a stronger notion of
+"retired but still safely referable" versus "fully unrecoverable".
