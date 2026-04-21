@@ -194,11 +194,15 @@ __attribute__((visibility("default"))) void aicpu_orchestration_entry(const Chip
                     params_up.add_inout(li_update);
                     params_up.add_inout(oi);
                     params_up.add_inout(out_view);
-                    params_up.add_dep(alloc_task);
-                    params_up.add_dep(sf_outs.task_id());
                     params_up.add_dep(pv_outs.task_id());
+                    if (is_first) {
+                        params_up.add_dep(alloc_task);
+                    }
                     if (prev_update_task.is_valid()) {
                         params_up.add_dep(prev_update_task);
+                        if (is_last) {
+                            params_up.add_dep(alloc_task);
+                        }
                     }
                     params_up.add_scalar(is_first);
                     params_up.add_scalar(is_last);
