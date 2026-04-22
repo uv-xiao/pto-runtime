@@ -213,7 +213,7 @@ struct PTO2DepListEntry {
  *
  * Fields set by Orchestrator at submission, read by Scheduler for dispatch.
  */
-struct alignas(64) PTO2TaskDescriptor {
+struct PTO2TaskDescriptor {
     // Mixed-task identification (encodes ring_id in upper 32 bits)
     PTO2TaskId task_id;  // raw: (ring_id << 32) | local_id
 
@@ -224,8 +224,6 @@ struct alignas(64) PTO2TaskDescriptor {
     void *packed_buffer_base;  // Start of packed buffer in GM Heap
     void *packed_buffer_end;   // End of packed buffer (for heap reclamation)
 };
-
-static_assert(sizeof(PTO2TaskDescriptor) == 64);
 
 // =============================================================================
 // Per-Slot Scheduling State

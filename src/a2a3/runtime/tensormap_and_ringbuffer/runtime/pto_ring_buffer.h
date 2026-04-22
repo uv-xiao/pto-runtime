@@ -164,9 +164,6 @@ public:
         }
     }
 
-    int32_t next_task_id() const { return local_task_id_; }
-    int32_t next_task_slot() const { return local_task_id_ & window_mask_; }
-
     // =========================================================================
     // State queries
     // =========================================================================
