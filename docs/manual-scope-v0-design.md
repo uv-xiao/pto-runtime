@@ -27,7 +27,7 @@ This is intentionally narrower than the older manual-dep branch.
 The v0 design keeps these rules:
 
 1. `PTO2_SCOPE(PTO2ScopeMode::MANUAL)` opts a scope into manual mode.
-2. Nested manual scopes are rejected.
+2. Nested scopes under an active manual scope are rejected.
 3. Manual deps are attached before submit through `Arg.add_dep(...)`.
 4. No post-submit `add_dependency(...)` API exists.
 5. `alloc_tensors(...)` remains output-only and returns a task id.
@@ -65,11 +65,10 @@ args.add_dep(prev_task_id);
 
 Rules:
 
-- inside manual scope, `add_dep(...)` must refer to a task from the current
-  top scope
-- outside manual scope, `add_dep(...)` is still allowed for valid boundary
-  edges from earlier producers
+- `add_dep(...)` must refer to a valid earlier producer task id
 - explicit deps become ordinary fanins immediately at submit time
+- this applies uniformly in AUTO and MANUAL submits; the task id already carries
+  the ring needed for slot lookup
 
 ### Allocation task ids
 
@@ -107,8 +106,11 @@ The runtime keeps two manual-scope-specific pieces of state:
 - the current scope task list (`scope_tasks[...]`)
 
 `manual_begin_depth` decides whether the current submit is in manual mode.
-`scope_tasks[...]` is then used to validate that explicit deps inside manual
-scope come from the current scope.
+`scope_tasks[...]` remains scope-lifetime bookkeeping for `scope_end()`.
+
+Once a manual scope is active, nested scopes are rejected even if the nested
+scope asks for `AUTO`. This keeps v0 from silently treating an inner AUTO scope
+as manual due to `manual_begin_depth`.
 
 There is no per-tensor manual-local classification on the submit path. If the
 consumer task is inside manual scope, that submit skips TensorMap lookup and
@@ -128,10 +130,9 @@ The rule is submit-scoped, not tensor-scoped:
 Current helper usage:
 
 - `pto2_find_task_slot_by_task_id(...)`
-- `pto2_task_slot_is_in_current_scope(...)`
 
-These helpers validate explicit dependency task ids. They do not classify
-tensors for partial TensorMap fallback.
+Explicit deps resolve task ids directly through shared-memory ring slot state.
+There is no extra current-scope validation on the submit path.
 
 This matches the pre-rebase aligned PR head `efab669` and the colleague design
 at `poursoul/simpler@dd76880`: manual-scope tasks express dependencies through
@@ -150,11 +151,10 @@ That gives the actual v0 dependency split:
 - manual-local tensor producer -> manual-local consumer:
   explicit dep, no TensorMap lookup / insert
 - external tensor -> manual consumer:
-  no TensorMap lookup; the orchestration must add an explicit dep if an
-  external producer task must be ordered before the manual consumer
+  explicit dep, no TensorMap lookup / insert on the manual submit
 - manual producer -> later external consumer:
-  no manual-scope TensorMap insert was published; the later consumer must use
-  `Arg.add_dep(...)` when it needs to order after the manual producer
+  use `Arg.add_dep(...)` when the later consumer needs to order after the
+  manual producer; outside manual scope the normal TensorMap path still applies
 
 ### Scope End
 
@@ -291,17 +291,17 @@ This is the main comparison table to read.
 
 | Example | Case | Runtime | Elapsed Trim (us) | Orch Trim (us) | Golden |
 | --- | --- | --- | ---: | ---: | --- |
-| `paged_attention` | `Case1` | TMR AUTO | 72.082 | 53.513 | PASS |
-| `paged_attention` | `Case1` | TMR manual scope | 80.897 | 61.755 | PASS |
+| `paged_attention` | `Case1` | TMR AUTO | 72.613 | 54.655 | PASS |
+| `paged_attention` | `Case1` | TMR manual scope | 81.358 | 62.287 | PASS |
 | `paged_attention` | `Case1` | ABG small-shape wrapper | 96.916 | 13.399 | FAIL |
-| `paged_attention` | `Case2` | TMR AUTO | 90.645 | 62.805 | PASS |
-| `paged_attention` | `Case2` | TMR manual scope | 97.781 | 67.749 | PASS |
+| `paged_attention` | `Case2` | TMR AUTO | 91.682 | 63.958 | PASS |
+| `paged_attention` | `Case2` | TMR manual scope | 101.647 | 71.885 | PASS |
 | `paged_attention` | `Case2` | ABG small-shape wrapper | 110.935 | 22.776 | FAIL |
-| `paged_attention_unroll` | `Case1` | TMR AUTO | 1139.615 | 718.983 | PASS |
-| `paged_attention_unroll` | `Case1` | TMR manual scope | 1130.907 | 609.279 | PASS |
+| `paged_attention_unroll` | `Case1` | TMR AUTO | 1140.067 | 710.711 | PASS |
+| `paged_attention_unroll` | `Case1` | TMR manual scope | 1131.544 | 614.427 | PASS |
 | `paged_attention_unroll` | `Case1` | ABG | 1385.087 | 706.679 | PASS |
-| `paged_attention_unroll` | `Case2` | TMR AUTO | 514.259 | 279.321 | PASS |
-| `paged_attention_unroll` | `Case2` | TMR manual scope | 492.723 | 229.459 | PASS |
+| `paged_attention_unroll` | `Case2` | TMR AUTO | 513.079 | 274.306 | PASS |
+| `paged_attention_unroll` | `Case2` | TMR manual scope | 491.192 | 229.887 | PASS |
 | `paged_attention_unroll` | `Case2` | ABG | 664.744 | 284.575 | FAIL |
 
 ### Readout
@@ -310,11 +310,11 @@ The fresh rebased numbers show:
 
 - non-unroll manual scope is still slower than TMR AUTO, but the gap is much
   smaller than the older pre-forward-port table
-  - `Case1`: `+8.815us` elapsed, `+8.242us` orch
-  - `Case2`: `+7.136us` elapsed, `+4.944us` orch
+  - `Case1`: `+8.745us` elapsed, `+7.632us` orch
+  - `Case2`: `+9.965us` elapsed, `+7.927us` orch
 - unroll manual scope remains better than TMR AUTO on both kept cases
-  - `Case1`: `-8.709us` elapsed, `-109.704us` orch
-  - `Case2`: `-21.536us` elapsed, `-49.863us` orch
+  - `Case1`: `-8.523us` elapsed, `-96.284us` orch
+  - `Case2`: `-21.887us` elapsed, `-44.419us` orch
 - the forward-ported cleanup therefore did not regress the manual path; it
   materially improved the rebased non-unroll result versus the old doc table
 
