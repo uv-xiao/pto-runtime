@@ -254,6 +254,19 @@ The port stays intentionally small:
 - no new runtime-side delayed wiring or `scope_end()` replay
 - no unrelated a5 runtime cleanup folded into the change
 
+For the initial example port, the manual orchestration keeps the same explicit
+dependency shape as the a2a3 non-unroll manual example:
+
+- `QK -> SF`
+- `SF -> PV`
+- `PV -> UP`
+- `alloc -> first UP`
+- `prev_update -> later UP`
+- `alloc -> last UP` when the update chain is multi-step
+
+It intentionally does not add extra manual-only edges like `alloc -> QK` or
+`SF -> UP`, because those are not part of the established a2a3 v0 pattern.
+
 ## A5 Example Scope
 
 The a5 side demonstrates manual scope through examples under
@@ -301,6 +314,51 @@ This means the port is considered complete for the current branch when:
 
 If no usable a5 device exists on the current server, lack of real-device runs is
 recorded as an environment limit, not as a runtime bug.
+
+### Latest A5 Sim Rerun
+
+The current branch was revalidated on `a5sim` after aligning the a5 manual
+example's explicit-dependency pattern with the a2a3 manual example.
+
+Use a pinned local PTO-ISA clone to avoid unrelated network fetch delays:
+
+```bash
+export PTO_ISA_ROOT=$(pwd)/build/pto-isa
+source .venv/bin/activate
+```
+
+Rerun commands:
+
+```bash
+python examples/a5/tensormap_and_ringbuffer/paged_attention_manual_scope/test_paged_attention.py \
+  -p a5sim --build \
+  --case TestPagedAttentionManualScope::SmallCase1
+
+python examples/a5/tensormap_and_ringbuffer/paged_attention_manual_scope/test_paged_attention.py \
+  -p a5sim --build --manual include \
+  --case TestPagedAttentionManualScope::SmallCaseVarSeq2
+
+python examples/a5/tensormap_and_ringbuffer/paged_attention/test_paged_attention.py \
+  -p a5sim --build \
+  --case TestPagedAttention::SmallCase1
+```
+
+Results:
+
+| Example                        | Case           | Result |
+| ------------------------------ | -------------- | ------ |
+| `paged_attention_manual_scope` | `SmallCase1`   | PASS   |
+| `paged_attention_manual_scope` | `SmallCaseVarSeq2` | PASS |
+| `paged_attention`              | `SmallCase1`   | PASS   |
+
+Notes:
+
+- `paged_attention_manual_scope::SmallCaseVarSeq2` is marked
+  `"manual": True`, so the rerun needs `--manual include`.
+- The first rerun attempt without `PTO_ISA_ROOT` stalled in an external
+  `pto-isa` fetch; that was an environment issue, not a runtime failure.
+- This host still has no confirmed usable a5 hardware device, so the a5 port
+  remains validated at build + sim parity only.
 
 ### Golden Checks
 

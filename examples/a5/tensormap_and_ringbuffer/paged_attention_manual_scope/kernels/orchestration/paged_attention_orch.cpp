@@ -166,7 +166,7 @@ __attribute__((visibility("default"))) void build_paged_attention_graph(const Ch
                 const Tensor &li_update = alloc_outs.get_ref(1);
                 const Tensor &mi_update = alloc_outs.get_ref(2);
                 PTO2TaskId alloc_task = alloc_outs.task_id();
-                PTO2TaskId prev_update = PTO2TaskId::invalid();
+                PTO2TaskId prev_update_task = PTO2TaskId::invalid();
                 prof_submit_count++;
                 CYCLE_COUNT_LAP(prof_submit_task);
 
@@ -187,9 +187,6 @@ __attribute__((visibility("default"))) void build_paged_attention_graph(const Ch
                     params_qk.add_input(qi);
                     params_qk.add_input(kj);
                     params_qk.add_output(sij_ci);
-                    if (alloc_task.is_valid()) {
-                        params_qk.add_dep(alloc_task);
-                    }
                     CYCLE_COUNT_LAP(prof_param_setup);
                     TaskOutputTensors qk_outs = pto2_rt_submit_aic_task(FUNC_QK_MATMUL, params_qk);
                     const Tensor &sij = qk_outs.get_ref(0);
@@ -240,18 +237,21 @@ __attribute__((visibility("default"))) void build_paged_attention_graph(const Ch
                     params_up.add_inout(li_update);
                     params_up.add_inout(oi);
                     params_up.add_inout(out_view);
-                    params_up.add_dep(sf_outs.task_id());
                     params_up.add_dep(pv_outs.task_id());
-                    if (prev_update.is_valid()) {
-                        params_up.add_dep(prev_update);
-                    } else if (alloc_task.is_valid()) {
+                    if (is_first) {
                         params_up.add_dep(alloc_task);
+                    }
+                    if (prev_update_task.is_valid()) {
+                        params_up.add_dep(prev_update_task);
+                        if (is_last) {
+                            params_up.add_dep(alloc_task);
+                        }
                     }
                     params_up.add_scalar(is_first);
                     params_up.add_scalar(is_last);
                     CYCLE_COUNT_LAP(prof_param_setup);
                     TaskOutputTensors up_outs = pto2_rt_submit_aiv_task(FUNC_ONLINE_UPDATE, params_up);
-                    prev_update = up_outs.task_id();
+                    prev_update_task = up_outs.task_id();
                     prof_submit_count++;
                     CYCLE_COUNT_LAP(prof_submit_task);
                 }
