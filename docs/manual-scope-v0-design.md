@@ -20,11 +20,12 @@ This is intentionally narrower than the older manual-dep branch.
 The v0 design keeps these rules:
 
 1. `PTO2_SCOPE(PTO2ScopeMode::MANUAL)` opts a scope into manual mode.
-2. Nested scopes under an active manual scope are rejected.
-3. Manual deps are attached before submit through `Arg.add_dep(...)`.
-4. No post-submit `add_dependency(...)` API exists.
-5. `alloc_tensors(...)` remains output-only and returns a task id.
-6. Scope handling stays close to upstream AUTO mode.
+2. `MANUAL` nested inside active `MANUAL` is allowed.
+3. `AUTO` nested inside active `MANUAL` is rejected.
+4. Manual deps are attached before submit through `Arg.add_dep(...)`.
+5. No post-submit `add_dependency(...)` API exists.
+6. `alloc_tensors(...)` remains output-only and returns a task id.
+7. Scope handling stays close to upstream AUTO mode.
 
 ## User-Facing API
 
@@ -106,9 +107,17 @@ The runtime keeps two manual-scope-specific pieces of state:
 reset in `pto2_orchestrator_done()` so a reused orchestrator starts cleanly on
 the next run.
 
-Once a manual scope is active, nested scopes are rejected even if the nested
-scope asks for `AUTO`. This keeps v0 from silently treating an inner AUTO scope
-as manual due to `manual_begin_depth`.
+The depth model treats `manual_begin_depth` as the depth where the outermost
+active manual scope began:
+
+- outer `MANUAL` begin sets `manual_begin_depth`
+- nested `MANUAL` begin does not overwrite it
+- nested `AUTO` begin is rejected
+- `scope_end()` clears `manual_begin_depth` only when the outermost manual
+  scope exits
+
+That keeps nested-manual behavior small: there is still only one manual-depth
+marker, not a second manual-scope stack.
 
 There is no per-tensor manual-local classification on the submit path. If the
 consumer task is inside manual scope, that submit skips TensorMap lookup and
@@ -228,6 +237,44 @@ for (...) {
 }
 ```
 
+## A5 Port Scope
+
+The a5 port uses the same manual-scope v0 runtime model as a2a3:
+
+- same `manual_begin_depth` state model
+- same `MANUAL`-inside-`MANUAL` behavior
+- same rejection of `AUTO` inside active `MANUAL`
+- same submit-time explicit dependency model through `Arg.add_dep(...)`
+- same submit-time TensorMap bypass for tasks submitted inside manual scope
+
+The port stays intentionally small:
+
+- no new submit API
+- no new unit tests
+- no new runtime-side delayed wiring or `scope_end()` replay
+- no unrelated a5 runtime cleanup folded into the change
+
+## A5 Example Scope
+
+The a5 side demonstrates manual scope through examples under
+`examples/a5/tensormap_and_ringbuffer/`.
+
+For this port, the required example scope is:
+
+- `paged_attention_manual_scope`
+
+If the existing a5 example layout already supports an unroll/manual twin without
+extra runtime-side work, `paged_attention_unroll_manual_scope` may be added in
+the same style. Otherwise the initial a5 port stops at the non-unroll manual
+example and keeps the runtime diff small.
+
+Example changes should prefer:
+
+- reusing the existing a5 paged-attention kernels
+- keeping orchestration as the primary place where manual-scope behavior is
+  expressed
+- avoiding unrelated benchmark-script or test harness expansion in this pass
+
 ## Rebased Validation
 
 Environment:
@@ -236,6 +283,24 @@ Environment:
 - device: `10`
 - PTO-ISA commit: `478daadb`
 - benchmark date: `2026-04-23`
+
+## A5 Validation Boundary
+
+The a5 port uses a narrower validation target than the earlier a2a3 hardware
+work:
+
+- required: successful a5 runtime/example build
+- required: sim-capable example parity on `a5sim` where supported
+- optional: real a5 hardware execution when an a5 device is actually available
+
+This means the port is considered complete for the current branch when:
+
+- the a5 runtime accepts nested manual scope with the same semantics as a2a3
+- the new a5 manual-scope example(s) build cleanly
+- the available sim path runs cleanly on this host
+
+If no usable a5 device exists on the current server, lack of real-device runs is
+recorded as an environment limit, not as a runtime bug.
 
 ### Golden Checks
 
