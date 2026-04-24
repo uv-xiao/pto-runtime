@@ -603,6 +603,26 @@ TaskOutputTensors pto2_submit_mixed_task(
 
     CYCLE_COUNT_LAP_RECORD(g_orch_sync_cycle, AicpuPhaseId::ORCH_SYNC, task_id.raw);
 
+    for (uint32_t i = 0; i < args.explicit_dep_count(); i++) {
+        PTO2TaskId dep_task_id = args.explicit_dep(i);
+        if (!dep_task_id.is_valid()) {
+            pto2_orch_report_fatal(
+                orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "Arg.add_dep(...) requires a valid task id"
+            );
+            return result;
+        }
+        PTO2SharedMemoryRingHeader &dep_ring = orch->sm_header->rings[dep_task_id.ring()];
+        int32_t dep_local_task_id = static_cast<int32_t>(dep_task_id.local());
+        int32_t dep_last_task_alive = dep_ring.fc.last_task_alive.load(std::memory_order_acquire);
+        if (dep_local_task_id < dep_last_task_alive) {
+            continue;
+        }
+        PTO2TaskSlotState *producer_slot_state = &dep_ring.get_slot_state_by_task_id(dep_local_task_id);
+        if (!pto2_append_fanin_or_fail(orch, producer_slot_state, &fanin_builder, ring_id)) {
+            return result;
+        }
+    }
+
     // === STEP 3: Lookup inputs + materialize runtime-created outputs ===
     if (!orch->in_manual_scope()) {
         for (int i = 0; i < args.tensor_count(); i++) {
@@ -619,7 +639,8 @@ TaskOutputTensors pto2_submit_mixed_task(
             if (owner.is_valid()) {
                 PTO2TaskSlotState *prod_state =
                     &orch->sm_header->rings[owner.ring()].get_slot_state_by_task_id(owner.local());
-                if (!pto2_append_fanin_or_fail(orch, prod_state, &fanin_builder, ring_id)) {
+                if (prod_state->task != nullptr && prod_state->task->task_id == owner &&
+                    !pto2_append_fanin_or_fail(orch, prod_state, &fanin_builder, ring_id)) {
                     return result;
                 }
             }
@@ -634,9 +655,12 @@ TaskOutputTensors pto2_submit_mixed_task(
 
             bool lookup_fatal = false;
             orch->tensor_map.lookup(*tensor, [&](PTO2TensorMapEntry &entry, OverlapStatus overlap_status) -> bool {
-                auto prod_ring = entry.producer_task_id.ring();
-                auto prod_local = entry.producer_task_id.local();
-                PTO2TaskSlotState *prod_state = &orch->sm_header->rings[prod_ring].get_slot_state_by_task_id(prod_local);
+                PTO2TaskId producer_task_id = entry.producer_task_id;
+                PTO2TaskSlotState *prod_state =
+                    &orch->sm_header->rings[producer_task_id.ring()].get_slot_state_by_task_id(producer_task_id.local());
+                if (prod_state->task == nullptr || prod_state->task->task_id != producer_task_id) {
+                    return true;
+                }
                 if (!pto2_append_fanin_or_fail(orch, prod_state, &fanin_builder, ring_id)) {
                     lookup_fatal = true;
                     return false;
