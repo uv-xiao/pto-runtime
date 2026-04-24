@@ -1,13 +1,6 @@
 # Manual Scope V0 Design
 
-Date: 2026-04-23
-
-Branch checkpoint:
-
-- local rebased head: `f19fa37`
-- rebased onto `upstream/main`: `cb1a948`
-- PR `#568` still points at older remote head `efab669`, so the PR page does not
-  yet reflect this forward-ported checkpoint
+Date: 2026-04-24
 
 ## Goal
 
@@ -65,7 +58,9 @@ args.add_dep(prev_task_id);
 
 Rules:
 
-- `add_dep(...)` must refer to a valid earlier producer task id
+- `add_dep(...)` must refer to an earlier producer task id
+- if that producer task is already retired when the consumer is submitted, the
+  runtime skips the edge without reporting an error
 - explicit deps become ordinary fanins immediately at submit time
 - this applies uniformly in AUTO and MANUAL submits; the task id already carries
   the ring needed for slot lookup
@@ -107,6 +102,9 @@ The runtime keeps two manual-scope-specific pieces of state:
 
 `manual_begin_depth` decides whether the current submit is in manual mode.
 `scope_tasks[...]` remains scope-lifetime bookkeeping for `scope_end()`.
+`manual_begin_depth` is explicitly initialized in `pto2_orchestrator_init()` and
+reset in `pto2_orchestrator_done()` so a reused orchestrator starts cleanly on
+the next run.
 
 Once a manual scope is active, nested scopes are rejected even if the nested
 scope asks for `AUTO`. This keeps v0 from silently treating an inner AUTO scope
@@ -127,10 +125,6 @@ The rule is submit-scoped, not tensor-scoped:
 - inside manual scope: skip the entire TensorMap insert section
 - outside manual scope: keep normal AUTO TensorMap behavior
 
-Current helper usage:
-
-- `pto2_find_task_slot_by_task_id(...)`
-
 Explicit deps resolve task ids directly through shared-memory ring slot state.
 There is no extra current-scope validation on the submit path.
 
@@ -143,6 +137,7 @@ at `poursoul/simpler@dd76880`: manual-scope tasks express dependencies through
 For a submitted task:
 
 - explicit `add_dep(...)` edges are always checked first
+- retired explicit-dep producers are skipped as already satisfied
 - if the task is inside manual scope, TensorMap lookup / insert is skipped
 - if the task is outside manual scope, normal AUTO TensorMap behavior is used
 
@@ -246,13 +241,13 @@ Environment:
 
 One-round hardware reruns without `--skip-golden`:
 
-| Path | Case1 | Case2 |
-| --- | --- | --- |
-| TMR `paged_attention` AUTO | PASS | PASS |
-| TMR `paged_attention_manual_scope` | PASS | PASS |
-| TMR `paged_attention_unroll` AUTO | PASS | PASS |
-| TMR `paged_attention_unroll_manual_scope` | PASS | PASS |
-| ABG `paged_attention_unroll` | PASS | FAIL |
+| Path                                 | Case1 | Case2 |
+| ------------------------------------ | ----- | ----- |
+| TMR `paged_attention` AUTO           | PASS  | PASS  |
+| TMR `paged_attention_manual_scope`   | PASS  | PASS  |
+| TMR `paged_attention_unroll` AUTO    | PASS  | PASS  |
+| TMR `paged_attention_unroll_manual_scope` | PASS  | PASS  |
+| ABG `paged_attention_unroll`         | PASS  | FAIL  |
 
 Notes:
 
@@ -289,20 +284,20 @@ This is the main comparison table to read.
 - ABG unroll `Case2` is also timing-only because its in-tree baseline still
   fails golden
 
-| Example | Case | Runtime | Elapsed Trim (us) | Orch Trim (us) | Golden |
-| --- | --- | --- | ---: | ---: | --- |
-| `paged_attention` | `Case1` | TMR AUTO | 72.613 | 54.655 | PASS |
-| `paged_attention` | `Case1` | TMR manual scope | 81.358 | 62.287 | PASS |
-| `paged_attention` | `Case1` | ABG small-shape wrapper | 96.916 | 13.399 | FAIL |
-| `paged_attention` | `Case2` | TMR AUTO | 91.682 | 63.958 | PASS |
-| `paged_attention` | `Case2` | TMR manual scope | 101.647 | 71.885 | PASS |
-| `paged_attention` | `Case2` | ABG small-shape wrapper | 110.935 | 22.776 | FAIL |
-| `paged_attention_unroll` | `Case1` | TMR AUTO | 1140.067 | 710.711 | PASS |
-| `paged_attention_unroll` | `Case1` | TMR manual scope | 1131.544 | 614.427 | PASS |
-| `paged_attention_unroll` | `Case1` | ABG | 1385.087 | 706.679 | PASS |
-| `paged_attention_unroll` | `Case2` | TMR AUTO | 513.079 | 274.306 | PASS |
-| `paged_attention_unroll` | `Case2` | TMR manual scope | 491.192 | 229.887 | PASS |
-| `paged_attention_unroll` | `Case2` | ABG | 664.744 | 284.575 | FAIL |
+| Example                  | Case    | Runtime               | Elapsed Trim (us) | Orch Trim (us) | Golden |
+| ------------------------ | ------- | --------------------- | ----------------: | -------------: | ------ |
+| `paged_attention`        | `Case1` | TMR AUTO              |            72.613 |         54.655 | PASS   |
+| `paged_attention`        | `Case1` | TMR manual scope      |            81.358 |         62.287 | PASS   |
+| `paged_attention`        | `Case1` | ABG small-shape wrapper |          96.916 |         13.399 | FAIL   |
+| `paged_attention`        | `Case2` | TMR AUTO              |            91.682 |         63.958 | PASS   |
+| `paged_attention`        | `Case2` | TMR manual scope      |           101.647 |         71.885 | PASS   |
+| `paged_attention`        | `Case2` | ABG small-shape wrapper |         110.935 |         22.776 | FAIL   |
+| `paged_attention_unroll` | `Case1` | TMR AUTO              |          1140.067 |        710.711 | PASS   |
+| `paged_attention_unroll` | `Case1` | TMR manual scope      |          1131.544 |        614.427 | PASS   |
+| `paged_attention_unroll` | `Case1` | ABG                   |          1385.087 |        706.679 | PASS   |
+| `paged_attention_unroll` | `Case2` | TMR AUTO              |           513.079 |        274.306 | PASS   |
+| `paged_attention_unroll` | `Case2` | TMR manual scope      |           491.192 |        229.887 | PASS   |
+| `paged_attention_unroll` | `Case2` | ABG                   |           664.744 |        284.575 | FAIL   |
 
 ### Readout
 
@@ -324,19 +319,17 @@ The in-tree ABG non-unroll scene test still uses larger production cases. Those
 rows are not directly comparable to the kept small TMR non-unroll cases, but
 they are recorded here for completeness:
 
-| Example | Case | Runtime | Elapsed Trim (us) | Orch Trim (us) | Golden |
-| --- | --- | --- | ---: | ---: | --- |
-| `paged_attention` | `case1` | ABG production | 32772.205 | 32476.044 | PASS |
-| `paged_attention` | `case2` | ABG production | 17288.330 | 16718.342 | PASS |
+| Example           | Case    | Runtime          | Elapsed Trim (us) | Orch Trim (us) | Golden |
+| ----------------- | ------- | ---------------- | ----------------: | -------------: | ------ |
+| `paged_attention` | `case1` | ABG production   |         32772.205 |      32476.044 | PASS   |
+| `paged_attention` | `case2` | ABG production   |         17288.330 |      16718.342 | PASS   |
 
 ## Risks
 
-1. The PR page still shows the old remote branch head, so GitHub review state is
-   stale until the rebased branch is pushed.
-2. Non-unroll manual scope is not yet performance-neutral versus TMR AUTO.
-3. The only correctness-clean non-unroll comparison on this branch today is TMR
+1. Non-unroll manual scope is not yet performance-neutral versus TMR AUTO.
+2. The only correctness-clean non-unroll comparison on this branch today is TMR
    AUTO vs TMR manual scope; ABG small-shape comparison is still timing-only.
-4. ABG unroll `Case2` remains a failing baseline and should not be used as a
+3. ABG unroll `Case2` remains a failing baseline and should not be used as a
    correctness-clean target.
 
 ## Recommendation
@@ -345,7 +338,7 @@ Treat this rebased checkpoint as:
 
 - functionally validated for TMR AUTO/manual v0 on real hardware
 - benchmarked with fresh 100-round data on device `10`
-- ready for PR refresh after pushing the rebased branch and updating the PR body
+- ready for PR refresh after pushing the updated branch
 
 But do not describe the non-unroll manual path as zero-overhead yet. The
 remaining gap is much smaller than before, not eliminated.
