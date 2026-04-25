@@ -189,8 +189,9 @@ void pto2_scope_end(PTO2OrchestratorState *orch);
  * @param mixed_kernels  Kernel IDs for AIC/AIV0/AIV1 slots
  * @param args      Aggregated tensor and scalar parameters
  */
-TaskSubmitResult
-pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_kernels, const Arg &args);
+TaskOutputTensors pto2_submit_mixed_task(
+    PTO2OrchestratorState *orch, const MixedKernels &mixed_kernels, const Arg &args, bool complete_in_future
+);
 
 /**
  * Allocate fresh tensors by creating one hidden runtime-owned output task.
@@ -198,7 +199,7 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
  * The returned tensors are already materialized and bound to the same creator
  * task id for scope lifetime and future creator-retention dependencies.
  */
-TaskSubmitResult pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args);
+TaskOutputTensors pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args);
 
 // =============================================================================
 // Flow Control

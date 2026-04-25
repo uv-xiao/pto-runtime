@@ -504,11 +504,12 @@ void pto2_scope_end(PTO2OrchestratorState *orch) {
 // =============================================================================
 // Task Submission
 // =============================================================================
-TaskSubmitResult
-pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_kernels, const Arg &args) {
+TaskOutputTensors pto2_submit_mixed_task(
+    PTO2OrchestratorState *orch, const MixedKernels &mixed_kernels, const Arg &args, bool complete_in_future
+) {
     CYCLE_COUNT_START();
 
-    TaskSubmitResult result;
+    TaskOutputTensors result;
 
     // Orchestration API should short-circuit after fatal, but keep this entry
     // robust as a no-op in case a caller reaches it directly.
@@ -720,7 +721,7 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
         payload.fanin_inline_slot_states[i] = fanin_builder.inline_slots[i];
     }
 
-    payload.init(args, result, prepared.alloc_result, layout);
+    payload.init(args, result, prepared.alloc_result, layout, complete_in_future);
 
     CYCLE_COUNT_LAP_RECORD(g_orch_args_cycle, AicpuPhaseId::ORCH_PARAMS, task_id.raw);
 #if PTO2_ORCH_PROFILING
@@ -748,31 +749,31 @@ pto2_submit_mixed_task(PTO2OrchestratorState *orch, const MixedKernels &mixed_ke
     return result;
 }
 
-TaskSubmitResult pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args) {
+TaskOutputTensors pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args) {
     // Orchestration API should short-circuit after fatal, but keep this entry
     // robust as a no-op in case a caller reaches it directly.
     if (orch->fatal) {
-        return TaskSubmitResult{};
+        return TaskOutputTensors{};
     }
 
     if (args.tensor_count() <= 0) {
         pto2_orch_report_fatal(
             orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "alloc_tensors requires at least one TensorCreateInfo"
         );
-        return TaskSubmitResult{};
+        return TaskOutputTensors{};
     }
     if (args.scalar_count() != 0) {
         pto2_orch_report_fatal(
             orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "alloc_tensors only accepts output TensorCreateInfo args"
         );
-        return TaskSubmitResult{};
+        return TaskOutputTensors{};
     }
     for (int32_t i = 0; i < args.tensor_count(); i++) {
         if (args.tag(i) != TensorArgType::OUTPUT) {
             pto2_orch_report_fatal(
                 orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "alloc_tensors only accepts output TensorCreateInfo args"
             );
-            return TaskSubmitResult{};
+            return TaskOutputTensors{};
         }
     }
 
@@ -783,13 +784,13 @@ TaskSubmitResult pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args
             orch, PTO2_ERROR_INVALID_ARGS, __FUNCTION__, "%s",
             args.error_msg ? args.error_msg : "alloc_tensors failed to construct output-only Arg"
         );
-        return TaskSubmitResult{};
+        return TaskOutputTensors{};
     }
 
     PTO2OutputLayout layout = pto2_calculate_output_layout(args);
     PTO2PreparedTask prepared;
     if (!pto2_prepare_task(orch, args, layout.total_output_size, 0, &prepared)) {
-        return TaskSubmitResult{};
+        return TaskOutputTensors{};
     }
 
     PTO2TaskDescriptor &task = *prepared.task;
@@ -811,9 +812,9 @@ TaskSubmitResult pto2_alloc_tensors(PTO2OrchestratorState *orch, const Arg &args
     task.packed_buffer_base = prepared.alloc_result.packed_base;
     task.packed_buffer_end = prepared.alloc_result.packed_end;
 
-    TaskSubmitResult outputs;
+    TaskOutputTensors outputs;
     outputs.set_task_id(prepared.task_id);
-    payload.init(args, outputs, prepared.alloc_result, layout);
+    payload.init(args, outputs, prepared.alloc_result, layout, false);
     payload.fanin_actual_count = 0;
     payload.fanin_spill_start = 0;
     payload.fanin_spill_pool = &orch->rings[prepared.task_id.ring()].fanin_pool;

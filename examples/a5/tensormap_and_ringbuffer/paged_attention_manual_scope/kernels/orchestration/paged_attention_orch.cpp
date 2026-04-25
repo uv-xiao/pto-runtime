@@ -275,12 +275,10 @@ __attribute__((visibility("default"))) void build_paged_attention_graph(const Ch
             "  external_tensor  : %7.3fus (%5.1f%%)", cycles_to_us(prof_ext_tensor), prof_ext_tensor * 100.0 / total
         );
         LOG_ALWAYS(
-            "  make_tensor      : %7.3fus (%5.1f%%)", cycles_to_us(prof_make_tensor),
-            prof_make_tensor * 100.0 / total
+            "  make_tensor      : %7.3fus (%5.1f%%)", cycles_to_us(prof_make_tensor), prof_make_tensor * 100.0 / total
         );
         LOG_ALWAYS(
-            "  tensor_view      : %7.3fus (%5.1f%%)", cycles_to_us(prof_tensor_view),
-            prof_tensor_view * 100.0 / total
+            "  tensor_view      : %7.3fus (%5.1f%%)", cycles_to_us(prof_tensor_view), prof_tensor_view * 100.0 / total
         );
         LOG_ALWAYS(
             "  param_setup      : %7.3fus (%5.1f%%)", cycles_to_us(prof_param_setup), prof_param_setup * 100.0 / total

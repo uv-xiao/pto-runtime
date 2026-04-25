@@ -657,7 +657,9 @@ TaskOutputTensors pto2_submit_mixed_task(
             orch->tensor_map.lookup(*tensor, [&](PTO2TensorMapEntry &entry, OverlapStatus overlap_status) -> bool {
                 PTO2TaskId producer_task_id = entry.producer_task_id;
                 PTO2TaskSlotState *prod_state =
-                    &orch->sm_header->rings[producer_task_id.ring()].get_slot_state_by_task_id(producer_task_id.local());
+                    &orch->sm_header->rings[producer_task_id.ring()].get_slot_state_by_task_id(
+                        producer_task_id.local()
+                    );
                 if (prod_state->task == nullptr || prod_state->task->task_id != producer_task_id) {
                     return true;
                 }
