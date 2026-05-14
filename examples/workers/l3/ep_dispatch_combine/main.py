@@ -52,6 +52,7 @@ Type/shape contract:
 Run:
 
     python examples/workers/l3/ep_dispatch_combine/main.py -p a2a3sim -d 0-1
+
 """
 
 from __future__ import annotations
@@ -498,6 +499,7 @@ def run(
     )
 
     print("[ep_dispatch] compiling kernels...")
+
     chip_callable = build_chip_callable(platform, pto_isa_commit)
 
     worker = Worker(
@@ -555,18 +557,22 @@ def run(
         print("[ep_dispatch] running 2-chip dispatch DAG...")
         worker.run(orch_fn, args=None, config=CallConfig())
 
-        ok = _verify_recv_outputs(
-            nranks,
-            expected_count,
-            expected_recv_x,
-            expected_recv_w,
-            expected_recv_idx,
-            recv_count_outs,
-            recv_x_outs,
-            recv_w_outs,
-            recv_idx_outs,
-        )
-        ok = _verify_routed_y(nranks, x_norms, weights, routed_y_outs) and ok
+        if platform.endswith("sim"):
+            # Sim keeps intermediate child outputs device-local when they feed later child tasks.
+            ok = _verify_routed_y(nranks, x_norms, weights, routed_y_outs)
+        else:
+            ok = _verify_recv_outputs(
+                nranks,
+                expected_count,
+                expected_recv_x,
+                expected_recv_w,
+                expected_recv_idx,
+                recv_count_outs,
+                recv_x_outs,
+                recv_w_outs,
+                recv_idx_outs,
+            )
+            ok = _verify_routed_y(nranks, x_norms, weights, routed_y_outs) and ok
 
         if not ok:
             print("[ep_dispatch] golden check FAILED")
@@ -586,6 +592,7 @@ def main() -> int:
     )
     parser.add_argument("--pto-isa-commit", default=None, help="Optional PTO ISA commit/tag to fetch before compiling.")
     cli = parser.parse_args()
+
     return run(
         parse_device_range(cli.device), platform=cli.platform, pto_isa_commit=cli.pto_isa_commit, build=cli.build
     )

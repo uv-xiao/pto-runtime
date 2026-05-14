@@ -23,6 +23,7 @@ out as ``[mailbox: nranks * M*N floats | signal tail: nranks int32 slots]``).
 
 Run:
     python examples/workers/l3/ffn_tp_parallel/main.py -p a2a3sim -d 0-1
+
 """
 
 from __future__ import annotations
@@ -294,6 +295,7 @@ def run(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+
     parser.add_argument("-p", "--platform", default="a2a3", help="Platform backend, e.g. a2a3 or a2a3sim.")
     parser.add_argument("-d", "--device", default="0-1", help="Device range, e.g. '0-1'. Two chips required.")
     parser.add_argument(
@@ -301,6 +303,7 @@ def main() -> int:
     )
     parser.add_argument("--pto-isa-commit", default=None, help="Optional PTO ISA commit/tag to fetch before compiling.")
     cli = parser.parse_args()
+
     return run(
         parse_device_range(cli.device), platform=cli.platform, pto_isa_commit=cli.pto_isa_commit, build=cli.build
     )
