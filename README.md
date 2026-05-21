@@ -1,3 +1,30 @@
+# PTO Runtime - NVIDIA Target Exploration
+
+This repository is currently maintained for personal technical interests. It is
+not a production project, public product, or stable external API.
+
+The current implementation is still the Ascend PTO Runtime, where the host,
+AICPU, and AICore programs cooperate to compile and execute task dependency
+graphs. That implementation remains the reference point for the CUDA design
+work.
+
+This branch adds design notes for an NVIDIA backend. The immediate target is to
+understand how the existing `simpler` compilation and launch model maps onto
+CUDA, where there is no AICPU equivalent. The design work compares a
+host-scheduled CUDA runtime with a persistent-device CUDA runtime, including
+stream semantics, concurrent kernel execution, device-side scheduling inside a
+persistent kernel, and whether the common scheduler plus user task code can be
+compiled through a static `nvcc` flow.
+
+See [NVIDIA Backend Design](docs/nvidia-backend/overall.md),
+[NVIDIA Flow Details](docs/nvidia-backend/flows.md), and
+[CUDA Persistent Device Runtime](docs/nvidia-backend/persistent-device.md) for
+the current CUDA target notes.
+
+<!-- markdownlint-disable MD033 MD025 -->
+<details>
+<summary>Original PTO Runtime README</summary>
+
 # PTO Runtime - Task Runtime Execution Framework
 
 Modular runtime for building and executing task dependency graphs on Ascend devices with coordinated AICPU and AICore execution. Three independently compiled programs (Host `.so`, AICPU `.so`, AICore `.o`) work together through clearly defined APIs.
@@ -95,3 +122,6 @@ This project is licensed under the **CANN Open Software License Agreement Versio
 - [examples/a2a3/](examples/a2a3/) - Examples organized by runtime
 - [simpler_setup/](simpler_setup/) - SceneTestCase framework, runtime builder, kernel compiler
 - [python/](python/) - Python bindings and user-facing runtime API
+
+</details>
+<!-- markdownlint-enable MD033 MD025 -->
