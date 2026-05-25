@@ -180,6 +180,12 @@ For remote H200, use `--arch compute_90`. The scripts discover `nvcc` from
 If `nvcc` is still unavailable, the script uses an embedded `sm_80` PTX
 fallback that the H200 driver JITs.
 
+The stream report compares `pto_stream_parallel` against `pto_stream_serial`.
+The current A100/H200 capture at `37bebf44` shows about `0.51x` parallel-vs-
+serial wall time on both machines, supporting multiple streams for the
+host-schedule runtime when independent callables are launched from separate
+host threads.
+
 ## Hardware Checks
 
 Local A100:

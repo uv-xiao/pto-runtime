@@ -12,8 +12,13 @@ The latest captured raw reports are under `tmp/`:
 - `tmp/cuda-backend/h200-wide-e430bc1b/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-wide-e430bc1b/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-wide-e430bc1b/cuda-benchmark.svg`
+- `tmp/cuda-backend/a100-stream-37bebf44/cuda-benchmark.md`
+- `tmp/cuda-backend/h200-stream-37bebf44/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-stream-37bebf44/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-stream-37bebf44/cuda-benchmark.svg`
 
-The data was captured from commit `e430bc1b`.
+The worker-grid data was captured from commit `e430bc1b`. The stream
+concurrency data was captured from commit `37bebf44`.
 
 ## Current Baselines
 
@@ -61,6 +66,23 @@ compiled PTX with remote `nvcc` for `compute_90`, discovered from the
 `/usr/local/cuda*` toolkit path. The report still marks embedded PTX rows when
 fallback PTX is used, but the latest H200 report does not use that fallback.
 
+## Stream Concurrency
+
+The host-schedule stream microbenchmark prepares two independent slow
+vector-add callables with different `stream_id` values, runs them serially,
+then launches them concurrently from host threads. The copied-back results are
+validated in both cases.
+
+| GPU | Serial ns | Parallel ns | Parallel vs serial |
+| --- | --------- | ----------- | ------------------ |
+| A100 | 113838981 | 57789544 | 0.51x |
+| H200 | 89797063 | 46229849 | 0.51x |
+
+This supports keeping multiple CUDA streams in the host-schedule runtime:
+independent prepared callables can overlap when issued from separate host
+threads. It does not solve the persistent-device scheduling problem, where the
+CUDA device-side scheduler still has to run inside a persistent kernel.
+
 ## Reproduction Commands
 
 Local A100:
@@ -96,6 +118,24 @@ PYTHONPATH=$PWD:$PWD/python \
     tmp/cuda-backend/h200-wide-e430bc1b/cuda-benchmark.json \
     --label cuda-wide-a100-h200-e430bc1b \
     --output-dir tmp/cuda-backend/combined-wide-e430bc1b
+```
+
+Stream concurrency:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --stream-concurrency --device 0 --repeats 7 --arch compute_80 \
+    --label a100-stream-37bebf44 \
+    --output-dir tmp/cuda-backend/a100-stream-37bebf44
+
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && git pull --ff-only && \
+   PYTHONPATH=$PWD:$PWD/python \
+   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+     --stream-concurrency --device 0 --repeats 7 --arch compute_90 \
+     --label h200-stream-37bebf44 \
+     --output-dir tmp/cuda-backend/h200-stream-37bebf44'
 ```
 
 ## Next Evaluation Gaps
