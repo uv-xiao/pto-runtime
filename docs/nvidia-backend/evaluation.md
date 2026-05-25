@@ -8,13 +8,12 @@ baselines, local A100 runs, and remote H200 runs.
 
 The latest captured raw reports are under `tmp/`:
 
-- `tmp/cuda-backend/a100-batch-8b300fd3/cuda-benchmark.md`
-- `tmp/cuda-backend/h200-batch-8b300fd3/cuda-benchmark.md`
-- `tmp/cuda-backend/combined-batch-8b300fd3/cuda-benchmark.md`
-- `tmp/cuda-backend/combined-batch-8b300fd3/cuda-benchmark.svg`
+- `tmp/cuda-backend/a100-batch-66c83aba/cuda-benchmark.md`
+- `tmp/cuda-backend/h200-batch-66c83aba/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-batch-66c83aba/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-batch-66c83aba/cuda-benchmark.svg`
 
-The data was captured from commit `8b300fd3`; the report generator was later
-updated to include PTX-source disclosure at commit `150e9c38`.
+The data was captured from commit `66c83aba`.
 
 ## Current Baselines
 
@@ -37,10 +36,10 @@ length, and task count. For batch rows, the reference is
 
 | GPU | N | `pto_host_schedule_batch` ns | `persistent_device_batch` | `persistent_queue_batch` |
 | --- | - | ---------------------------- | ------------------------- | ------------------------ |
-| A100 | 1024 | 134144 | 0.40x | 0.35x |
-| H200 | 1024 | 80704 | 0.38x | 0.42x |
-| A100 | 1048576 | 75232 | 16.86x | 16.76x |
-| H200 | 1048576 | 86208 | 14.27x | 14.16x |
+| A100 | 1024 | 91136 | 0.55x | 0.54x |
+| H200 | 1024 | 71232 | 0.47x | 0.57x |
+| A100 | 1048576 | 73568 | 17.29x | 16.98x |
+| H200 | 1048576 | 86528 | 14.31x | 14.27x |
 
 The small-vector rows show launch-amortization benefit from the persistent
 paths. The large-vector rows expose the current tracer-bullet limitation:
@@ -48,13 +47,12 @@ batch rows match descriptor count, not intra-task grid shape. The persistent
 executor currently uses one worker block per descriptor, while
 `pto_host_schedule` vector-add uses a full grid.
 
-## PTX Source Caveat
+## PTX Sources
 
-The A100 runs compiled PTX with local `nvcc` for `compute_80`. The H200 runs
-used embedded `sm_80` fallback PTX that the H200 driver JIT compiled, because
-the remote environment did not provide fresh `nvcc` compilation for
-`compute_90` in this path. Treat H200 values as real execution results with
-that compilation caveat, not as final Hopper-targeted codegen results.
+The A100 rows compiled PTX with local `nvcc` for `compute_80`. The H200 rows
+compiled PTX with remote `nvcc` for `compute_90`, discovered from the
+`/usr/local/cuda*` toolkit path. The report still marks embedded PTX rows when
+fallback PTX is used, but the latest H200 report does not use that fallback.
 
 ## Reproduction Commands
 
@@ -87,16 +85,14 @@ Merge reports:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
-    --merge-json tmp/cuda-backend/a100-batch-8b300fd3/cuda-benchmark.json \
-    tmp/cuda-backend/h200-batch-8b300fd3/cuda-benchmark.json \
-    --label cuda-batch-a100-h200-8b300fd3 \
-    --output-dir tmp/cuda-backend/combined-batch-8b300fd3
+    --merge-json tmp/cuda-backend/a100-batch-66c83aba/cuda-benchmark.json \
+    tmp/cuda-backend/h200-batch-66c83aba/cuda-benchmark.json \
+    --label cuda-batch-a100-h200-66c83aba \
+    --output-dir tmp/cuda-backend/combined-batch-66c83aba
 ```
 
 ## Next Evaluation Gaps
 
-- Compile H200 PTX with fresh `compute_90` tooling instead of embedded
-  fallback PTX.
 - Add a persistent worker-grid variant so large-vector rows compare similar
   intra-task parallelism.
 - Add a higher-level task graph workload beyond vector add once the runtime
