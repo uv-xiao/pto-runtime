@@ -296,16 +296,135 @@ class DirectCudaDriver:
 def run_pto_sample(device: int, n: int, block_dim: int, arch: str) -> dict[str, Any]:
     result = run_smoke(device=device, n=n, block_dim=block_dim, arch=arch)
     result["baseline"] = "pto_host_schedule"
+    result["task_count"] = 1
     return result
+
+
+def run_pto_batch_sample(  # noqa: PLR0912
+    device: int, n: int, block_dim: int, arch: str, task_count: int
+) -> dict[str, Any]:
+    if task_count <= 0:
+        raise ValueError("task_count must be positive")
+    with tempfile.TemporaryDirectory(prefix="pto_cuda_batch_") as td:
+        ptx, ptx_source = _compile_ptx(Path(td), arch)
+    ptx_buf = ctypes.create_string_buffer(ptx + b"\0")
+    runtime, binaries = _load_runtime(True)
+    ctx = runtime.create_device_context()
+    if not ctx:
+        raise RuntimeError("create_device_context returned null")
+
+    start = time.time()
+    timing_values: list[PtoRunTiming] = []
+    try:
+        if runtime.simpler_init(ctx, device, None, 0, None, 0) != 0:
+            raise RuntimeError("simpler_init failed")
+
+        array_t = ctypes.c_float * n
+        host_a = array_t(*[float(i) for i in range(n)])
+        host_b = array_t(*[float(2 * i) for i in range(n)])
+        host_out = [array_t() for _ in range(task_count)]
+        nbytes = ctypes.sizeof(host_a)
+
+        dev_a = runtime.device_malloc_ctx(ctx, nbytes)
+        dev_b = runtime.device_malloc_ctx(ctx, nbytes)
+        dev_out = [runtime.device_malloc_ctx(ctx, nbytes) for _ in range(task_count)]
+        if not (dev_a and dev_b and all(dev_out)):
+            raise RuntimeError("device allocation failed")
+
+        try:
+            if runtime.copy_to_device_ctx(ctx, dev_a, ctypes.byref(host_a), nbytes) != 0:
+                raise RuntimeError("copy_to_device a failed")
+            if runtime.copy_to_device_ctx(ctx, dev_b, ctypes.byref(host_b), nbytes) != 0:
+                raise RuntimeError("copy_to_device b failed")
+
+            manifest = CudaHostCallable(
+                version=2,
+                op=1,
+                image=ctypes.cast(ptx_buf, ctypes.c_void_p),
+                image_size=len(ptx) + 1,
+                entry_name=b"pto_vector_add_f32",
+                grid_dim=(n + block_dim - 1) // block_dim,
+                block_dim=block_dim,
+                shared_mem_bytes=0,
+                stream_id=0,
+            )
+            if runtime.prepare_callable(ctx, 0, ctypes.byref(manifest)) != 0:
+                raise RuntimeError("prepare_callable failed")
+
+            host_start = time.perf_counter_ns()
+            for idx in range(task_count):
+                args = CudaVectorAddArgs(a=dev_a, b=dev_b, out=dev_out[idx], n=n)
+                timing = PtoRunTiming()
+                if (
+                    runtime.run_prepared(
+                        ctx,
+                        None,
+                        0,
+                        ctypes.byref(args),
+                        block_dim,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        None,
+                        ctypes.byref(timing),
+                    )
+                    != 0
+                ):
+                    raise RuntimeError(f"run_prepared {idx} failed")
+                timing_values.append(timing)
+            host_wall_ns = time.perf_counter_ns() - host_start
+
+            expected = [float(3 * i) for i in range(n)]
+            for idx, out in enumerate(host_out):
+                if runtime.copy_from_device_ctx(ctx, ctypes.byref(out), dev_out[idx], nbytes) != 0:
+                    raise RuntimeError(f"copy_from_device {idx} failed")
+                if list(out) != expected:
+                    raise RuntimeError(f"host-schedule batch output {idx} mismatch")
+            if runtime.unregister_callable(ctx, 0) != 0:
+                raise RuntimeError("unregister_callable failed")
+        finally:
+            runtime.device_free_ctx(ctx, dev_a)
+            runtime.device_free_ctx(ctx, dev_b)
+            for ptr in dev_out:
+                runtime.device_free_ctx(ctx, ptr)
+    finally:
+        runtime.finalize_device(ctx)
+        runtime.destroy_device_context(ctx)
+
+    return {
+        "baseline": "pto_host_schedule_batch",
+        "status": "pass",
+        "device": device,
+        "n": n,
+        "task_count": task_count,
+        "block_dim": block_dim,
+        "ptx_arch": arch,
+        "ptx_source": ptx_source,
+        "host_wall_ns": host_wall_ns,
+        "device_wall_ns": sum(int(timing.device_wall_ns) for timing in timing_values),
+        "elapsed_s": time.time() - start,
+        "host_runtime": str(binaries.host_path),
+    }
 
 
 def run_direct_sample(device: int, n: int, block_dim: int, ptx: bytes) -> dict[str, Any]:
     with DirectCudaDriver(device=device, ptx=ptx) as driver:
-        return driver.run_vector_add(n=n, block_dim=block_dim)
+        result = driver.run_vector_add(n=n, block_dim=block_dim)
+        result["task_count"] = 1
+        return result
 
 
-def run_persistent_sample(device: int, n: int, arch: str, mode: str = "direct") -> dict[str, Any]:
-    task_count = 3 if mode == "dag" else 6 if mode == "queue" else 2
+def run_persistent_sample(
+    device: int,
+    n: int,
+    arch: str,
+    mode: str = "direct",
+    task_count: int | None = None,
+    baseline: str | None = None,
+) -> dict[str, Any]:
+    task_count = task_count if task_count is not None else 3 if mode == "dag" else 6 if mode == "queue" else 2
     queue_capacity = 2 if mode in {"dag", "queue"} else None
     result = run_persistent_smoke(
         device=device,
@@ -315,18 +434,25 @@ def run_persistent_sample(device: int, n: int, arch: str, mode: str = "direct") 
         mode=mode,
         queue_capacity=queue_capacity,
     )
-    result["baseline"] = {
-        "dag": "pto_persistent_dag",
-        "direct": "pto_persistent_device",
-        "queue": "pto_persistent_queue",
-    }[mode]
+    result["baseline"] = (
+        baseline
+        or {
+            "dag": "pto_persistent_dag",
+            "direct": "pto_persistent_device",
+            "queue": "pto_persistent_queue",
+        }[mode]
+    )
     result["block_dim"] = 256
     return result
 
 
-def run_single_sample(baseline: str, device: int, n: int, block_dim: int, arch: str) -> dict[str, Any]:
+def run_single_sample(
+    baseline: str, device: int, n: int, block_dim: int, arch: str, task_count: int = 1
+) -> dict[str, Any]:
     if baseline == "pto_host_schedule":
         return run_pto_sample(device=device, n=n, block_dim=block_dim, arch=arch)
+    if baseline == "pto_host_schedule_batch":
+        return run_pto_batch_sample(device=device, n=n, block_dim=block_dim, arch=arch, task_count=task_count)
     if baseline == "direct_driver":
         with tempfile.TemporaryDirectory(prefix="pto_cuda_bench_") as td:
             ptx, ptx_source = _compile_ptx(Path(td), arch)
@@ -339,6 +465,24 @@ def run_single_sample(baseline: str, device: int, n: int, block_dim: int, arch: 
         return run_persistent_sample(device=device, n=n, arch=arch, mode="queue")
     if baseline == "pto_persistent_dag":
         return run_persistent_sample(device=device, n=n, arch=arch, mode="dag")
+    if baseline == "pto_persistent_device_batch":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="direct",
+            task_count=task_count,
+            baseline=baseline,
+        )
+    if baseline == "pto_persistent_queue_batch":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="queue",
+            task_count=task_count,
+            baseline=baseline,
+        )
     raise ValueError(f"unknown baseline: {baseline}")
 
 
@@ -350,7 +494,10 @@ def run_benchmark(
     arch: str,
     label: str,
     include_persistent: bool = False,
+    batch_tasks: int = 0,
 ) -> dict[str, Any]:
+    if batch_tasks < 0:
+        raise ValueError("batch_tasks must be non-negative")
     with tempfile.TemporaryDirectory(prefix="pto_cuda_bench_") as td:
         ptx, ptx_source = _compile_ptx(Path(td), arch)
 
@@ -363,6 +510,7 @@ def run_benchmark(
         "block_dim": block_dim,
         "ptx_arch": arch,
         "ptx_source": ptx_source,
+        "batch_tasks": batch_tasks,
         "nvidia_smi": _nvidia_smi_summary(),
         "paper_setup": (
             "Microbenchmark slice inspired by VDCores/MPK persistent-kernel evaluation; "
@@ -391,6 +539,23 @@ def run_benchmark(
                     )
                     persistent.update({"machine": metadata["machine"], "repeat": repeat})
                     results.append(persistent)
+
+                if batch_tasks:
+                    for baseline in (
+                        "pto_host_schedule_batch",
+                        "pto_persistent_device_batch",
+                        "pto_persistent_queue_batch",
+                    ):
+                        batch = run_single_sample(
+                            baseline=baseline,
+                            device=device,
+                            n=n,
+                            block_dim=block_dim,
+                            arch=arch,
+                            task_count=batch_tasks,
+                        )
+                        batch.update({"machine": metadata["machine"], "repeat": repeat})
+                        results.append(batch)
 
     return {"metadata": metadata, "results": results}
 
@@ -589,10 +754,12 @@ def summarize_results(payload: dict[str, Any]) -> dict[tuple[str, str, int], dic
     for key, rows in grouped.items():
         host_values = [int(row.get("host_wall_ns", row["device_wall_ns"])) for row in rows]
         device_values = [int(row["device_wall_ns"]) for row in rows]
+        task_count_values = [int(row.get("task_count", 1)) for row in rows]
         summary[key] = {
             "machine": key[0],
             "baseline": key[1],
             "n": key[2],
+            "task_count": max(task_count_values),
             "samples": len(rows),
             "median_host_wall_ns": int(statistics.median(host_values)),
             "median_device_wall_ns": int(statistics.median(device_values)),
@@ -604,11 +771,13 @@ def _sorted_summary_rows(summary: dict[tuple[str, str, int], dict[str, Any]]) ->
     return sorted(summary.values(), key=lambda row: (row["machine"], row["n"], row["baseline"]))
 
 
-def _host_schedule_device_refs(summary: dict[tuple[str, str, int], dict[str, Any]]) -> dict[tuple[str, int], int]:
-    refs: dict[tuple[str, int], int] = {}
+def _matched_host_schedule_device_refs(
+    summary: dict[tuple[str, str, int], dict[str, Any]],
+) -> dict[tuple[str, int, int], int]:
+    refs: dict[tuple[str, int, int], int] = {}
     for row in summary.values():
-        if row["baseline"] == "pto_host_schedule":
-            refs[(row["machine"], row["n"])] = row["median_device_wall_ns"]
+        if row["baseline"] in {"pto_host_schedule", "pto_host_schedule_batch"}:
+            refs[(row["machine"], row["n"], row["task_count"])] = row["median_device_wall_ns"]
     return refs
 
 
@@ -664,10 +833,13 @@ def render_svg(summary: dict[tuple[str, str, int], dict[str, Any]]) -> str:
     width = left + chart_width + 160
     colors = {
         "pto_host_schedule": "#2f6fbb",
+        "pto_host_schedule_batch": "#1f4e89",
         "direct_driver": "#2a9d65",
         "pto_persistent_dag": "#d62728",
         "pto_persistent_device": "#9467bd",
+        "pto_persistent_device_batch": "#7b52ab",
         "pto_persistent_queue": "#c46a2c",
+        "pto_persistent_queue_batch": "#a95723",
     }
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
@@ -692,7 +864,7 @@ def render_svg(summary: dict[tuple[str, str, int], dict[str, Any]]) -> str:
 
 def render_markdown_report(payload: dict[str, Any]) -> str:
     summary = summarize_results(payload)
-    host_schedule_refs = _host_schedule_device_refs(summary)
+    host_schedule_refs = _matched_host_schedule_device_refs(summary)
     metadata = payload.get("metadata", {})
     lines = [
         "# CUDA Backend Microbenchmark Report",
@@ -713,14 +885,17 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "| Machine | Baseline | N | Samples | Median device ns | Median host ns | Device vs host_schedule |",
-            "| ------- | -------- | - | ------- | ---------------- | -------------- | ----------------------- |",
+            "| Machine | Baseline | N | Tasks | Samples | Median device ns | Median host ns | "
+            "Device vs matched host_schedule |",
+            "| ------- | -------- | - | ----- | ------- | ---------------- | -------------- | "
+            "------------------------------- |",
         ]
     )
     for row in _sorted_summary_rows(summary):
-        reference = host_schedule_refs.get((row["machine"], row["n"]))
+        reference = host_schedule_refs.get((row["machine"], row["n"], row["task_count"]))
         lines.append(
-            f"| {row['machine']} | {row['baseline']} | {row['n']} | {row['samples']} | "
+            f"| {row['machine']} | {row['baseline']} | {row['n']} | {row['task_count']} | "
+            f"{row['samples']} | "
             f"{row['median_device_wall_ns']} | {row['median_host_wall_ns']} | "
             f"{_ratio_text(row['median_device_wall_ns'], reference)} |"
         )
@@ -733,12 +908,19 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "  vector-add PTX kernel.",
             "- `pto_host_schedule` measures the current PTO CUDA host runtime path,",
             "  including the runtime C API boundary and manifest lookup.",
+            "- `pto_host_schedule_batch` measures the same host-schedule vector-add",
+            "  callable launched repeatedly on one context for a fixed task count.",
             "- `pto_persistent_device` measures the tracer-bullet persistent executor",
             "  path: one host launch processes a device array of task descriptors.",
+            "- `pto_persistent_device_batch` uses the same descriptor count as",
+            "  `pto_host_schedule_batch`, giving a same-work launch-amortization",
+            "  comparison.",
             "- `pto_persistent_queue` measures the next persistent-device slice:",
             "  one scheduler block publishes descriptor IDs into a bounded",
             "  device ring queue and worker blocks pop them inside the same",
             "  CUDA launch.",
+            "- `pto_persistent_queue_batch` is the same-work bounded-ring variant;",
+            "  same-work batch rows use `pto_host_schedule_batch` as their reference.",
             "- `pto_persistent_dag` measures generated-dispatch-like task",
             "  selection plus fan-in counters that release a dependent task",
             "  onto the same bounded ring queue.",
@@ -748,7 +930,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "  concurrently from host threads onto separate CUDA streams.",
             "- Small `n` values are dominated by launch overhead; larger `n` values start",
             "  to include more device work but are still a microbenchmark.",
-            "- Ratio columns are relative to `pto_host_schedule` for the same machine and `N`.",
+            "- Ratio columns are relative to the matched `pto_host_schedule` row",
+            "  for the same machine, `N`, and task count.",
             "",
             "![Median device time](cuda-benchmark.svg)",
             "",
@@ -785,12 +968,21 @@ def main() -> None:
             "pto_persistent_device",
             "pto_persistent_queue",
             "pto_persistent_dag",
+            "pto_host_schedule_batch",
+            "pto_persistent_device_batch",
+            "pto_persistent_queue_batch",
         ],
         default=None,
     )
     parser.add_argument("--merge-json", type=Path, nargs="*", default=None)
     parser.add_argument("--stream-concurrency", action="store_true")
     parser.add_argument("--include-persistent", action="store_true")
+    parser.add_argument(
+        "--batch-tasks",
+        type=int,
+        default=0,
+        help="also run same-work host_schedule and persistent-device batch baselines with this task count",
+    )
     args = parser.parse_args()
 
     if args.merge_json:
@@ -817,7 +1009,14 @@ def main() -> None:
             raise SystemExit("--single-baseline requires exactly one --sizes value")
         print(
             json.dumps(
-                run_single_sample(args.single_baseline, args.device, sizes[0], args.block_dim, args.arch),
+                run_single_sample(
+                    args.single_baseline,
+                    args.device,
+                    sizes[0],
+                    args.block_dim,
+                    args.arch,
+                    task_count=max(1, args.batch_tasks),
+                ),
                 sort_keys=True,
             )
         )
@@ -831,6 +1030,7 @@ def main() -> None:
         arch=args.arch,
         label=args.label,
         include_persistent=args.include_persistent,
+        batch_tasks=args.batch_tasks,
     )
     write_report(payload, args.output_dir)
     print(json.dumps(payload["metadata"], indent=2, sort_keys=True))

@@ -67,7 +67,8 @@ def test_render_report_contains_table_and_svg():
 
     assert "CUDA Backend Microbenchmark Report" in report
     expected_header = (
-        "| Machine | Baseline | N | Samples | Median device ns | Median host ns | Device vs host_schedule |"
+        "| Machine | Baseline | N | Tasks | Samples | Median device ns | Median host ns | "
+        "Device vs matched host_schedule |"
     )
     assert expected_header in report
     assert "a100-local" in report
@@ -92,10 +93,51 @@ def test_render_report_includes_host_schedule_relative_ratios():
 
     report = cuda_benchmark.render_markdown_report(payload)
 
-    assert "| a100-local | pto_host_schedule | 1024 | 1 | 1000 | 1000 | 1.00x |" in report
-    assert "| a100-local | direct_driver | 1024 | 1 | 500 | 500 | 0.50x |" in report
-    assert "| a100-local | pto_persistent_dag | 1024 | 1 | 2500 | 2500 | 2.50x |" in report
-    assert "relative to `pto_host_schedule` for the same machine and `N`" in report
+    assert "| a100-local | pto_host_schedule | 1024 | 1 | 1 | 1000 | 1000 | 1.00x |" in report
+    assert "| a100-local | direct_driver | 1024 | 1 | 1 | 500 | 500 | 0.50x |" in report
+    assert "| a100-local | pto_persistent_dag | 1024 | 1 | 1 | 2500 | 2500 | 2.50x |" in report
+    assert "relative to the matched `pto_host_schedule` row" in report
+    assert "for the same machine, `N`, and task count" in report
+
+
+def test_render_report_uses_batch_host_schedule_reference_for_batch_rows():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "batch-ratio-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+        },
+        "results": [
+            {
+                "machine": "a100-local",
+                "baseline": "pto_host_schedule",
+                "n": 1024,
+                "task_count": 1,
+                "device_wall_ns": 1000,
+            },
+            {
+                "machine": "a100-local",
+                "baseline": "pto_host_schedule_batch",
+                "n": 1024,
+                "task_count": 6,
+                "device_wall_ns": 6000,
+            },
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_queue_batch",
+                "n": 1024,
+                "task_count": 6,
+                "device_wall_ns": 3000,
+            },
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+
+    assert "| a100-local | pto_host_schedule_batch | 1024 | 6 | 1 | 6000 | 6000 | 1.00x |" in report
+    assert "| a100-local | pto_persistent_queue_batch | 1024 | 6 | 1 | 3000 | 3000 | 0.50x |" in report
+    assert "same-work batch rows use `pto_host_schedule_batch` as their reference" in report
 
 
 def test_merge_payloads_preserves_results_and_records_sources():
@@ -195,6 +237,53 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "pto_persistent_dag",
     ]
     assert len(payload["results"]) == 5
+
+
+def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = []
+
+    def fake_compile_ptx(work_dir, arch):
+        return b"ptx", f"fake-{arch}"
+
+    def fake_run_single_sample(baseline, device, n, block_dim, arch, task_count=1):
+        seen.append((baseline, task_count))
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count,
+            "block_dim": block_dim,
+            "host_wall_ns": 20,
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    monkeypatch.setattr(cuda_benchmark, "_compile_ptx", fake_compile_ptx)
+    monkeypatch.setattr(cuda_benchmark, "run_single_sample", fake_run_single_sample)
+
+    payload = cuda_benchmark.run_benchmark(
+        device=3,
+        sizes=[1024],
+        repeats=1,
+        block_dim=128,
+        arch="compute_80",
+        label="unit",
+        include_persistent=True,
+        batch_tasks=6,
+    )
+
+    assert seen == [
+        ("pto_host_schedule", 1),
+        ("direct_driver", 1),
+        ("pto_persistent_device", 1),
+        ("pto_persistent_queue", 1),
+        ("pto_persistent_dag", 1),
+        ("pto_host_schedule_batch", 6),
+        ("pto_persistent_device_batch", 6),
+        ("pto_persistent_queue_batch", 6),
+    ]
+    assert payload["metadata"]["batch_tasks"] == 6
+    assert len(payload["results"]) == 8
 
 
 def test_render_report_describes_stream_concurrency_rows():

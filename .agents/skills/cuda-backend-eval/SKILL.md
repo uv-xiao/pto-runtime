@@ -95,6 +95,10 @@ same vector-add PTX kernel through two launch paths:
   bounded device ring queue consumed by worker blocks inside the same launch.
 - `pto_persistent_dag`: generated-dispatch-like task selection and fan-in
   counters that release dependent tasks onto the bounded ring.
+- `pto_host_schedule_batch`, `pto_persistent_device_batch`, and
+  `pto_persistent_queue_batch`: same-work batch rows enabled by
+  `--batch-tasks N`. These compare N host launches against one persistent
+  launch over N equivalent vector-add task descriptors.
 
 The smoke helper caches the built and loaded host runtime per process, so the
 benchmark can run repeated PTO and baseline samples without rebuilding a shared
@@ -106,7 +110,8 @@ Local A100 example:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --device 0 --sizes 1024,1048576 --repeats 5 --arch compute_80 \
-    --include-persistent --label a100-local --output-dir tmp/cuda-backend/a100
+    --include-persistent --batch-tasks 6 \
+    --label a100-local --output-dir tmp/cuda-backend/a100
 ```
 
 Remote H200 example:
@@ -117,7 +122,8 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
    PYTHONPATH=$PWD:$PWD/python \
    python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
      --device 0 --sizes 1024,1048576 --repeats 5 --arch compute_90 \
-     --include-persistent --label h200-remote --output-dir tmp/cuda-backend/h200'
+     --include-persistent --batch-tasks 6 \
+     --label h200-remote --output-dir tmp/cuda-backend/h200'
 ```
 
 The script writes:
@@ -125,6 +131,11 @@ The script writes:
 - `cuda-benchmark.json`: raw samples, metadata, hardware, git commit.
 - `cuda-benchmark.md`: short report with interpretation notes.
 - `cuda-benchmark.svg`: bar chart of median device time by baseline.
+
+The report's ratio column uses the matched host-schedule row for the same
+machine, vector length, and task count. Same-work batch rows are therefore
+relative to `pto_host_schedule_batch`, not the one-task `pto_host_schedule`
+row.
 
 Merge local and remote JSON payloads into one comparative report:
 
