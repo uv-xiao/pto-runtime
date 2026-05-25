@@ -240,6 +240,12 @@ completion without recompiling the generated-dispatch PTX. Use this as an
 early buffer-lifecycle row; it is still elementwise vector work, not a tensor
 kernel workload.
 
+The tensor-tile DAG capture at `8950e029` adds `pto_persistent_dag_tensor`.
+It validates generated-dispatch task bodies beyond elementwise kernels by
+running a fixed 16x16 tiled GEMM task before residual, gate, and fan-in tasks.
+Use it as an ABI and scheduler validation row; it is still a scalar CUDA
+GEMM microbenchmark, not a tuned tensor-core workload.
+
 ## Hardware Checks
 
 Local A100:

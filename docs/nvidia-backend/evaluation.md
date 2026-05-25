@@ -24,11 +24,16 @@ The latest captured raw reports are under `tmp/`:
 - `tmp/cuda-backend/h200-reuse-bcf54a88/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-reuse-bcf54a88/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-reuse-bcf54a88/cuda-benchmark.svg`
+- `tmp/cuda-backend/a100-tensor-8950e029/cuda-benchmark.md`
+- `tmp/cuda-backend/h200-tensor-8950e029/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-tensor-8950e029/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-tensor-8950e029/cuda-benchmark.svg`
 
 The worker-grid data was captured from commit `e430bc1b`. The stream
 concurrency data was captured from commit `37bebf44`. The DAG-chain data was
 captured from commit `323f4587`. The scratch-reuse DAG data was captured from
-commit `bcf54a88`.
+commit `bcf54a88`. The tensor-tile DAG data was captured from commit
+`8950e029`.
 
 ## Current Baselines
 
@@ -147,6 +152,27 @@ chain row for larger vectors because the final add consumes the reused
 scratch branch rather than the earlier chain value; this is a microbenchmark
 effect, not a claim that reuse is inherently faster.
 
+The tensor row keeps the same persistent-DAG scheduler and descriptor ABI but
+adds a generated-dispatch `func_id=3` that computes one or more 16x16 GEMM
+tiles. The following rows compare the tensor DAG against the three-task
+elementwise DAG and the one-call host-schedule vector baseline for shape
+context only. They are not same-work throughput comparisons.
+
+| GPU | N | Host ns | DAG ns | Tensor DAG ns | Tensor/DAG |
+| --- | - | ------- | ------ | ------------- | ---------- |
+| A100 | 1024 | 46080 | 45056 | 36864 | 0.82x |
+| H200 | 1024 | 36512 | 29120 | 38912 | 1.34x |
+| A100 | 65536 | 35072 | 151552 | 586752 | 3.87x |
+| H200 | 65536 | 31615 | 139616 | 566656 | 4.06x |
+| A100 | 1048576 | 31008 | 2296832 | 9235456 | 4.02x |
+| H200 | 1048576 | 28576 | 1997568 | 8649408 | 4.33x |
+
+At large `N`, the tensor DAG is roughly four times slower than the simple DAG
+because each output element performs a 16-term dot product before the
+elementwise residual, gate, and fan-in tasks. This is expected and confirms
+that the persistent-device scheduler can run non-elementwise callable bodies
+without changing the host ABI.
+
 ## Reproduction Commands
 
 Local A100:
@@ -224,6 +250,26 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
      --output-dir tmp/cuda-backend/h200-reuse-bcf54a88'
 ```
 
+Tensor-tile DAG capture:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --device 0 --sizes 1024,65536,1048576 --repeats 3 --arch compute_80 \
+    --include-persistent --batch-tasks 6 --worker-blocks-per-task 64 \
+    --label a100-tensor-8950e029 \
+    --output-dir tmp/cuda-backend/a100-tensor-8950e029
+
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && git pull --ff-only && \
+   PYTHONPATH=$PWD:$PWD/python \
+   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+     --device 0 --sizes 1024,65536,1048576 --repeats 3 --arch compute_90 \
+     --include-persistent --batch-tasks 6 --worker-blocks-per-task 64 \
+     --label h200-tensor-8950e029 \
+     --output-dir tmp/cuda-backend/h200-tensor-8950e029'
+```
+
 Stream concurrency:
 
 ```bash
@@ -246,5 +292,6 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
 
 - Extend the worker-grid sweep beyond 64 blocks per descriptor and add more
   vector lengths before treating the grid row as a tuned baseline.
-- Evaluate the new tensor-tile DAG row on A100 and H200, then add the raw
-  artifact paths and headline numbers here.
+- Replace the fixed 16x16 scalar GEMM body with a CUDA implementation closer
+  to the intended tensor-core/tiling backend once the runtime ABI can carry
+  richer tensor metadata.
