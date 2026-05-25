@@ -37,6 +37,9 @@ captured from commit `323f4587`.
 - `pto_persistent_dag_chain`: five-task generated-dispatch DAG with a
   post-fan-in dependency chain. It reuses the same compiled device binary as
   `pto_persistent_dag`; the difference is only the runtime graph descriptors.
+- `pto_persistent_dag_reuse`: six-task generated-dispatch DAG that reuses a
+  scratch buffer after the buffer's last dependent completes. It is a
+  lifecycle validation row rather than a throughput row.
 - `*_batch`: same-work rows with six vector-add task descriptors. These rows
   compare repeated host launches with one persistent launch over the same
   descriptor count.
@@ -194,4 +197,6 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
 - Extend the worker-grid sweep beyond 64 blocks per descriptor and add more
   vector lengths before treating the grid row as a tuned baseline.
 - Add a richer tensor-shaped task graph with non-vector-add work and explicit
-  memory reuse once the runtime ABI is stable enough.
+  memory reuse once the runtime ABI is stable enough. The first scratch-reuse
+  vector DAG is implemented; the remaining gap is tensor-shaped work beyond
+  elementwise kernels.

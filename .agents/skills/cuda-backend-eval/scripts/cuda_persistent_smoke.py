@@ -922,6 +922,77 @@ def _make_dag_shape(
                 ),
             ),
         )
+    if dag_shape == "scratch_reuse":
+        task_count = 6
+        host_fanin_t = ctypes.c_uint32 * task_count
+        dependents_t = ctypes.c_uint32 * 6
+        task_t = CudaPersistentDagTask * task_count
+        return (
+            host_fanin_t(0, 0, 2, 1, 1, 2),
+            dependents_t(2, 2, 3, 4, 5, 5),
+            task_t(
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp0,
+                    n=n,
+                    dependent_begin=0,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp1,
+                    n=n,
+                    dependent_begin=1,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp0,
+                    b=dev_tmp1,
+                    out=dev_tmp2,
+                    n=n,
+                    dependent_begin=2,
+                    dependent_count=2,
+                    initial_fanin=2,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=dev_tmp2,
+                    b=dev_b,
+                    out=dev_tmp3,
+                    n=n,
+                    dependent_begin=4,
+                    dependent_count=1,
+                    initial_fanin=1,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp2,
+                    b=dev_a,
+                    out=dev_tmp0,
+                    n=n,
+                    dependent_begin=5,
+                    dependent_count=1,
+                    initial_fanin=1,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp0,
+                    b=dev_tmp3,
+                    out=dev_out,
+                    n=n,
+                    dependent_begin=6,
+                    dependent_count=0,
+                    initial_fanin=2,
+                ),
+            ),
+        )
     raise ValueError(f"unknown dag shape: {dag_shape}")
 
 
@@ -1185,18 +1256,19 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912
         expected_tmp1 = [_f32(host_a[i] * host_b[i]) for i in range(n)]
         expected_tmp2 = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
         expected_tmp3 = [_f32(expected_tmp2[i] * host_b[i]) for i in range(n)]
-        expected_out = (
-            expected_tmp2
-            if config.dag_shape == "fork_join"
-            else [_f32(expected_tmp2[i] + expected_tmp3[i]) for i in range(n)]
-        )
+        expected_out = expected_tmp2
+        if config.dag_shape == "chain":
+            expected_out = [_f32(expected_tmp2[i] + expected_tmp3[i]) for i in range(n)]
+        if config.dag_shape == "scratch_reuse":
+            expected_tmp0 = [_f32(expected_tmp2[i] + host_a[i]) for i in range(n)]
+            expected_out = [_f32(expected_tmp0[i] + expected_tmp3[i]) for i in range(n)]
         if list(host_tmp0) != expected_tmp0:
             raise RuntimeError("dag tmp0 mismatch")
         if list(host_tmp1) != expected_tmp1:
             raise RuntimeError("dag tmp1 mismatch")
-        if config.dag_shape == "chain" and list(host_tmp2) != expected_tmp2:
+        if config.dag_shape in {"chain", "scratch_reuse"} and list(host_tmp2) != expected_tmp2:
             raise RuntimeError("dag tmp2 mismatch")
-        if config.dag_shape == "chain" and list(host_tmp3) != expected_tmp3:
+        if config.dag_shape in {"chain", "scratch_reuse"} and list(host_tmp3) != expected_tmp3:
             raise RuntimeError("dag tmp3 mismatch")
         if list(host_out) != expected_out:
             raise RuntimeError("dag output mismatch")
@@ -1206,7 +1278,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912
         if runtime.unregister_callable(ctx, 0) != 0:
             raise RuntimeError("unregister_callable dag failed")
 
-        return {
+        result = {
             "status": "pass",
             "runtime": "persistent_device",
             "mode": "dag",
@@ -1228,6 +1300,9 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912
             "elapsed_s": time.time() - config.start,
             "host_runtime": str(config.binaries.host_path),
         }
+        if config.dag_shape == "scratch_reuse":
+            result["scratch_reuse"] = {"reused_buffer": "tmp0", "reuse_task": 4}
+        return result
     finally:
         for ptr in allocated:
             runtime.device_free_ctx(ctx, ptr)
@@ -1261,7 +1336,7 @@ def run_persistent_smoke(  # noqa: PLR0912
 ) -> dict:
     if mode not in {"dag", "direct", "queue"}:
         raise ValueError(f"unknown persistent mode: {mode}")
-    if dag_shape not in {"chain", "fork_join"}:
+    if dag_shape not in {"chain", "fork_join", "scratch_reuse"}:
         raise ValueError(f"unknown dag shape: {dag_shape}")
     if worker_blocks_per_task <= 0:
         raise ValueError("worker_blocks_per_task must be positive")
@@ -1417,7 +1492,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["dag", "direct", "queue"], default="direct")
     parser.add_argument("--queue-capacity", type=int, default=None)
     parser.add_argument("--worker-blocks-per-task", type=int, default=1)
-    parser.add_argument("--dag-shape", choices=["chain", "fork_join"], default="fork_join")
+    parser.add_argument("--dag-shape", choices=["chain", "fork_join", "scratch_reuse"], default="fork_join")
     args = parser.parse_args()
 
     print(

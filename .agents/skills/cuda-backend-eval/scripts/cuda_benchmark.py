@@ -436,7 +436,9 @@ def run_persistent_sample(
     dag_shape: str = "fork_join",
 ) -> dict[str, Any]:
     if task_count is None:
-        if dag_shape == "chain":
+        if dag_shape == "scratch_reuse":
+            task_count = 6
+        elif dag_shape == "chain":
             task_count = 5
         elif mode == "dag":
             task_count = 3
@@ -500,6 +502,15 @@ def run_single_sample(
             mode="dag",
             baseline=baseline,
             dag_shape="chain",
+        )
+    if baseline == "pto_persistent_dag_reuse":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="scratch_reuse",
         )
     if baseline == "pto_persistent_device_batch":
         return run_persistent_sample(
@@ -599,6 +610,7 @@ def run_benchmark(
                     "pto_persistent_queue",
                     "pto_persistent_dag",
                     "pto_persistent_dag_chain",
+                    "pto_persistent_dag_reuse",
                 ):
                     persistent = run_single_sample(
                         baseline=baseline,
@@ -966,6 +978,7 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
         "direct_driver": "#2a9d65",
         "pto_persistent_dag": "#d62728",
         "pto_persistent_dag_chain": "#8c1d1d",
+        "pto_persistent_dag_reuse": "#b23a48",
         "pto_persistent_device": "#9467bd",
         "pto_persistent_device_batch": "#7b52ab",
         "pto_persistent_device_grid_batch": "#5f3b9d",
@@ -1106,6 +1119,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "- `pto_persistent_dag_chain` extends the DAG smoke to five tasks",
             "  with a post-fan-in chain, reusing the same generated-dispatch",
             "  compiled binary but changing the runtime task graph.",
+            "- `pto_persistent_dag_reuse` uses a six-task DAG with scratch-buffer reuse",
+            "  after the reused buffer's last dependent has completed.",
             "- `pto_stream_serial` measures two independent PTO launches issued",
             "  sequentially on the host-schedule stream pool.",
             "- `pto_stream_parallel` measures two independent PTO launches issued",
@@ -1156,6 +1171,7 @@ def main() -> None:
             "pto_persistent_queue",
             "pto_persistent_dag",
             "pto_persistent_dag_chain",
+            "pto_persistent_dag_reuse",
             "pto_host_schedule_batch",
             "pto_persistent_device_batch",
             "pto_persistent_device_grid_batch",

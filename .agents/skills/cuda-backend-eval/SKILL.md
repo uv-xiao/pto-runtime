@@ -85,6 +85,17 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape chain
 ```
 
+Run the six-task persistent DAG scratch-reuse smoke. This graph reuses `tmp0`
+after its last dependent has completed and validates the final reused-buffer
+contents:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 6 --n 1024 --arch compute_80 \
+    --mode dag --queue-capacity 2 --dag-shape scratch_reuse
+```
+
 The DAG smoke compiles generated CUDA source from
 `simpler_setup.cuda_callable_compiler.render_persistent_dag_source()`. The
 returned JSON includes `source_kind: generated-dispatch` when that path is in
@@ -108,6 +119,9 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_chain`: five-task generated-dispatch DAG with a
   post-fan-in dependency chain, using the same compiled device binary as the
   smaller DAG and only changing runtime graph descriptors.
+- `pto_persistent_dag_reuse`: six-task generated-dispatch DAG with scratch
+  buffer reuse after dependency completion, validating that graph lifetime
+  rules can be represented by runtime descriptors.
 - `pto_host_schedule_batch`, `pto_persistent_device_batch`,
   `pto_persistent_device_grid_batch`, and `pto_persistent_queue_batch`:
   same-work batch rows enabled by `--batch-tasks N`. The worker-grid row is
