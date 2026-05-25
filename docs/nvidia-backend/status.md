@@ -174,8 +174,8 @@ Result: `status=pass`, `runtime=persistent_device`,
 `ptx_source=nvcc-persistent-generated-dispatch-compute_80`,
 `completed_count=3`.
 
-The same persistent DAG smoke was run on the remote H200 checkout after
-pushing `01d1d45d`:
+The same task-body style persistent DAG smoke was run on the remote H200
+checkout after pushing `6f1497b5`:
 
 ```bash
 ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
