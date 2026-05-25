@@ -10,7 +10,8 @@ runtime-vs-driver notes, TileLang JIT notes, and lifecycle/memory/callable
 mapping, see [flows.md](flows.md). For the AICPU gap, CUDA stream semantics,
 and the persistent device scheduler design, see
 [persistent-device.md](persistent-device.md). For current real-device smoke
-and microbenchmark results, see [evaluation.md](evaluation.md).
+and microbenchmark results, see [evaluation.md](evaluation.md). For a concise
+implementation status and remaining-gap audit, see [status.md](status.md).
 
 ## Current Runtime Shape
 
