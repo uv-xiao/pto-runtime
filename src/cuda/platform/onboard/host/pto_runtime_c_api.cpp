@@ -36,8 +36,11 @@ struct PreparedCallable {
     uint32_t op = 0;
     uint32_t grid_dim = 0;
     uint32_t block_dim = 0;
+    uint32_t stream_id = 0;
     size_t shared_mem_bytes = 0;
 };
+
+constexpr uint32_t kStreamPoolSize = 4;
 
 class CudaDeviceRunner {
 public:
@@ -53,10 +56,13 @@ public:
         if (rc != cudaSuccess) {
             return -1;
         }
-        rc = cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking);
-        if (rc != cudaSuccess) {
-            stream_ = nullptr;
-            return -1;
+        streams_.resize(kStreamPoolSize, nullptr);
+        for (auto &stream : streams_) {
+            rc = cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+            if (rc != cudaSuccess) {
+                finalize();
+                return -1;
+            }
         }
         return 0;
     }
@@ -69,10 +75,13 @@ public:
             }
         }
         prepared_.clear();
-        if (stream_ != nullptr) {
-            cudaStreamDestroy(stream_);
-            stream_ = nullptr;
+        for (auto &stream : streams_) {
+            if (stream != nullptr) {
+                cudaStreamDestroy(stream);
+                stream = nullptr;
+            }
         }
+        streams_.clear();
         return cudaDeviceSynchronize() == cudaSuccess ? 0 : -1;
     }
 
@@ -105,11 +114,15 @@ public:
         if (cudaSetDevice(device_id_) != cudaSuccess) {
             return -1;
         }
-        cudaError_t rc = cudaMemcpyAsync(dev_ptr, host_ptr, size, cudaMemcpyHostToDevice, stream_);
+        cudaStream_t stream = default_stream();
+        if (stream == nullptr) {
+            return -1;
+        }
+        cudaError_t rc = cudaMemcpyAsync(dev_ptr, host_ptr, size, cudaMemcpyHostToDevice, stream);
         if (rc != cudaSuccess) {
             return -1;
         }
-        return cudaStreamSynchronize(stream_) == cudaSuccess ? 0 : -1;
+        return cudaStreamSynchronize(stream) == cudaSuccess ? 0 : -1;
     }
 
     int copy_from_device(void *host_ptr, const void *dev_ptr, size_t size) {
@@ -119,19 +132,33 @@ public:
         if (cudaSetDevice(device_id_) != cudaSuccess) {
             return -1;
         }
-        cudaError_t rc = cudaMemcpyAsync(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost, stream_);
+        cudaStream_t stream = default_stream();
+        if (stream == nullptr) {
+            return -1;
+        }
+        cudaError_t rc = cudaMemcpyAsync(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost, stream);
         if (rc != cudaSuccess) {
             return -1;
         }
-        return cudaStreamSynchronize(stream_) == cudaSuccess ? 0 : -1;
+        return cudaStreamSynchronize(stream) == cudaSuccess ? 0 : -1;
     }
 
     int prepare(int32_t callable_id, const PtoCudaHostCallable *callable) {
-        if (callable == nullptr || callable->version != 1 || callable->image == nullptr || callable->image_size == 0 ||
+        if (callable == nullptr || callable->image == nullptr || callable->image_size == 0 ||
             callable->entry_name == nullptr) {
             return -1;
         }
+        if (callable->version != 1 && callable->version != 2) {
+            return -1;
+        }
         if (callable->op != PTO_CUDA_HOST_OP_VECTOR_ADD_F32) {
+            return -1;
+        }
+        uint32_t stream_id = 0;
+        if (callable->version >= 2) {
+            stream_id = callable->stream_id;
+        }
+        if (stream_id >= streams_.size()) {
             return -1;
         }
         if (cudaSetDevice(device_id_) != cudaSuccess) {
@@ -162,6 +189,7 @@ public:
         prepared.op = callable->op;
         prepared.grid_dim = callable->grid_dim;
         prepared.block_dim = callable->block_dim;
+        prepared.stream_id = stream_id;
         prepared.shared_mem_bytes = callable->shared_mem_bytes;
         prepared_[callable_id] = prepared;
         return 0;
@@ -201,6 +229,10 @@ public:
         if (cudaSetDevice(device_id_) != cudaSuccess) {
             return -1;
         }
+        cudaStream_t stream = stream_for(prepared.stream_id);
+        if (stream == nullptr) {
+            return -1;
+        }
 
         cudaEvent_t start = nullptr;
         cudaEvent_t stop = nullptr;
@@ -211,7 +243,7 @@ public:
         }
 
         auto host_start = std::chrono::steady_clock::now();
-        cudaEventRecord(start, stream_);
+        cudaEventRecord(start, stream);
         const float *a = typed_args->a;
         const float *b = typed_args->b;
         float *out = typed_args->out;
@@ -219,10 +251,10 @@ public:
         void *kernel_args[] = {&a, &b, &out, &n};
         CUresult cu_rc = cuLaunchKernel(
             prepared.function, prepared.grid_dim, 1, 1, prepared.block_dim, 1, 1, prepared.shared_mem_bytes,
-            reinterpret_cast<CUstream>(stream_), kernel_args, nullptr
+            reinterpret_cast<CUstream>(stream), kernel_args, nullptr
         );
-        cudaEventRecord(stop, stream_);
-        cudaError_t sync_rc = cudaStreamSynchronize(stream_);
+        cudaEventRecord(stop, stream);
+        cudaError_t sync_rc = cudaStreamSynchronize(stream);
         auto host_stop = std::chrono::steady_clock::now();
 
         if (out_timing != nullptr) {
@@ -244,8 +276,17 @@ public:
     }
 
 private:
+    cudaStream_t stream_for(uint32_t stream_id) {
+        if (stream_id >= streams_.size()) {
+            return nullptr;
+        }
+        return streams_[stream_id];
+    }
+
+    cudaStream_t default_stream() { return stream_for(0); }
+
     int device_id_ = 0;
-    cudaStream_t stream_ = nullptr;
+    std::vector<cudaStream_t> streams_;
     std::unordered_map<int32_t, PreparedCallable> prepared_;
 };
 

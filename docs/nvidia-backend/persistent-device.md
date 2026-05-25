@@ -95,6 +95,9 @@ Rules:
 
 - Create streams with `cudaStreamNonBlocking` or equivalent Driver API flags.
 - Do not use the legacy default stream for task kernels.
+- Carry the selected stream in the prepared callable manifest. The current
+  bring-up ABI uses `PtoCudaHostCallable.version == 2` with `stream_id`, while
+  version 1 callables remain mapped to stream 0.
 - Track one event per task completion or per stream tail.
 - Use `cudaStreamWaitEvent` to express dependencies between streams.
 - Delay host synchronization until the existing `run_prepared` boundary unless

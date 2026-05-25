@@ -28,6 +28,7 @@ struct PtoCudaHostCallable {
     uint32_t grid_dim;
     uint32_t block_dim;
     size_t shared_mem_bytes;
+    uint32_t stream_id;
 };
 
 struct PtoCudaVectorAddArgs {

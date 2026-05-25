@@ -89,6 +89,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --label cuda-a100-h200 --output-dir tmp/cuda-backend/combined
 ```
 
+Run the host-schedule stream-concurrency microbenchmark:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --stream-concurrency --device 0 --repeats 5 --arch compute_80 \
+    --label a100-streams --output-dir tmp/cuda-backend/a100-streams
+```
+
+For remote H200, use `--arch compute_90`; if `nvcc` is unavailable the script
+uses an embedded `sm_80` PTX fallback that the H200 driver JITs.
+
 ## Hardware Checks
 
 Local A100:

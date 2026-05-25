@@ -128,3 +128,23 @@ def test_run_benchmark_uses_in_process_samples(monkeypatch):
         ("direct_driver", 3, 1024, 128, "compute_80"),
     ]
     assert len(payload["results"]) == 2
+
+
+def test_render_report_describes_stream_concurrency_rows():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "stream-unit",
+            "git_commit": "abc123",
+            "paper_setup": "stream concurrency microbenchmark",
+        },
+        "results": [
+            {"machine": "a100-local", "baseline": "pto_stream_serial", "n": 2, "device_wall_ns": 2000},
+            {"machine": "a100-local", "baseline": "pto_stream_parallel", "n": 2, "device_wall_ns": 1200},
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+
+    assert "pto_stream_serial" in report
+    assert "`pto_stream_parallel` measures two independent PTO launches" in report

@@ -92,6 +92,7 @@ class CudaHostCallable(ctypes.Structure):
         ("grid_dim", ctypes.c_uint32),
         ("block_dim", ctypes.c_uint32),
         ("shared_mem_bytes", ctypes.c_size_t),
+        ("stream_id", ctypes.c_uint32),
     ]
 
 
@@ -222,7 +223,7 @@ def run_smoke(device: int, n: int, block_dim: int, arch: str, build: bool = True
                 raise RuntimeError("copy_to_device b failed")
 
             manifest = CudaHostCallable(
-                version=1,
+                version=2,
                 op=1,
                 image=ctypes.cast(ptx_buf, ctypes.c_void_p),
                 image_size=len(ptx) + 1,
@@ -230,6 +231,7 @@ def run_smoke(device: int, n: int, block_dim: int, arch: str, build: bool = True
                 grid_dim=(n + block_dim - 1) // block_dim,
                 block_dim=block_dim,
                 shared_mem_bytes=0,
+                stream_id=0,
             )
             args = CudaVectorAddArgs(a=dev_a, b=dev_b, out=dev_out, n=n)
             timing = PtoRunTiming()
