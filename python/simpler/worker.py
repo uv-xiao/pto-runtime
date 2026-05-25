@@ -223,6 +223,10 @@ def _is_raw_callable_blob(target) -> bool:
     return callable(getattr(target, "buffer_ptr", None)) and callable(getattr(target, "buffer_size", None))
 
 
+def _is_raw_args_blob(target) -> bool:
+    return callable(getattr(target, "buffer_ptr", None)) and callable(getattr(target, "buffer_size", None))
+
+
 def _prepare_callable_target(cw: ChipWorker, cid: int, target) -> None:
     if isinstance(target, ChipCallable):
         cw.prepare_callable(cid, target)
@@ -1698,6 +1702,9 @@ class Worker:
 
         if self.level == 2:
             assert self._chip_worker is not None
+            if _is_raw_args_blob(args):
+                assert args is not None
+                return self._chip_worker.run_raw_args(int(callable), args.buffer_ptr(), cfg)
             return self._chip_worker.run(int(callable), args, cfg)
 
         self._start_hierarchical()

@@ -41,6 +41,16 @@ PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_smoke.py
 ```
 
+Run the host-schedule smoke through the normal L2 Python `Worker` surface
+instead of the raw C API:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_smoke.py \
+    --runner worker --device 0 --n 1024 --block-dim 256 \
+    --arch compute_80 --no-build
+```
+
 Run the persistent-device tracer-bullet smoke:
 
 ```bash
@@ -130,8 +140,9 @@ then writes the host-schedule generated source, PTX, and JSON manifest under
 `prepare_cuda_host_schedule_callable(...)` to turn the artifact into the shared
 ctypes manifest consumed by the current `prepare_callable` C API. This is still
 a compiler/runtime slice; L2 `Worker.register(...)` can prepare that raw
-manifest blob, but the normal scene-test compiler path does not build CUDA
-callables yet.
+manifest blob, and L2 `Worker.run(...)` can launch raw CUDA argument structs
+that expose `buffer_ptr()` / `buffer_size()`. The normal scene-test compiler
+path does not build CUDA callables yet.
 For real host-schedule smoke coverage, pass a context definition plus
 `host_parameters`/`host_context_initializer` so the generated `__global__`
 wrapper matches the current vector-add launch ABI and can be loaded by

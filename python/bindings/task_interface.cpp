@@ -772,6 +772,15 @@ NB_MODULE(_task_interface, m) {
             "produced by `write_blob`; read_blob enforces capacity bounds against shm corruption."
         )
         .def(
+            "run_raw_args",
+            [](ChipWorker &self, int32_t callable_id, uint64_t args_ptr, const CallConfig &config) {
+                return self.run_raw_args(callable_id, reinterpret_cast<const void *>(args_ptr), config);
+            },
+            nb::arg("callable_id"), nb::arg("args_ptr"), nb::arg("config"),
+            "Launch a callable_id with a backend-specific raw argument struct pointer. "
+            "CUDA callables use this when the runtime ABI is not ChipStorageTaskArgs."
+        )
+        .def(
             "unregister_callable",
             [](ChipWorker &self, int32_t callable_id) {
                 self.unregister_callable(callable_id);

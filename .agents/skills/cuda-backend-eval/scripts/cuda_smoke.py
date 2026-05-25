@@ -22,7 +22,12 @@ import tempfile
 import time
 from pathlib import Path
 
+from simpler.task_interface import CallConfig
+from simpler.worker import Worker
+
 from simpler_setup.cuda_callable_compiler import CudaHostScheduleCallable as CudaHostCallable
+from simpler_setup.cuda_callable_compiler import CudaVectorAddArgs, prepare_cuda_host_schedule_callable
+from simpler_setup.kernel_compiler import KernelCompiler
 from simpler_setup.runtime_builder import RuntimeBuilder
 
 _FALLBACK_VECTOR_ADD_PTX = rb"""
@@ -101,15 +106,6 @@ def _find_nvcc() -> str | None:
         if nvcc.is_file():
             return str(nvcc)
     return None
-
-
-class CudaVectorAddArgs(ctypes.Structure):
-    _fields_ = [
-        ("a", ctypes.c_void_p),
-        ("b", ctypes.c_void_p),
-        ("out", ctypes.c_void_p),
-        ("n", ctypes.c_uint64),
-    ]
 
 
 class PtoRunTiming(ctypes.Structure):
@@ -282,15 +278,109 @@ def run_smoke(device: int, n: int, block_dim: int, arch: str, build: bool = True
     }
 
 
+def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool = True) -> dict:
+    with tempfile.TemporaryDirectory(prefix="pto_cuda_worker_smoke_") as td:
+        work_dir = Path(td)
+        task_src = work_dir / "vector_add.pto.cu"
+        task_src.write_text(
+            """
+unsigned long long i = blockIdx.x * blockDim.x + threadIdx.x;
+if (i < ctx->n) {
+    ctx->out[i] = ctx->a[i] + ctx->b[i];
+}
+""".lstrip()
+        )
+        artifact = KernelCompiler(platform="cuda").compile_cuda_host_schedule(
+            str(task_src),
+            task_name="vector_add_worker_smoke",
+            arch=arch,
+            cache_root=work_dir / "cache",
+            context_definition="""
+struct PtoTaskContext {
+    const float *a;
+    const float *b;
+    float *out;
+    unsigned long long n;
+};
+""".strip(),
+            host_parameters=(
+                "const float *a",
+                "const float *b",
+                "float *out",
+                "unsigned long long n",
+            ),
+            host_context_initializer="a, b, out, n",
+        )
+
+    prepared = prepare_cuda_host_schedule_callable(
+        artifact,
+        grid_dim=(n + block_dim - 1) // block_dim,
+        block_dim=block_dim,
+    )
+
+    worker = Worker(level=2, device_id=device, platform="cuda", runtime="host_schedule", build=build)
+    worker.init()
+    cid = worker.register(prepared)
+    start = time.time()
+    try:
+        array_t = ctypes.c_float * n
+        host_a = array_t(*[float(i) for i in range(n)])
+        host_b = array_t(*[float(2 * i) for i in range(n)])
+        host_out = array_t()
+        nbytes = ctypes.sizeof(host_a)
+
+        dev_a = worker.malloc(nbytes)
+        dev_b = worker.malloc(nbytes)
+        dev_out = worker.malloc(nbytes)
+        try:
+            worker.copy_to(dev_a, ctypes.addressof(host_a), nbytes)
+            worker.copy_to(dev_b, ctypes.addressof(host_b), nbytes)
+
+            args = CudaVectorAddArgs(a=dev_a, b=dev_b, out=dev_out, n=n)
+            config = CallConfig()
+            config.block_dim = block_dim
+            timing = worker.run(cid, args, config)
+            worker.copy_from(ctypes.addressof(host_out), dev_out, nbytes)
+            expected = [float(3 * i) for i in range(n)]
+            if list(host_out) != expected:
+                raise RuntimeError("vector-add output mismatch")
+        finally:
+            worker.free(dev_a)
+            worker.free(dev_b)
+            worker.free(dev_out)
+    finally:
+        worker.close()
+
+    return {
+        "status": "pass",
+        "runner": "worker",
+        "device": device,
+        "n": n,
+        "block_dim": block_dim,
+        "ptx_arch": arch,
+        "ptx_source": f"kernel-compiler-worker-task-body-{arch}",
+        "host_wall_ns": timing.host_wall_ns,
+        "device_wall_ns": timing.device_wall_ns,
+        "elapsed_s": time.time() - start,
+        "host_runtime": str(RuntimeBuilder(platform="cuda").get_binaries("host_schedule", build=False).host_path),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--n", type=int, default=1024)
     parser.add_argument("--block-dim", type=int, default=256)
     parser.add_argument("--arch", default="compute_80")
+    parser.add_argument("--runner", choices=("direct_c_api", "worker"), default="direct_c_api")
+    parser.add_argument("--no-build", action="store_true", help="Use existing runtime binaries without rebuilding")
     args = parser.parse_args()
 
-    print(json.dumps(run_smoke(args.device, args.n, args.block_dim, args.arch), indent=2, sort_keys=True))
+    if args.runner == "worker":
+        result = run_worker_smoke(args.device, args.n, args.block_dim, args.arch, build=not args.no_build)
+    else:
+        result = run_smoke(args.device, args.n, args.block_dim, args.arch, build=not args.no_build)
+    print(json.dumps(result, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":

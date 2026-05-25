@@ -301,9 +301,16 @@ RunTiming ChipWorker::run(int32_t callable_id, TaskArgsView args, const CallConf
 }
 
 RunTiming ChipWorker::run(int32_t callable_id, const ChipStorageTaskArgs *args, const CallConfig &config) {
+    return run_raw_args(callable_id, args, config);
+}
+
+RunTiming ChipWorker::run_raw_args(int32_t callable_id, const void *args, const CallConfig &config) {
     config.validate();
     if (!initialized_) {
         throw std::runtime_error("ChipWorker not initialized; call init() first");
+    }
+    if (args == nullptr) {
+        throw std::runtime_error("run_prepared: args must not be null");
     }
 
     void *rt = runtime_buf_.data();

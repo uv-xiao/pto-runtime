@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,7 @@ import time
 
 import pytest
 
+from simpler_setup.cuda_callable_compiler import CudaVectorAddArgs
 from simpler_setup.kernel_compiler import KernelCompiler
 from simpler_setup.platform_info import parse_platform, to_platform
 from simpler_setup.runtime_builder import RuntimeBuilder
@@ -60,15 +62,6 @@ class CudaHostCallableV2(ctypes.Structure):
     ]
 
 
-class CudaVectorAddArgs(ctypes.Structure):
-    _fields_ = [
-        ("a", ctypes.c_void_p),
-        ("b", ctypes.c_void_p),
-        ("out", ctypes.c_void_p),
-        ("n", ctypes.c_uint64),
-    ]
-
-
 class PtoRunTiming(ctypes.Structure):
     _fields_ = [
         ("host_wall_ns", ctypes.c_uint64),
@@ -79,6 +72,39 @@ class PtoRunTiming(ctypes.Structure):
 @pytest.fixture(scope="module")
 def cuda_host_runtime_binaries():
     return RuntimeBuilder(platform="cuda").get_binaries("host_schedule", build=True)
+
+
+@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA runtime smoke test")
+def test_cuda_host_schedule_worker_run_accepts_raw_cuda_args():
+    result = subprocess.run(
+        [
+            sys.executable,
+            ".agents/skills/cuda-backend-eval/scripts/cuda_smoke.py",
+            "--runner",
+            "worker",
+            "--device",
+            "0",
+            "--n",
+            "1024",
+            "--block-dim",
+            "256",
+            "--arch",
+            "compute_80",
+            "--no-build",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "pass"
+    assert payload["runner"] == "worker"
+    assert payload["ptx_arch"] == "compute_80"
+    assert payload["ptx_source"] == "kernel-compiler-worker-task-body-compute_80"
+    assert payload["host_wall_ns"] > 0
+    assert payload["device_wall_ns"] > 0
 
 
 @pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA runtime smoke test")

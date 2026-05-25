@@ -391,7 +391,7 @@ class ChipWorker:
 
         Args:
             callable_id: Stable id passed to a prior ``prepare_callable``.
-            args: ChipStorageTaskArgs for this invocation.
+            args: ChipStorageTaskArgs or TaskArgs for this invocation.
             config: Optional CallConfig. If None, a default is created.
             **kwargs: Overrides applied to config (e.g. block_dim=24).
 
@@ -402,6 +402,18 @@ class ChipWorker:
         for k, v in kwargs.items():
             setattr(config, k, v)
         return self._impl.run(int(callable_id), args, config)
+
+    def run_raw_args(self, callable_id, args_ptr, config=None, **kwargs):
+        """Launch a prepared callable with a backend-specific raw args pointer.
+
+        CUDA callables use this path because their launch ABI is a manifest
+        struct such as ``PtoCudaVectorAddArgs``, not ``ChipStorageTaskArgs``.
+        """
+        if config is None:
+            config = CallConfig()
+        for k, v in kwargs.items():
+            setattr(config, k, v)
+        return self._impl.run_raw_args(int(callable_id), int(args_ptr), config)
 
     def unregister_callable(self, callable_id):
         """Drop prepared state for ``callable_id`` and release its orch SO share."""

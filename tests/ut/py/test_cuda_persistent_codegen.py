@@ -22,6 +22,7 @@ from simpler_setup.cuda_callable_compiler import (
     CudaPersistentTaskBodyFunction,
     CudaPersistentTaskFunction,
     CudaTaskBody,
+    CudaVectorAddArgs,
     compile_cuda_persistent_device,
     default_cuda_persistent_cache_root,
     render_persistent_dag_source,
@@ -141,6 +142,13 @@ def test_prepare_cuda_host_schedule_callable_keeps_artifact_buffers_alive(tmp_pa
     assert prepared.image_buffer.raw == b"fake-host-ptx\0"
     assert prepared.entry_name_buffer.value == artifact.entry_name.encode("utf-8")
     assert prepared.manifest.image == ctypes.cast(prepared.image_buffer, ctypes.c_void_p).value
+
+
+def test_cuda_vector_add_args_exposes_raw_buffer_pointer():
+    args = CudaVectorAddArgs(a=1, b=2, out=3, n=4)
+
+    assert args.buffer_ptr() == ctypes.addressof(args)
+    assert args.buffer_size() == ctypes.sizeof(args)
 
 
 def test_render_persistent_dag_source_generates_dispatch_switch():

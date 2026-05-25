@@ -59,6 +59,10 @@ public:
     // skip the view→storage memcpy and hand the pointer straight to the C ABI.
     // Used by the ChipStorageTaskArgs path in the nanobind binding.
     RunTiming run(int32_t callable_id, const ChipStorageTaskArgs *args, const CallConfig &config);
+    // Same launch, but the caller owns a backend-specific raw ABI struct.
+    // CUDA callables use this for manifests whose argument layout is not
+    // ChipStorageTaskArgs.
+    RunTiming run_raw_args(int32_t callable_id, const void *args, const CallConfig &config);
 
     // Per-callable_id preparation. Requires init() first and a callable_id
     // in [0, MAX_REGISTERED_CALLABLE_IDS) (cap 64).

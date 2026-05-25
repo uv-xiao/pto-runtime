@@ -58,6 +58,18 @@ class _BlobCallable:
         return self.size
 
 
+@dataclass
+class _BlobArgs:
+    ptr: int = 0x2000
+    size: int = 32
+
+    def buffer_ptr(self) -> int:
+        return self.ptr
+
+    def buffer_size(self) -> int:
+        return self.size
+
+
 # ---------------------------------------------------------------------------
 # Test: lifecycle (init / close without submitting any tasks)
 # ---------------------------------------------------------------------------
@@ -131,6 +143,19 @@ class TestLifecycle:
         assert cid == 0
         hw._chip_worker.prepare_callable_from_blob.assert_called_once_with(0, target.buffer_ptr())
         hw._chip_worker.prepare_callable.assert_not_called()
+
+    def test_l2_run_blob_args_uses_raw_args_path(self):
+        hw = Worker(level=2, platform="cuda", runtime="host_schedule")
+        hw._initialized = True
+        hw._chip_worker = MagicMock()
+
+        config = MagicMock()
+        args = _BlobArgs()
+
+        hw.run(3, args, config)
+
+        hw._chip_worker.run_raw_args.assert_called_once_with(3, args.buffer_ptr(), config)
+        hw._chip_worker.run.assert_not_called()
 
     def test_unregister_unknown_cid_raises(self):
         # Symmetric to register: unregister must fail loud if the caller

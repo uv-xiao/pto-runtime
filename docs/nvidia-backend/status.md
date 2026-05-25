@@ -54,11 +54,18 @@ Evidence:
 - `PreparedCudaCallable` exposes `buffer_ptr()` / `buffer_size()`, and the L2
   Python `Worker.register(...)` path can prepare those raw CUDA callable
   blobs through `prepare_callable_from_blob`.
+- L2 Python `Worker.run(...)` can launch backend-specific raw CUDA argument
+  structs that expose `buffer_ptr()` / `buffer_size()`, so the host-schedule
+  vector-add path no longer has to call `run_prepared` through `ctypes`.
 - `tests/ut/py/test_cuda_kernel_compiler.py` covers the CUDA `KernelCompiler`
   entry point for host-schedule task bodies.
 - `tests/ut/py/test_cuda_backend.py` runs one host-schedule callable compiled
   by `KernelCompiler` through `prepare_callable` and validates real CUDA output
   data.
+- `tests/ut/py/test_cuda_backend.py` also runs the compiler-backed
+  host-schedule vector-add through `Worker(level=2, platform="cuda")`,
+  `Worker.register(...)`, device allocation/copy helpers, and `Worker.run(...)`
+  with a real `CudaVectorAddArgs` struct.
 
 ### Persistent-Device Runtime
 
@@ -134,19 +141,38 @@ Evidence:
 
 ## Latest Local Verification
 
-The focused CUDA test set was run from the project-local virtual environment:
+The focused CUDA test set was run from the project-local virtual environment.
+The CUDA backend tests run separately so the shell exit status is authoritative
+even when hardware tests take longer than the default tool wait window:
+
+```bash
+.venv/bin/python -m pytest tests/ut/py/test_cuda_backend.py -q
+```
+
+Result: `16 passed`.
 
 ```bash
 .venv/bin/python -m pytest \
   tests/ut/py/test_cuda_benchmark_report.py \
-  tests/ut/py/test_cuda_backend.py \
   tests/ut/py/test_cuda_kernel_compiler.py \
   tests/ut/py/test_cuda_persistent_codegen.py \
   tests/ut/py/test_worker/test_ensure_prepared.py \
   tests/ut/py/test_worker/test_host_worker.py -q
 ```
 
-Result: `100 passed`.
+Result: `87 passed`.
+
+The host-schedule Worker raw-args smoke was run locally on A100:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_smoke.py \
+    --runner worker --device 0 --n 1024 --block-dim 256 \
+    --arch compute_80 --no-build
+```
+
+Result: `status=pass`, `runner=worker`, `ptx_arch=compute_80`,
+`ptx_source=kernel-compiler-worker-task-body-compute_80`.
 
 The docs and skill updates were checked with targeted `pre-commit` runs and
 `git diff --check` before commit.
@@ -211,8 +237,8 @@ flow still does not compile and run CUDA callable artifacts end to end.
 Needed:
 
 - scene-test plumbing from CUDA callable specs into CUDA callable artifacts;
-- a normal Python run path for CUDA-specific argument structs instead of the
-  current direct C API smoke helpers;
+- scene-test and orchestration helpers that construct CUDA-specific argument
+  structs from normal test/user data instead of requiring manual ctypes setup;
 - persistent-device callable manifests wired through the normal build/cache
   layout.
 
