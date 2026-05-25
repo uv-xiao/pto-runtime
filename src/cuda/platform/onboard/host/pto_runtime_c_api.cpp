@@ -1,0 +1,469 @@
+/*
+ * Copyright (c) PyPTO Contributors.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ * -----------------------------------------------------------------------------------------------------------
+ */
+
+#include "pto_runtime_c_api.h"
+
+#include "host/pto_cuda_host_schedule_abi.h"
+#include "platform_comm/comm.h"
+
+#include <cuda.h>
+#include <cuda_runtime_api.h>
+
+#include <chrono>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
+namespace {
+
+struct PtoCudaRuntime {
+    uint32_t reserved = 0;
+};
+
+struct PreparedCallable {
+    CUmodule module = nullptr;
+    CUfunction function = nullptr;
+    uint32_t op = 0;
+    uint32_t grid_dim = 0;
+    uint32_t block_dim = 0;
+    size_t shared_mem_bytes = 0;
+};
+
+class CudaDeviceRunner {
+public:
+    ~CudaDeviceRunner() { finalize(); }
+
+    int init(int device_id) {
+        device_id_ = device_id;
+        CUresult cu_rc = cuInit(0);
+        if (cu_rc != CUDA_SUCCESS) {
+            return -1;
+        }
+        cudaError_t rc = cudaSetDevice(device_id_);
+        if (rc != cudaSuccess) {
+            return -1;
+        }
+        rc = cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking);
+        if (rc != cudaSuccess) {
+            stream_ = nullptr;
+            return -1;
+        }
+        return 0;
+    }
+
+    int finalize() {
+        for (auto &entry : prepared_) {
+            if (entry.second.module != nullptr) {
+                cuModuleUnload(entry.second.module);
+                entry.second.module = nullptr;
+            }
+        }
+        prepared_.clear();
+        if (stream_ != nullptr) {
+            cudaStreamDestroy(stream_);
+            stream_ = nullptr;
+        }
+        return cudaDeviceSynchronize() == cudaSuccess ? 0 : -1;
+    }
+
+    void *malloc(size_t size) {
+        if (size == 0) {
+            return nullptr;
+        }
+        void *ptr = nullptr;
+        if (cudaSetDevice(device_id_) != cudaSuccess) {
+            return nullptr;
+        }
+        if (cudaMalloc(&ptr, size) != cudaSuccess) {
+            return nullptr;
+        }
+        return ptr;
+    }
+
+    void free(void *ptr) {
+        if (ptr == nullptr) {
+            return;
+        }
+        cudaSetDevice(device_id_);
+        cudaFree(ptr);
+    }
+
+    int copy_to_device(void *dev_ptr, const void *host_ptr, size_t size) {
+        if (dev_ptr == nullptr || host_ptr == nullptr) {
+            return -1;
+        }
+        if (cudaSetDevice(device_id_) != cudaSuccess) {
+            return -1;
+        }
+        cudaError_t rc = cudaMemcpyAsync(dev_ptr, host_ptr, size, cudaMemcpyHostToDevice, stream_);
+        if (rc != cudaSuccess) {
+            return -1;
+        }
+        return cudaStreamSynchronize(stream_) == cudaSuccess ? 0 : -1;
+    }
+
+    int copy_from_device(void *host_ptr, const void *dev_ptr, size_t size) {
+        if (host_ptr == nullptr || dev_ptr == nullptr) {
+            return -1;
+        }
+        if (cudaSetDevice(device_id_) != cudaSuccess) {
+            return -1;
+        }
+        cudaError_t rc = cudaMemcpyAsync(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost, stream_);
+        if (rc != cudaSuccess) {
+            return -1;
+        }
+        return cudaStreamSynchronize(stream_) == cudaSuccess ? 0 : -1;
+    }
+
+    int prepare(int32_t callable_id, const PtoCudaHostCallable *callable) {
+        if (callable == nullptr || callable->version != 1 || callable->image == nullptr || callable->image_size == 0 ||
+            callable->entry_name == nullptr) {
+            return -1;
+        }
+        if (callable->op != PTO_CUDA_HOST_OP_VECTOR_ADD_F32) {
+            return -1;
+        }
+        if (cudaSetDevice(device_id_) != cudaSuccess) {
+            return -1;
+        }
+
+        unregister(callable_id);
+
+        std::vector<char> image(
+            static_cast<const char *>(callable->image),
+            static_cast<const char *>(callable->image) + callable->image_size
+        );
+        if (image.empty() || image.back() != '\0') {
+            image.push_back('\0');
+        }
+
+        PreparedCallable prepared;
+        CUresult cu_rc = cuModuleLoadData(&prepared.module, image.data());
+        if (cu_rc != CUDA_SUCCESS) {
+            return -1;
+        }
+        cu_rc = cuModuleGetFunction(&prepared.function, prepared.module, callable->entry_name);
+        if (cu_rc != CUDA_SUCCESS) {
+            cuModuleUnload(prepared.module);
+            return -1;
+        }
+
+        prepared.op = callable->op;
+        prepared.grid_dim = callable->grid_dim;
+        prepared.block_dim = callable->block_dim;
+        prepared.shared_mem_bytes = callable->shared_mem_bytes;
+        prepared_[callable_id] = prepared;
+        return 0;
+    }
+
+    int unregister(int32_t callable_id) {
+        auto it = prepared_.find(callable_id);
+        if (it == prepared_.end()) {
+            return 0;
+        }
+        if (it->second.module != nullptr) {
+            cuModuleUnload(it->second.module);
+        }
+        prepared_.erase(it);
+        return 0;
+    }
+
+    int run(int32_t callable_id, const void *args, PtoRunTiming *out_timing) {
+        if (out_timing != nullptr) {
+            std::memset(out_timing, 0, sizeof(*out_timing));
+        }
+        if (args == nullptr) {
+            return -1;
+        }
+        auto it = prepared_.find(callable_id);
+        if (it == prepared_.end()) {
+            return -1;
+        }
+        PreparedCallable &prepared = it->second;
+        if (prepared.op != PTO_CUDA_HOST_OP_VECTOR_ADD_F32) {
+            return -1;
+        }
+        auto *typed_args = static_cast<const PtoCudaVectorAddArgs *>(args);
+        if (typed_args->a == nullptr || typed_args->b == nullptr || typed_args->out == nullptr || typed_args->n == 0) {
+            return -1;
+        }
+        if (cudaSetDevice(device_id_) != cudaSuccess) {
+            return -1;
+        }
+
+        cudaEvent_t start = nullptr;
+        cudaEvent_t stop = nullptr;
+        if (cudaEventCreate(&start) != cudaSuccess || cudaEventCreate(&stop) != cudaSuccess) {
+            if (start != nullptr) cudaEventDestroy(start);
+            if (stop != nullptr) cudaEventDestroy(stop);
+            return -1;
+        }
+
+        auto host_start = std::chrono::steady_clock::now();
+        cudaEventRecord(start, stream_);
+        const float *a = typed_args->a;
+        const float *b = typed_args->b;
+        float *out = typed_args->out;
+        uint64_t n = typed_args->n;
+        void *kernel_args[] = {&a, &b, &out, &n};
+        CUresult cu_rc = cuLaunchKernel(
+            prepared.function, prepared.grid_dim, 1, 1, prepared.block_dim, 1, 1, prepared.shared_mem_bytes,
+            reinterpret_cast<CUstream>(stream_), kernel_args, nullptr
+        );
+        cudaEventRecord(stop, stream_);
+        cudaError_t sync_rc = cudaStreamSynchronize(stream_);
+        auto host_stop = std::chrono::steady_clock::now();
+
+        if (out_timing != nullptr) {
+            out_timing->host_wall_ns = static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(host_stop - host_start).count()
+            );
+            float elapsed_ms = 0.0F;
+            if (cudaEventElapsedTime(&elapsed_ms, start, stop) == cudaSuccess) {
+                out_timing->device_wall_ns = static_cast<uint64_t>(elapsed_ms * 1000000.0F);
+            }
+        }
+
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+        if (cu_rc != CUDA_SUCCESS || sync_rc != cudaSuccess) {
+            return -1;
+        }
+        return 0;
+    }
+
+private:
+    int device_id_ = 0;
+    cudaStream_t stream_ = nullptr;
+    std::unordered_map<int32_t, PreparedCallable> prepared_;
+};
+
+CudaDeviceRunner *runner(DeviceContextHandle ctx) { return static_cast<CudaDeviceRunner *>(ctx); }
+
+}  // namespace
+
+extern "C" {
+
+DeviceContextHandle create_device_context(void) {
+    try {
+        return static_cast<DeviceContextHandle>(new CudaDeviceRunner());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void destroy_device_context(DeviceContextHandle ctx) { delete runner(ctx); }
+
+size_t get_runtime_size(void) { return sizeof(PtoCudaRuntime); }
+
+void *device_malloc_ctx(DeviceContextHandle ctx, size_t size) {
+    if (ctx == nullptr) return nullptr;
+    try {
+        return runner(ctx)->malloc(size);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void device_free_ctx(DeviceContextHandle ctx, void *dev_ptr) {
+    if (ctx == nullptr) return;
+    try {
+        runner(ctx)->free(dev_ptr);
+    } catch (...) {}
+}
+
+int copy_to_device_ctx(DeviceContextHandle ctx, void *dev_ptr, const void *host_ptr, size_t size) {
+    if (ctx == nullptr) return -1;
+    try {
+        return runner(ctx)->copy_to_device(dev_ptr, host_ptr, size);
+    } catch (...) {
+        return -1;
+    }
+}
+
+int copy_from_device_ctx(DeviceContextHandle ctx, void *host_ptr, const void *dev_ptr, size_t size) {
+    if (ctx == nullptr) return -1;
+    try {
+        return runner(ctx)->copy_from_device(host_ptr, dev_ptr, size);
+    } catch (...) {
+        return -1;
+    }
+}
+
+int simpler_init(
+    DeviceContextHandle ctx, int device_id, const uint8_t *aicpu_binary, size_t aicpu_size,
+    const uint8_t *aicore_binary, size_t aicore_size
+) {
+    (void)aicpu_binary;
+    (void)aicpu_size;
+    (void)aicore_binary;
+    (void)aicore_size;
+    if (ctx == nullptr) return -1;
+    try {
+        return runner(ctx)->init(device_id);
+    } catch (...) {
+        return -1;
+    }
+}
+
+int finalize_device(DeviceContextHandle ctx) {
+    if (ctx == nullptr) return -1;
+    try {
+        return runner(ctx)->finalize();
+    } catch (...) {
+        return -1;
+    }
+}
+
+int prepare_callable(DeviceContextHandle ctx, int32_t callable_id, const void *callable) {
+    if (ctx == nullptr || callable == nullptr) return -1;
+    try {
+        return runner(ctx)->prepare(callable_id, static_cast<const PtoCudaHostCallable *>(callable));
+    } catch (...) {
+        return -1;
+    }
+}
+
+int run_prepared(
+    DeviceContextHandle ctx, RuntimeHandle runtime, int32_t callable_id, const void *args, int block_dim,
+    int aicpu_thread_num, int enable_l2_swimlane, int enable_dump_tensor, int enable_pmu, int enable_dep_gen,
+    const char *output_prefix, PtoRunTiming *out_timing
+) {
+    (void)runtime;
+    (void)block_dim;
+    (void)aicpu_thread_num;
+    (void)enable_l2_swimlane;
+    (void)enable_dump_tensor;
+    (void)enable_pmu;
+    (void)enable_dep_gen;
+    (void)output_prefix;
+    if (ctx == nullptr) return -1;
+    try {
+        return runner(ctx)->run(callable_id, args, out_timing);
+    } catch (...) {
+        return -1;
+    }
+}
+
+int unregister_callable(DeviceContextHandle ctx, int32_t callable_id) {
+    if (ctx == nullptr) return -1;
+    try {
+        return runner(ctx)->unregister(callable_id);
+    } catch (...) {
+        return -1;
+    }
+}
+
+size_t get_aicpu_dlopen_count(DeviceContextHandle ctx) {
+    (void)ctx;
+    return 0;
+}
+
+size_t get_host_dlopen_count(DeviceContextHandle ctx) {
+    (void)ctx;
+    return 0;
+}
+
+int ensure_acl_ready_ctx(DeviceContextHandle ctx, int device_id) {
+    (void)ctx;
+    (void)device_id;
+    return 0;
+}
+
+void *create_comm_stream_ctx(DeviceContextHandle ctx) {
+    (void)ctx;
+    return nullptr;
+}
+
+int destroy_comm_stream_ctx(DeviceContextHandle ctx, void *stream) {
+    (void)ctx;
+    (void)stream;
+    return 0;
+}
+
+CommHandle comm_init(int rank, int nranks, void *stream, const char *rootinfo_path) {
+    (void)rank;
+    (void)nranks;
+    (void)stream;
+    (void)rootinfo_path;
+    return nullptr;
+}
+
+int comm_alloc_windows(CommHandle h, size_t win_size, uint64_t *device_ctx_out) {
+    (void)h;
+    (void)win_size;
+    (void)device_ctx_out;
+    return -1;
+}
+
+int comm_get_local_window_base(CommHandle h, uint64_t *base_out) {
+    (void)h;
+    (void)base_out;
+    return -1;
+}
+
+int comm_get_window_size(CommHandle h, size_t *size_out) {
+    (void)h;
+    (void)size_out;
+    return -1;
+}
+
+int comm_derive_context(
+    CommHandle h, const uint32_t *rank_ids, size_t rank_count, uint32_t domain_rank, size_t window_offset,
+    size_t window_size, uint64_t *device_ctx_out
+) {
+    (void)h;
+    (void)rank_ids;
+    (void)rank_count;
+    (void)domain_rank;
+    (void)window_offset;
+    (void)window_size;
+    (void)device_ctx_out;
+    return -1;
+}
+
+int comm_alloc_domain_windows(
+    CommHandle h, uint64_t allocation_id, const uint32_t *rank_ids, size_t rank_count, uint32_t domain_rank,
+    size_t window_size, uint64_t *device_ctx_out, uint64_t *local_window_base_out
+) {
+    (void)h;
+    (void)allocation_id;
+    (void)rank_ids;
+    (void)rank_count;
+    (void)domain_rank;
+    (void)window_size;
+    (void)device_ctx_out;
+    (void)local_window_base_out;
+    return -1;
+}
+
+int comm_release_domain_windows(CommHandle h, uint64_t allocation_id, size_t rank_count, uint32_t domain_rank) {
+    (void)h;
+    (void)allocation_id;
+    (void)rank_count;
+    (void)domain_rank;
+    return -1;
+}
+
+int comm_barrier(CommHandle h) {
+    (void)h;
+    return -1;
+}
+
+int comm_destroy(CommHandle h) {
+    (void)h;
+    return 0;
+}
+
+}  // extern "C"

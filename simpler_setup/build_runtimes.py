@@ -66,6 +66,9 @@ def detect_buildable_platforms() -> list:
     if has_cross and has_ccec:
         platforms.extend(["a2a3", "a5"])
 
+    if shutil.which("gcc") and shutil.which("g++") and shutil.which("nvcc"):
+        platforms.append("cuda")
+
     return platforms
 
 
