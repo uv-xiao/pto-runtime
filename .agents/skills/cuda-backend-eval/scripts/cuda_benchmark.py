@@ -687,6 +687,17 @@ def _normalize_worker_blocks_per_task(raw: int | list[int]) -> list[int]:
     return normalized
 
 
+def _normalize_batch_tasks(raw: int | list[int]) -> list[int]:
+    values = [raw] if isinstance(raw, int) else raw
+    normalized: list[int] = []
+    for value in values:
+        if value < 0:
+            raise ValueError("batch_tasks must be non-negative")
+        if value > 0 and value not in normalized:
+            normalized.append(value)
+    return normalized
+
+
 def run_benchmark(
     device: int,
     sizes: list[int],
@@ -695,11 +706,10 @@ def run_benchmark(
     arch: str,
     label: str,
     include_persistent: bool = False,
-    batch_tasks: int = 0,
+    batch_tasks: int | list[int] = 0,
     worker_blocks_per_task: int | list[int] = 1,
 ) -> dict[str, Any]:
-    if batch_tasks < 0:
-        raise ValueError("batch_tasks must be non-negative")
+    batch_task_values = _normalize_batch_tasks(batch_tasks)
     worker_blocks_per_task_values = _normalize_worker_blocks_per_task(worker_blocks_per_task)
     with tempfile.TemporaryDirectory(prefix="pto_cuda_bench_") as td:
         ptx, ptx_source = _compile_ptx(Path(td), arch)
@@ -714,6 +724,7 @@ def run_benchmark(
         "ptx_arch": arch,
         "ptx_source": ptx_source,
         "batch_tasks": batch_tasks,
+        "batch_task_values": batch_task_values,
         "worker_blocks_per_task": worker_blocks_per_task
         if isinstance(worker_blocks_per_task, int)
         else worker_blocks_per_task_values,
@@ -764,7 +775,7 @@ def run_benchmark(
                     persistent.update({"machine": metadata["machine"], "repeat": repeat})
                     results.append(persistent)
 
-                if batch_tasks:
+                for task_count in batch_task_values:
                     for baseline in (
                         "pto_host_schedule_batch",
                         "pto_persistent_device_batch",
@@ -776,7 +787,7 @@ def run_benchmark(
                             n=n,
                             block_dim=block_dim,
                             arch=arch,
-                            task_count=batch_tasks,
+                            task_count=task_count,
                         )
                         batch.update({"machine": metadata["machine"], "repeat": repeat})
                         results.append(batch)
@@ -788,7 +799,7 @@ def run_benchmark(
                                 n=n,
                                 block_dim=block_dim,
                                 arch=arch,
-                                task_count=batch_tasks,
+                                task_count=task_count,
                                 worker_blocks_per_task=worker_blocks,
                             )
                             grid_batch.update({"machine": metadata["machine"], "repeat": repeat})
@@ -1075,9 +1086,7 @@ def _dag_shape_rows(
         [
             {
                 **row,
-                "base_device_wall_ns": base_by_shape[(row["machine"], row["n"])][
-                    "median_device_wall_ns"
-                ],
+                "base_device_wall_ns": base_by_shape[(row["machine"], row["n"])]["median_device_wall_ns"],
             }
             for row in shape_rows
             if (row["machine"], row["n"]) in base_by_shape
@@ -1194,7 +1203,7 @@ def render_ratio_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any
     if not rows:
         return '<svg xmlns="http://www.w3.org/2000/svg" width="760" height="96"></svg>\n'
 
-    max_ratio = max(max(row["ratio"] for row in rows), 1.0)
+    max_ratio = max(1.0, *(row["ratio"] for row in rows))
     left = 280
     chart_width = 520
     bar_height = 18
@@ -1209,23 +1218,18 @@ def render_ratio_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any
         "Device time ratio vs matched reference</text>",
         f'<line x1="{reference_x}" y1="42" x2="{reference_x}" y2="{height - 16}" '
         'stroke="#444" stroke-width="1" stroke-dasharray="4 4"/>',
-        f'<text x="{reference_x + 6}" y="56" font-family="sans-serif" font-size="12">'
-        "reference=1.00x</text>",
+        f'<text x="{reference_x + 6}" y="56" font-family="sans-serif" font-size="12">reference=1.00x</text>',
     ]
     for idx, row in enumerate(rows):
         y = 68 + idx * (bar_height + row_gap)
-        label = (
-            f"{row['machine']} n={row['n']} tasks={row['task_count']} "
-            f"{row['baseline']}"
-        )
+        label = f"{row['machine']} n={row['n']} tasks={row['task_count']} {row['baseline']}"
         ratio = row["ratio"]
         bar_width = max(1, int(chart_width * ratio / max_ratio))
         color = "#2a9d65" if ratio <= 1.0 else "#c43d3d"
         lines.append(f'<text x="20" y="{y + 14}" font-family="sans-serif" font-size="12">{label}</text>')
         lines.append(f'<rect x="{left}" y="{y}" width="{bar_width}" height="{bar_height}" fill="{color}"/>')
         lines.append(
-            f'<text x="{left + bar_width + 8}" y="{y + 14}" font-family="sans-serif" font-size="12">'
-            f"{ratio:.2f}x</text>"
+            f'<text x="{left + bar_width + 8}" y="{y + 14}" font-family="sans-serif" font-size="12">{ratio:.2f}x</text>'
         )
     lines.append("</svg>")
     return "\n".join(lines) + "\n"
@@ -1295,10 +1299,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 "",
                 "## DAG Shape Rows",
                 "",
-                "| Machine | N | Baseline | Tasks | Median device ns | "
-                "Device vs pto_persistent_dag |",
-                "| ------- | - | -------- | ----- | ---------------- | "
-                "---------------------------- |",
+                "| Machine | N | Baseline | Tasks | Median device ns | Device vs pto_persistent_dag |",
+                "| ------- | - | -------- | ----- | ---------------- | ---------------------------- |",
             ]
         )
         for row in dag_shape_rows:
@@ -1399,6 +1401,10 @@ def _parse_sizes(raw: str) -> list[int]:
     return [int(part) for part in raw.split(",") if part]
 
 
+def _parse_batch_tasks(raw: str) -> list[int]:
+    return _normalize_batch_tasks([int(part) for part in raw.split(",") if part])
+
+
 def _parse_worker_blocks_per_task(raw: str) -> list[int]:
     return _normalize_worker_blocks_per_task([int(part) for part in raw.split(",") if part])
 
@@ -1436,9 +1442,8 @@ def main() -> None:
     parser.add_argument("--include-persistent", action="store_true")
     parser.add_argument(
         "--batch-tasks",
-        type=int,
-        default=0,
-        help="also run same-work host_schedule and persistent-device batch baselines with this task count",
+        default="0",
+        help="comma-separated task counts for same-work host_schedule and persistent-device batch baselines",
     )
     parser.add_argument(
         "--worker-blocks-per-task",
@@ -1446,6 +1451,7 @@ def main() -> None:
         help="comma-separated worker-block counts for persistent direct worker-grid batch rows",
     )
     args = parser.parse_args()
+    batch_task_values = _parse_batch_tasks(args.batch_tasks)
     worker_blocks_per_task_values = _parse_worker_blocks_per_task(args.worker_blocks_per_task)
 
     if args.merge_json:
@@ -1470,8 +1476,11 @@ def main() -> None:
         sizes = _parse_sizes(args.sizes)
         if len(sizes) != 1:
             raise SystemExit("--single-baseline requires exactly one --sizes value")
+        if len(batch_task_values) > 1:
+            raise SystemExit("--single-baseline requires at most one --batch-tasks value")
         if len(worker_blocks_per_task_values) != 1:
             raise SystemExit("--single-baseline requires exactly one --worker-blocks-per-task value")
+        task_count = batch_task_values[0] if batch_task_values else 1
         print(
             json.dumps(
                 run_single_sample(
@@ -1480,7 +1489,7 @@ def main() -> None:
                     sizes[0],
                     args.block_dim,
                     args.arch,
-                    task_count=max(1, args.batch_tasks),
+                    task_count=task_count,
                     worker_blocks_per_task=worker_blocks_per_task_values[0],
                 ),
                 sort_keys=True,
@@ -1496,7 +1505,7 @@ def main() -> None:
         arch=args.arch,
         label=args.label,
         include_persistent=args.include_persistent,
-        batch_tasks=args.batch_tasks,
+        batch_tasks=batch_task_values,
         worker_blocks_per_task=worker_blocks_per_task_values,
     )
     write_report(payload, args.output_dir)

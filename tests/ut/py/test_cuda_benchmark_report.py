@@ -877,6 +877,60 @@ def test_run_benchmark_can_sweep_worker_grid_batch_modes(monkeypatch):
     assert payload["metadata"]["worker_blocks_per_task_values"] == [2, 4]
 
 
+def test_run_benchmark_can_sweep_batch_task_counts(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = []
+
+    def fake_compile_ptx(work_dir, arch):
+        return b"ptx", f"fake-{arch}"
+
+    def fake_run_single_sample(baseline, device, n, block_dim, arch, task_count=1, worker_blocks_per_task=1):
+        seen.append((baseline, task_count, worker_blocks_per_task))
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count,
+            "worker_blocks_per_task": worker_blocks_per_task,
+            "block_dim": block_dim,
+            "host_wall_ns": 20,
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    monkeypatch.setattr(cuda_benchmark, "_compile_ptx", fake_compile_ptx)
+    monkeypatch.setattr(cuda_benchmark, "run_single_sample", fake_run_single_sample)
+
+    payload = cuda_benchmark.run_benchmark(
+        device=3,
+        sizes=[1024],
+        repeats=1,
+        block_dim=128,
+        arch="compute_80",
+        label="unit",
+        include_persistent=True,
+        batch_tasks=[2, 6],
+        worker_blocks_per_task=[4, 8],
+    )
+
+    assert ("pto_host_schedule_batch", 2, 1) in seen
+    assert ("pto_persistent_device_batch", 6, 1) in seen
+    assert ("pto_persistent_queue_batch", 6, 1) in seen
+    assert ("pto_persistent_device_grid_batch", 2, 4) in seen
+    assert ("pto_persistent_device_grid_batch", 2, 8) in seen
+    assert ("pto_persistent_device_grid_batch", 6, 4) in seen
+    assert ("pto_persistent_device_grid_batch", 6, 8) in seen
+    assert payload["metadata"]["batch_tasks"] == [2, 6]
+    assert payload["metadata"]["batch_task_values"] == [2, 6]
+
+
+def test_parse_batch_tasks_accepts_comma_separated_values():
+    cuda_benchmark = _load_benchmark_module()
+
+    assert cuda_benchmark._parse_batch_tasks("0") == []
+    assert cuda_benchmark._parse_batch_tasks("6") == [6]
+    assert cuda_benchmark._parse_batch_tasks("2,6,2") == [2, 6]
+
+
 def test_render_report_describes_stream_concurrency_rows():
     cuda_benchmark = _load_benchmark_module()
     payload = {
