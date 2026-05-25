@@ -63,9 +63,11 @@ Evidence:
 - `tests/ut/py/test_cuda_backend.py` runs persistent-device smoke tests with
   real CUDA data when `nvcc` is available.
 - `tests/ut/py/test_cuda_persistent_codegen.py` covers generated dispatch,
-  tensor descriptor fields, manifest writing, and cache reuse.
+  tensor descriptor fields, shared task-body wrapper generation, manifest
+  writing, and cache reuse.
 - `simpler_setup/cuda_callable_compiler.py` contains the generated-dispatch
-  source renderer and offline `nvcc` compile helper.
+  source renderer, shared task-body wrapper renderer, and offline `nvcc`
+  compile helper.
 
 ### Evaluation And Reporting
 
@@ -112,7 +114,7 @@ The focused CUDA test set was run from the project-local virtual environment:
   tests/ut/py/test_cuda_persistent_codegen.py -q
 ```
 
-Result: `19 passed`.
+Result: `21 passed`.
 
 The docs and skill updates were checked with targeted `pre-commit` runs and
 `git diff --check` before commit.
@@ -127,9 +129,9 @@ benchmark helpers. It is not yet fully integrated into the normal
 
 Needed:
 
-- a stable PTO CUDA task-body contract;
-- generated `__global__` wrapper for `host_schedule`;
-- generated `__device__` wrapper and dispatch entry for `persistent_device`;
+- integration of the shared CUDA task-body wrapper generator into
+  `KernelCompiler`;
+- dispatch entry composition for generated persistent-device task wrappers;
 - callable manifests wired through the normal build/cache layout.
 
 ### Target Role Cleanup

@@ -23,6 +23,39 @@ from simpler_setup.cuda_callable_compiler import (
 )
 
 
+def test_render_cuda_task_wrappers_share_one_task_body_between_runtimes():
+    assert hasattr(cuda_callable_compiler, "CudaTaskBody")
+    assert hasattr(cuda_callable_compiler, "render_cuda_task_wrappers")
+
+    wrappers = cuda_callable_compiler.render_cuda_task_wrappers(
+        cuda_callable_compiler.CudaTaskBody(
+            name="vector_add",
+            body="""
+float *a = pto_arg<float *>(ctx, 0);
+float *b = pto_arg<float *>(ctx, 1);
+float *out = pto_arg<float *>(ctx, 2);
+out[pto_linear_tid()] = a[pto_linear_tid()] + b[pto_linear_tid()];
+""",
+        )
+    )
+
+    assert wrappers.task_name == "vector_add"
+    assert wrappers.body_name == "pto_task_body_vector_add"
+    assert wrappers.host_entry_name == "pto_kernel_vector_add"
+    assert wrappers.persistent_entry_name == "pto_task_vector_add"
+    assert "__device__ void pto_task_body_vector_add(PtoTaskContext *ctx)" in wrappers.source
+    assert 'extern "C" __global__ void pto_kernel_vector_add(PtoTaskContext ctx)' in wrappers.source
+    assert "__device__ void pto_task_vector_add(PtoTaskContext *ctx)" in wrappers.source
+    assert "pto_task_body_vector_add(&ctx);" in wrappers.source
+    assert "pto_task_body_vector_add(ctx);" in wrappers.source
+    assert wrappers.source.count("out[pto_linear_tid()] =") == 1
+
+
+def test_render_cuda_task_wrappers_rejects_invalid_task_name():
+    with pytest.raises(ValueError, match="invalid CUDA task body name"):
+        cuda_callable_compiler.render_cuda_task_wrappers(cuda_callable_compiler.CudaTaskBody(name="not-valid", body=""))
+
+
 def test_render_persistent_dag_source_generates_dispatch_switch():
     source = render_persistent_dag_source(
         [

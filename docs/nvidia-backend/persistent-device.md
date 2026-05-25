@@ -246,6 +246,13 @@ wrappers generated per runtime. `PtoTaskContext` is the common ABI that hides
 whether arguments came from `ChipStorageTaskArgs`, a host-scheduled launch
 manifest, or a persistent device descriptor.
 
+The current branch has the first codegen slice for that boundary:
+`simpler_setup.cuda_callable_compiler.render_cuda_task_wrappers()` renders a
+source fragment with one `pto_task_body_<name>` function, one
+`pto_kernel_<name>` `__global__` wrapper for `host_schedule`, and one
+`pto_task_<name>` `__device__` wrapper for `persistent_device`. It is not yet
+wired into `KernelCompiler` or the normal scene-test callable build flow.
+
 ## Static NVCC Linking Feasibility
 
 The stable path is feasible with ordinary `nvcc`, but it changes what "runtime

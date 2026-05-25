@@ -28,6 +28,26 @@ _PERSISTENT_CACHE_RELATIVE_PATH = Path("build") / "cache" / "cuda" / "onboard" /
 
 
 @dataclass(frozen=True)
+class CudaTaskBody:
+    """CUDA PTO task body that can be wrapped for multiple runtimes."""
+
+    name: str
+    body: str
+    context_type: str = "PtoTaskContext"
+
+
+@dataclass(frozen=True)
+class CudaTaskWrapperSource:
+    """Generated CUDA wrappers for one PTO task body."""
+
+    task_name: str
+    body_name: str
+    host_entry_name: str
+    persistent_entry_name: str
+    source: str
+
+
+@dataclass(frozen=True)
 class CudaPersistentTaskFunction:
     """Task function lowered into the persistent-device dispatch switch."""
 
@@ -49,6 +69,38 @@ class CudaPersistentCallableArtifact:
     entry_name: str
     arch: str
     source_kind: str
+
+
+def render_cuda_task_wrappers(task_body: CudaTaskBody) -> CudaTaskWrapperSource:
+    """Render host-schedule and persistent-device wrappers for one task body."""
+
+    if not _CUDA_IDENTIFIER_RE.match(task_body.name):
+        raise ValueError(f"invalid CUDA task body name: {task_body.name!r}")
+
+    body_name = f"pto_task_body_{task_body.name}"
+    host_entry_name = f"pto_kernel_{task_body.name}"
+    persistent_entry_name = f"pto_task_{task_body.name}"
+    rendered_body = indent(task_body.body.strip() or "(void)ctx;", "    ")
+    source = f"""
+__device__ void {body_name}({task_body.context_type} *ctx) {{
+{rendered_body}
+}}
+
+extern "C" __global__ void {host_entry_name}({task_body.context_type} ctx) {{
+    {body_name}(&ctx);
+}}
+
+__device__ void {persistent_entry_name}({task_body.context_type} *ctx) {{
+    {body_name}(ctx);
+}}
+""".lstrip()
+    return CudaTaskWrapperSource(
+        task_name=task_body.name,
+        body_name=body_name,
+        host_entry_name=host_entry_name,
+        persistent_entry_name=persistent_entry_name,
+        source=source,
+    )
 
 
 def _validate_task_functions(task_functions: Sequence[CudaPersistentTaskFunction]) -> list[CudaPersistentTaskFunction]:
