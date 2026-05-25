@@ -106,3 +106,61 @@ def test_cuda_kernel_compiler_compiles_persistent_device_task_sources(tmp_path, 
         "task->out[i] = task->a[i] * task->b[i];\n",
         "task->out[i] = task->a[i] + task->b[i];\n",
     ]
+
+
+def test_cuda_kernel_compiler_compiles_persistent_device_task_bodies(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_compile_cuda_persistent_device(task_functions, arch, cache_root=None, nvcc="nvcc"):
+        seen["task_functions"] = task_functions
+        seen["arch"] = arch
+        seen["cache_root"] = cache_root
+        seen["nvcc"] = nvcc
+        return SimpleNamespace(
+            cache_key="task-body-key",
+            cache_hit=False,
+            source_path=tmp_path / "generated_dispatch.cu",
+            ptx_path=tmp_path / "pto_callable.ptx",
+            manifest_path=tmp_path / "pto_callable.json",
+            ptx=b"task-body-ptx",
+            entry_name="pto_persistent_dag_f32_executor",
+            arch=arch,
+            source_kind="generated-dispatch",
+        )
+
+    monkeypatch.setattr(kernel_compiler, "compile_cuda_persistent_device", fake_compile_cuda_persistent_device)
+    add_src = tmp_path / "add.pto.cu"
+    add_src.write_text("ctx->task->out[ctx->i] = ctx->task->a[ctx->i] + ctx->task->b[ctx->i];\n")
+
+    compiler = KernelCompiler(platform="cuda")
+    artifact = compiler.compile_cuda_persistent_device(
+        [
+            {
+                "func_id": 1,
+                "task_name": "add_f32",
+                "source_path": str(add_src),
+                "body_style": "task_body",
+                "context_definition": """
+struct PtoTaskContext {
+    const PtoCudaPersistentDagTask *task;
+    unsigned long long i;
+};
+""".strip(),
+            }
+        ],
+        arch="compute_90",
+        cache_root=tmp_path / "cache",
+        nvcc="nvcc-test",
+    )
+
+    assert artifact.ptx == b"task-body-ptx"
+    assert seen["arch"] == "compute_90"
+    assert seen["cache_root"] == tmp_path / "cache"
+    assert seen["nvcc"] == "nvcc-test"
+    assert seen["task_functions"][0].func_id == 1
+    assert seen["task_functions"][0].task_body.name == "add_f32"
+    assert seen["task_functions"][0].task_body.context_type == "PtoTaskContext"
+    assert "PtoCudaPersistentDagTask" in seen["task_functions"][0].task_body.context_definition
+    assert seen["task_functions"][0].task_body.body == (
+        "ctx->task->out[ctx->i] = ctx->task->a[ctx->i] + ctx->task->b[ctx->i];\n"
+    )

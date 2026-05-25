@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from textwrap import indent
+from typing import Union
 
 from .environment import PROJECT_ROOT
 
@@ -78,6 +79,17 @@ class CudaPersistentTaskFunction:
 
 
 @dataclass(frozen=True)
+class CudaPersistentTaskBodyFunction:
+    """Shared task body lowered into the persistent-device dispatch switch."""
+
+    func_id: int
+    task_body: CudaTaskBody
+
+
+CudaPersistentFunctionSpec = Union[CudaPersistentTaskFunction, CudaPersistentTaskBodyFunction]
+
+
+@dataclass(frozen=True)
 class CudaPersistentCallableArtifact:
     """Compiled CUDA persistent-device callable artifact."""
 
@@ -92,7 +104,12 @@ class CudaPersistentCallableArtifact:
     source_kind: str
 
 
-def render_cuda_task_wrappers(task_body: CudaTaskBody) -> CudaTaskWrapperSource:
+def render_cuda_task_wrappers(
+    task_body: CudaTaskBody,
+    *,
+    include_context_definition: bool = True,
+    include_host_wrapper: bool = True,
+) -> CudaTaskWrapperSource:
     """Render host-schedule and persistent-device wrappers for one task body."""
 
     if not _CUDA_IDENTIFIER_RE.match(task_body.name):
@@ -103,8 +120,10 @@ def render_cuda_task_wrappers(task_body: CudaTaskBody) -> CudaTaskWrapperSource:
     persistent_entry_name = f"pto_task_{task_body.name}"
     rendered_body = indent(task_body.body.strip() or "(void)ctx;", "    ")
     context_definition = task_body.context_definition.strip()
-    preamble = f"{context_definition}\n\n" if context_definition else ""
-    if task_body.host_parameters:
+    preamble = f"{context_definition}\n\n" if include_context_definition and context_definition else ""
+    if not include_host_wrapper:
+        host_wrapper = ""
+    elif task_body.host_parameters:
         host_parameters = ", ".join(param.strip() for param in task_body.host_parameters)
         if not all(param.strip() for param in task_body.host_parameters):
             raise ValueError("CUDA host wrapper parameters must be non-empty")
@@ -122,15 +141,14 @@ extern "C" __global__ void {host_entry_name}({task_body.context_type} ctx) {{
     {body_name}(&ctx);
 }}
 """.strip()
+    host_wrapper_block = f"{host_wrapper}\n\n" if host_wrapper else ""
     source = f"""
 {preamble}
 __device__ void {body_name}({task_body.context_type} *ctx) {{
 {rendered_body}
 }}
 
-{host_wrapper}
-
-__device__ void {persistent_entry_name}({task_body.context_type} *ctx) {{
+{host_wrapper_block}__device__ void {persistent_entry_name}({task_body.context_type} *ctx) {{
     {body_name}(ctx);
 }}
 """.lstrip()
@@ -143,25 +161,37 @@ __device__ void {persistent_entry_name}({task_body.context_type} *ctx) {{
     )
 
 
-def _validate_task_functions(task_functions: Sequence[CudaPersistentTaskFunction]) -> list[CudaPersistentTaskFunction]:
+def _persistent_func_id(task: CudaPersistentFunctionSpec) -> int:
+    return task.func_id
+
+
+def _persistent_task_name(task: CudaPersistentFunctionSpec) -> str:
+    if isinstance(task, CudaPersistentTaskBodyFunction):
+        return task.task_body.name
+    return task.name
+
+
+def _validate_task_functions(task_functions: Sequence[CudaPersistentFunctionSpec]) -> list[CudaPersistentFunctionSpec]:
     if not task_functions:
         raise ValueError("at least one CUDA persistent task function is required")
 
-    ordered = sorted(task_functions, key=lambda task: task.func_id)
+    ordered = sorted(task_functions, key=_persistent_func_id)
     seen_func_ids: set[int] = set()
     seen_names: set[str] = set()
     for task in ordered:
-        if task.func_id <= 0:
-            raise ValueError(f"func_id must be positive: {task.func_id}")
-        if task.func_id in seen_func_ids:
-            raise ValueError(f"duplicate func_id: {task.func_id}")
-        seen_func_ids.add(task.func_id)
+        func_id = _persistent_func_id(task)
+        task_name = _persistent_task_name(task)
+        if func_id <= 0:
+            raise ValueError(f"func_id must be positive: {func_id}")
+        if func_id in seen_func_ids:
+            raise ValueError(f"duplicate func_id: {func_id}")
+        seen_func_ids.add(func_id)
 
-        if not _CUDA_IDENTIFIER_RE.match(task.name):
-            raise ValueError(f"invalid CUDA task function name: {task.name!r}")
-        if task.name in seen_names:
-            raise ValueError(f"duplicate CUDA task function name: {task.name}")
-        seen_names.add(task.name)
+        if not _CUDA_IDENTIFIER_RE.match(task_name):
+            raise ValueError(f"invalid CUDA task function name: {task_name!r}")
+        if task_name in seen_names:
+            raise ValueError(f"duplicate CUDA task function name: {task_name}")
+        seen_names.add(task_name)
     return ordered
 
 
@@ -176,13 +206,44 @@ __device__ void pto_task_{task.name}(const PtoCudaPersistentDagTask *task) {{
 """.strip()
 
 
-def _render_dispatch(task_functions: Sequence[CudaPersistentTaskFunction]) -> str:
+def _render_task_body_function(task: CudaPersistentTaskBodyFunction) -> str:
+    wrappers = render_cuda_task_wrappers(
+        task.task_body,
+        include_context_definition=False,
+        include_host_wrapper=False,
+    )
+    adapter_name = f"pto_dag_task_{task.task_body.name}"
+    return f"""
+{wrappers.source.strip()}
+
+__device__ void {adapter_name}(const PtoCudaPersistentDagTask *task) {{
+    for (unsigned long long i = threadIdx.x; i < task->n; i += blockDim.x) {{
+        {task.task_body.context_type} ctx{{task, i}};
+        {wrappers.persistent_entry_name}(&ctx);
+    }}
+}}
+""".strip()
+
+
+def _render_persistent_function(task: CudaPersistentFunctionSpec) -> str:
+    if isinstance(task, CudaPersistentTaskBodyFunction):
+        return _render_task_body_function(task)
+    return _render_task_function(task)
+
+
+def _persistent_dispatch_entry(task: CudaPersistentFunctionSpec) -> str:
+    if isinstance(task, CudaPersistentTaskBodyFunction):
+        return f"pto_dag_task_{task.task_body.name}"
+    return f"pto_task_{task.name}"
+
+
+def _render_dispatch(task_functions: Sequence[CudaPersistentFunctionSpec]) -> str:
     cases = []
     for task in task_functions:
         cases.append(
             f"""
-    case {task.func_id}U:
-        pto_task_{task.name}(task);
+    case {_persistent_func_id(task)}U:
+        {_persistent_dispatch_entry(task)}(task);
         return;
 """.rstrip()
         )
@@ -198,11 +259,22 @@ __device__ void pto_dag_dispatch(const PtoCudaPersistentDagTask *task) {{
 """.strip()
 
 
-def render_persistent_dag_source(task_functions: Sequence[CudaPersistentTaskFunction]) -> str:
+def render_persistent_dag_source(task_functions: Sequence[CudaPersistentFunctionSpec]) -> str:
     """Render a persistent-device DAG executor with generated task dispatch."""
 
     ordered = _validate_task_functions(task_functions)
-    rendered_tasks = "\n\n".join(_render_task_function(task) for task in ordered)
+    context_definitions = []
+    seen_context_definitions: set[str] = set()
+    for task in ordered:
+        if not isinstance(task, CudaPersistentTaskBodyFunction):
+            continue
+        context_definition = task.task_body.context_definition.strip()
+        if context_definition and context_definition not in seen_context_definitions:
+            seen_context_definitions.add(context_definition)
+            context_definitions.append(context_definition)
+    rendered_context_definitions = "\n\n".join(context_definitions)
+    rendered_context_block = f"{rendered_context_definitions}\n\n" if rendered_context_definitions else ""
+    rendered_tasks = "\n\n".join(_render_persistent_function(task) for task in ordered)
     rendered_dispatch = _render_dispatch(ordered)
 
     return f"""
@@ -226,6 +298,7 @@ struct PtoCudaPersistentDagTask {{
     unsigned long long out_batch_stride;
 }};
 
+    {rendered_context_block}\
 struct PtoCudaPersistentDagState {{
     const PtoCudaPersistentDagTask *tasks;
     unsigned long long task_count;
@@ -311,8 +384,16 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
 """.lstrip()
 
 
-def _task_manifest(task_functions: Sequence[CudaPersistentTaskFunction]) -> list[dict[str, int | str]]:
-    return [{"func_id": task.func_id, "name": task.name} for task in task_functions]
+def _task_manifest(task_functions: Sequence[CudaPersistentFunctionSpec]) -> list[dict[str, int | str]]:
+    return [{"func_id": _persistent_func_id(task), "name": _persistent_task_name(task)} for task in task_functions]
+
+
+def _task_body_function_manifest(task_functions: Sequence[CudaPersistentFunctionSpec]) -> list[dict[str, object]]:
+    return [
+        {"func_id": task.func_id, "task_body": _task_body_manifest(task.task_body)}
+        for task in task_functions
+        if isinstance(task, CudaPersistentTaskBodyFunction)
+    ]
 
 
 def _task_body_manifest(task_body: CudaTaskBody) -> dict[str, object]:
@@ -339,13 +420,14 @@ def _host_schedule_cache_key(source: str, task_body: CudaTaskBody, arch: str, en
     return sha256(encoded).hexdigest()
 
 
-def _cache_key(source: str, task_functions: Sequence[CudaPersistentTaskFunction], arch: str) -> str:
+def _cache_key(source: str, task_functions: Sequence[CudaPersistentFunctionSpec], arch: str) -> str:
     payload = {
         "arch": arch,
         "entry_name": _PERSISTENT_DAG_ENTRY_NAME,
         "generator": "cuda-persistent-device-v2",
         "source": source,
         "source_kind": _PERSISTENT_DAG_SOURCE_KIND,
+        "task_body_functions": _task_body_function_manifest(task_functions),
         "task_functions": _task_manifest(task_functions),
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -427,7 +509,7 @@ def compile_cuda_host_schedule(
 
 
 def compile_cuda_persistent_device(
-    task_functions: Sequence[CudaPersistentTaskFunction],
+    task_functions: Sequence[CudaPersistentFunctionSpec],
     arch: str,
     cache_root: Path | None = None,
     nvcc: str = "nvcc",
@@ -460,6 +542,7 @@ def compile_cuda_persistent_device(
         "source_kind": _PERSISTENT_DAG_SOURCE_KIND,
         "source_path": source_path.name,
         "source_sha256": sha256(source.encode("utf-8")).hexdigest(),
+        "task_body_functions": _task_body_function_manifest(ordered),
         "task_functions": _task_manifest(ordered),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")

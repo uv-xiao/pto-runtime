@@ -18,6 +18,7 @@ from typing import Optional, Union
 from simpler import env_manager
 
 from .cuda_callable_compiler import (
+    CudaPersistentTaskBodyFunction,
     CudaPersistentTaskFunction,
     CudaTaskBody,
     compile_cuda_host_schedule,
@@ -562,6 +563,19 @@ class KernelCompiler:
             source = Path(item["source_path"])
             if not source.is_file():
                 raise FileNotFoundError(f"Source file not found: {source}")
+            if item.get("body_style") == "task_body":
+                task_functions.append(
+                    CudaPersistentTaskBodyFunction(
+                        func_id=func_id,
+                        task_body=CudaTaskBody(
+                            name=task_name,
+                            body=source.read_text(),
+                            context_type=item.get("context_type", "PtoTaskContext"),
+                            context_definition=item.get("context_definition", ""),
+                        ),
+                    )
+                )
+                continue
             task_functions.append(
                 CudaPersistentTaskFunction(
                     func_id=func_id,

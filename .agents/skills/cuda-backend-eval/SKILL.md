@@ -115,8 +115,10 @@ output tile size while later elementwise tasks still run over `n` values.
 The DAG smoke compiles generated CUDA source through
 `KernelCompiler(platform="cuda").compile_cuda_persistent_device(...)`. The
 returned JSON includes `source_kind: generated-dispatch` when that path is in
-use. The `nvcc` path writes `generated_dispatch.cu`, `pto_callable.ptx`, and
-`pto_callable.json` under
+use. The built-in DAG tasks are emitted as `CudaTaskBody` style source files
+with `PtoTaskContext *ctx`, so this path exercises the same task-body wrapper
+contract as `host_schedule`. The `nvcc` path writes `generated_dispatch.cu`,
+`pto_callable.ptx`, and `pto_callable.json` under
 `build/cache/cuda/onboard/persistent_device/callables/` before the host runtime
 loads the PTX bytes.
 

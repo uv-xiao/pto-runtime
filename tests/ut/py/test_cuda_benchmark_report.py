@@ -406,6 +406,8 @@ def test_persistent_dag_compiler_path_uses_kernel_compiler(tmp_path, monkeypatch
         "mul_f32",
         "matmul_tile_f32",
     ]
+    assert {task["body_style"] for task in seen["task_sources"]} == {"task_body"}
+    assert all("PtoCudaPersistentDagTask" in task["context_definition"] for task in seen["task_sources"])
     assert all(Path(task["source_path"]).is_file() for task in seen["task_sources"])
 
 

@@ -136,13 +136,12 @@ optional tensor shape/stride metadata for tiled callables. The persistent
 executor seeds zero-fan-in tasks, dispatches task bodies through a generated
 `func_id` switch, decrements dependent fan-in counters when tasks complete,
 and pushes newly ready dependents back into the ring. The smoke path now uses
-`simpler_setup.cuda_callable_compiler.render_persistent_dag_source()` to
-generate the task-body wrappers and dispatch switch before compiling the
-executor source with `nvcc`. The companion
-`compile_cuda_persistent_device()` helper writes the generated source, PTX, and
-JSON manifest under `build/cache/cuda/onboard/persistent_device/callables/`,
-matching the intended per-callable artifact layout before the full
-`KernelCompiler` integration exists.
+`KernelCompiler(platform="cuda").compile_cuda_persistent_device(...)` to
+generate the shared task-body wrappers and dispatch switch before compiling
+the executor source with `nvcc`. The compiler writes the generated source, PTX,
+and JSON manifest under
+`build/cache/cuda/onboard/persistent_device/callables/`, matching the intended
+per-callable artifact layout.
 
 ### Runtime Roles
 
@@ -259,11 +258,11 @@ receives `PtoTaskContext *`.
 
 `KernelCompiler(platform="cuda").compile_cuda_persistent_device()` now exposes
 the persistent-device generated-dispatch compiler through the same public
-compiler object. It accepts task source files plus `func_id` metadata, writes
-the generated dispatch source, PTX, and manifest under the persistent-device
-callable cache, and is used by the DAG smoke/evaluation path. The remaining
-work is to make this consume the same `CudaTaskBody` wrapper contract as
-`host_schedule` and to plumb the resulting artifacts through normal
+compiler object. It accepts task source files plus `func_id` metadata, can
+lower those files through the same `CudaTaskBody` wrapper contract as
+`host_schedule`, writes the generated dispatch source, PTX, and manifest under
+the persistent-device callable cache, and is used by the DAG smoke/evaluation
+path. The remaining work is to plumb the resulting artifacts through normal
 scene-test `ChipCallable` preparation.
 
 ## Static NVCC Linking Feasibility

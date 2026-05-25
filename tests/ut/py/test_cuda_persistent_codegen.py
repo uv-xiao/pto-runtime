@@ -16,7 +16,9 @@ import pytest
 
 from simpler_setup import cuda_callable_compiler
 from simpler_setup.cuda_callable_compiler import (
+    CudaPersistentTaskBodyFunction,
     CudaPersistentTaskFunction,
+    CudaTaskBody,
     compile_cuda_persistent_device,
     default_cuda_persistent_cache_root,
     render_persistent_dag_source,
@@ -122,6 +124,32 @@ def test_render_persistent_dag_source_generates_dispatch_switch():
     assert source.index("case 1U:") < source.index("case 2U:")
 
 
+def test_render_persistent_dag_source_can_use_shared_task_body_wrappers():
+    source = render_persistent_dag_source(
+        [
+            CudaPersistentTaskBodyFunction(
+                func_id=1,
+                task_body=CudaTaskBody(
+                    name="add_f32",
+                    context_definition="""
+struct PtoTaskContext {
+    const PtoCudaPersistentDagTask *task;
+    unsigned long long i;
+};
+""",
+                    body="ctx->task->out[ctx->i] = ctx->task->a[ctx->i] + ctx->task->b[ctx->i];",
+                ),
+            )
+        ]
+    )
+
+    assert "__device__ void pto_task_body_add_f32(PtoTaskContext *ctx)" in source
+    assert "__device__ void pto_task_add_f32(PtoTaskContext *ctx)" in source
+    assert "PtoTaskContext ctx{task, i};" in source
+    assert "pto_task_add_f32(&ctx);" in source
+    assert source.count("ctx->task->out[ctx->i] =") == 1
+
+
 def test_render_persistent_dag_source_includes_tensor_descriptor_metadata():
     source = render_persistent_dag_source(
         [
@@ -187,6 +215,41 @@ def test_compile_cuda_persistent_device_writes_manifest_and_reuses_cache(tmp_pat
     assert manifest["arch"] == "compute_80"
     assert manifest["source_kind"] == "generated-dispatch"
     assert manifest["task_functions"] == [{"func_id": 1, "name": "add_f32"}]
+
+
+def test_compile_cuda_persistent_device_task_body_manifest(tmp_path, monkeypatch):
+    def fake_run_nvcc(source_path, ptx_path, arch, nvcc):
+        ptx_path.write_bytes(b"task-body-ptx")
+
+    monkeypatch.setattr(cuda_callable_compiler, "_run_nvcc_ptx", fake_run_nvcc)
+
+    artifact = compile_cuda_persistent_device(
+        [
+            CudaPersistentTaskBodyFunction(
+                func_id=1,
+                task_body=CudaTaskBody(
+                    name="add_f32",
+                    context_definition="""
+struct PtoTaskContext {
+    const PtoCudaPersistentDagTask *task;
+    unsigned long long i;
+};
+""",
+                    body="ctx->task->out[ctx->i] = ctx->task->a[ctx->i] + ctx->task->b[ctx->i];",
+                ),
+            )
+        ],
+        cache_root=tmp_path,
+        arch="compute_90",
+        nvcc="nvcc",
+    )
+
+    manifest = json.loads(artifact.manifest_path.read_text())
+    assert artifact.ptx == b"task-body-ptx"
+    assert "pto_task_body_add_f32" in artifact.source_path.read_text()
+    assert manifest["task_functions"] == [{"func_id": 1, "name": "add_f32"}]
+    assert manifest["task_body_functions"][0]["func_id"] == 1
+    assert manifest["task_body_functions"][0]["task_body"]["name"] == "add_f32"
 
 
 def test_compile_cuda_persistent_device_defaults_to_repo_cache(tmp_path, monkeypatch):

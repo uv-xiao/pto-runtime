@@ -25,7 +25,8 @@ from typing import Any
 from cuda_smoke import PtoRunTiming, _bind_runtime, _find_nvcc
 
 from simpler_setup.cuda_callable_compiler import (
-    CudaPersistentTaskFunction,
+    CudaPersistentTaskBodyFunction,
+    CudaTaskBody,
     render_persistent_dag_source,
 )
 from simpler_setup.kernel_compiler import KernelCompiler
@@ -629,21 +630,46 @@ extern "C" __global__ void pto_persistent_vector_add_queue_executor(
 }
 """.lstrip()
 
+_PERSISTENT_DAG_CONTEXT_DEFINITION = """
+struct PtoTaskContext {
+    const PtoCudaPersistentDagTask *task;
+    unsigned long long i;
+};
+""".strip()
+
 _PERSISTENT_DAG_TASK_FUNCTIONS = [
-    CudaPersistentTaskFunction(
+    CudaPersistentTaskBodyFunction(
         func_id=1,
-        name="add_f32",
-        body="task->out[i] = task->a[i] + task->b[i];",
+        task_body=CudaTaskBody(
+            name="add_f32",
+            context_definition=_PERSISTENT_DAG_CONTEXT_DEFINITION,
+            body="""
+const PtoCudaPersistentDagTask *task = ctx->task;
+unsigned long long i = ctx->i;
+task->out[i] = task->a[i] + task->b[i];
+""".strip(),
+        ),
     ),
-    CudaPersistentTaskFunction(
+    CudaPersistentTaskBodyFunction(
         func_id=2,
-        name="mul_f32",
-        body="task->out[i] = task->a[i] * task->b[i];",
+        task_body=CudaTaskBody(
+            name="mul_f32",
+            context_definition=_PERSISTENT_DAG_CONTEXT_DEFINITION,
+            body="""
+const PtoCudaPersistentDagTask *task = ctx->task;
+unsigned long long i = ctx->i;
+task->out[i] = task->a[i] * task->b[i];
+""".strip(),
+        ),
     ),
-    CudaPersistentTaskFunction(
+    CudaPersistentTaskBodyFunction(
         func_id=3,
-        name="matmul_tile_f32",
-        body="""
+        task_body=CudaTaskBody(
+            name="matmul_tile_f32",
+            context_definition=_PERSISTENT_DAG_CONTEXT_DEFINITION,
+            body="""
+const PtoCudaPersistentDagTask *task = ctx->task;
+unsigned long long i = ctx->i;
 unsigned long long rows = static_cast<unsigned long long>(task->rows);
 unsigned long long cols = static_cast<unsigned long long>(task->cols);
 unsigned long long inner = static_cast<unsigned long long>(task->inner);
@@ -664,6 +690,7 @@ for (unsigned long long k = 0; k < inner; ++k) {
 }
 task->out[out_base + row * task->ldc + col] = acc;
 """.strip(),
+        ),
     ),
 ]
 _PERSISTENT_DAG_SOURCE = render_persistent_dag_source(_PERSISTENT_DAG_TASK_FUNCTIONS)
@@ -676,13 +703,15 @@ def _compile_persistent_dag_ptx(work_dir: Path, arch: str) -> tuple[bytes, str]:
 
     task_sources = []
     for task in _PERSISTENT_DAG_TASK_FUNCTIONS:
-        source_path = work_dir / f"persistent_dag_{task.func_id}_{task.name}.pto.cu"
-        source_path.write_text(task.body)
+        source_path = work_dir / f"persistent_dag_{task.func_id}_{task.task_body.name}.pto.cu"
+        source_path.write_text(task.task_body.body)
         task_sources.append(
             {
                 "func_id": task.func_id,
-                "task_name": task.name,
+                "task_name": task.task_body.name,
                 "source_path": str(source_path),
+                "body_style": "task_body",
+                "context_definition": task.task_body.context_definition,
             }
         )
 
