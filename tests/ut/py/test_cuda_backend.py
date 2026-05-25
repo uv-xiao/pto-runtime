@@ -337,6 +337,7 @@ assert result["queue_capacity"] == 2
 assert result["completed_count"] == 3
 assert result["dispatch_func_ids"] == [1, 2, 1]
 assert result["fanin_remaining"] == [0, 0, 0]
+assert result["source_kind"] == "generated-dispatch"
 """
     result = subprocess.run(
         [sys.executable, "-c", script],

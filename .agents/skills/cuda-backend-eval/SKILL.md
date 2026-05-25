@@ -75,6 +75,11 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2
 ```
 
+The DAG smoke compiles generated CUDA source from
+`simpler_setup.cuda_callable_compiler.render_persistent_dag_source()`. The
+returned JSON includes `source_kind: generated-dispatch` when that path is in
+use.
+
 ## Microbenchmark Report
 
 Use `cuda_benchmark.py` for the current early-runtime comparison. It runs the

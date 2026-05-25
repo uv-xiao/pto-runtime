@@ -25,6 +25,7 @@ from typing import Any
 
 from cuda_smoke import PtoRunTiming, _bind_runtime
 
+from simpler_setup.cuda_callable_compiler import CudaPersistentTaskFunction, render_persistent_dag_source
 from simpler_setup.runtime_builder import RuntimeBuilder
 
 _FALLBACK_PERSISTENT_VECTOR_ADD_PTX = rb"""
@@ -608,107 +609,20 @@ extern "C" __global__ void pto_persistent_vector_add_queue_executor(
 }
 """.lstrip()
 
-_PERSISTENT_DAG_SOURCE = """
-struct PtoCudaPersistentDagTask {
-    unsigned int func_id;
-    const float *a;
-    const float *b;
-    float *out;
-    unsigned long long n;
-    unsigned int dependent_begin;
-    unsigned int dependent_count;
-    unsigned int initial_fanin;
-};
-
-struct PtoCudaPersistentDagState {
-    const PtoCudaPersistentDagTask *tasks;
-    unsigned long long task_count;
-    const unsigned int *dependents;
-    unsigned int *fanin;
-    unsigned int *ready_queue;
-    unsigned int *ready_flags;
-    unsigned int queue_capacity;
-    unsigned int *queue_head;
-    unsigned int *queue_tail;
-    unsigned int *completed_count;
-};
-
-__device__ void pto_dag_push_ready(const PtoCudaPersistentDagState *state, unsigned int task_id) {
-    unsigned int ticket = atomicAdd(state->queue_tail, 1U);
-    unsigned int slot = ticket % state->queue_capacity;
-    while (atomicAdd(&state->ready_flags[slot], 0U) != 0U) {
-    }
-    state->ready_queue[slot] = task_id;
-    __threadfence();
-    atomicExch(&state->ready_flags[slot], ticket + 1U);
-}
-
-__device__ bool pto_dag_pop_ready(const PtoCudaPersistentDagState *state, unsigned int *task_id) {
-    unsigned int ticket = atomicAdd(state->queue_head, 1U);
-    if (static_cast<unsigned long long>(ticket) >= state->task_count) {
-        return false;
-    }
-    unsigned int slot = ticket % state->queue_capacity;
-    unsigned int ready_value = ticket + 1U;
-    while (atomicAdd(&state->ready_flags[slot], 0U) != ready_value) {
-    }
-    *task_id = state->ready_queue[slot];
-    __threadfence();
-    atomicExch(&state->ready_flags[slot], 0U);
-    return true;
-}
-
-__device__ void pto_dag_dispatch(const PtoCudaPersistentDagTask *task) {
-    for (unsigned long long i = threadIdx.x; i < task->n; i += blockDim.x) {
-        if (task->func_id == 1U) {
-            task->out[i] = task->a[i] + task->b[i];
-        } else if (task->func_id == 2U) {
-            task->out[i] = task->a[i] * task->b[i];
-        }
-    }
-}
-
-extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersistentDagState *state) {
-    __shared__ unsigned int task_id;
-    __shared__ bool has_task;
-
-    if (blockIdx.x == 0) {
-        if (threadIdx.x == 0) {
-            for (unsigned int idx = 0; static_cast<unsigned long long>(idx) < state->task_count; ++idx) {
-                if (state->tasks[idx].initial_fanin == 0U) {
-                    pto_dag_push_ready(state, idx);
-                }
-            }
-        }
-        return;
-    }
-
-    while (true) {
-        if (threadIdx.x == 0) {
-            has_task = pto_dag_pop_ready(state, &task_id);
-        }
-        __syncthreads();
-        if (!has_task) {
-            break;
-        }
-
-        PtoCudaPersistentDagTask task = state->tasks[task_id];
-        pto_dag_dispatch(&task);
-        __syncthreads();
-
-        if (threadIdx.x == 0) {
-            for (unsigned int idx = 0; idx < task.dependent_count; ++idx) {
-                unsigned int dependent_id = state->dependents[task.dependent_begin + idx];
-                unsigned int old = atomicSub(&state->fanin[dependent_id], 1U);
-                if (old == 1U) {
-                    pto_dag_push_ready(state, dependent_id);
-                }
-            }
-            atomicAdd(state->completed_count, 1U);
-        }
-    }
-}
-""".lstrip()
+_PERSISTENT_DAG_SOURCE = render_persistent_dag_source(
+    [
+        CudaPersistentTaskFunction(
+            func_id=1,
+            name="add_f32",
+            body="task->out[i] = task->a[i] + task->b[i];",
+        ),
+        CudaPersistentTaskFunction(
+            func_id=2,
+            name="mul_f32",
+            body="task->out[i] = task->a[i] * task->b[i];",
+        ),
+    ]
+)
 
 
 class CudaPersistentCallable(ctypes.Structure):
@@ -856,7 +770,8 @@ def _compile_persistent_ptx(work_dir: Path, arch: str, mode: str) -> tuple[bytes
         capture_output=True,
         text=True,
     )
-    return ptx_path.read_bytes(), f"nvcc-persistent-{mode}-{arch}"
+    source_kind = "generated-dispatch" if mode == "dag" else mode
+    return ptx_path.read_bytes(), f"nvcc-persistent-{source_kind}-{arch}"
 
 
 @functools.lru_cache(maxsize=1)
@@ -1112,6 +1027,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912
             "fanin_remaining": [int(value) for value in host_fanin],
             "ptx_arch": config.arch,
             "ptx_source": config.ptx_source,
+            "source_kind": "generated-dispatch",
             "host_wall_ns": timing.host_wall_ns,
             "device_wall_ns": timing.device_wall_ns,
             "elapsed_s": time.time() - config.start,

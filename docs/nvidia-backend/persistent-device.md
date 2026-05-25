@@ -133,10 +133,11 @@ is no AICPU.
 The following slice layers a small DAG on top of that bounded ring. Task
 descriptors carry a `func_id`, dependent ranges, and an initial fan-in count.
 The persistent executor seeds zero-fan-in tasks, dispatches task bodies through
-a generated-switch-shaped `func_id` branch, decrements dependent fan-in counters
-when tasks complete, and pushes newly ready dependents back into the ring. This
-is the first CUDA smoke path that covers both dispatch selection and dependency
-release inside one persistent launch.
+a generated `func_id` switch, decrements dependent fan-in counters when tasks
+complete, and pushes newly ready dependents back into the ring. The smoke path
+now uses `simpler_setup.cuda_callable_compiler.render_persistent_dag_source()`
+to generate the task-body wrappers and dispatch switch before compiling the
+executor source with `nvcc`.
 
 ### Runtime Roles
 
@@ -261,7 +262,7 @@ build reusable runtime object/archive:
 per callable:
   user_tasks.cu
   user_orchestrator_device.cu
-  generated_dispatch.cu
+  generated_dispatch.cu       # rendered from task func_id/name/body metadata
   generated_manifest.cu
     -> nvcc -dc ...
     -> nvcc device link with libpto_cuda_persistent_device.a
