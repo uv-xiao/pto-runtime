@@ -173,6 +173,22 @@ Result: `status=pass`, `runtime=persistent_device`,
 `ptx_source=nvcc-persistent-generated-dispatch-compute_80`,
 `completed_count=3`.
 
+The same persistent DAG smoke was run on the remote H200 checkout after
+pushing `01d1d45d`:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && git pull --ff-only >/dev/null && \
+   PYTHONPATH=$PWD:$PWD/python \
+   python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+     --device 0 --task-count 3 --n 1024 --arch compute_90 \
+     --mode dag --queue-capacity 2'
+```
+
+Result: `status=pass`, `runtime=persistent_device`,
+`ptx_source=nvcc-persistent-generated-dispatch-compute_90`,
+`completed_count=3`.
+
 ## Remaining Gaps
 
 ### Kernel Compiler Integration
