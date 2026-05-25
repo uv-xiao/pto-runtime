@@ -542,6 +542,7 @@ def run_persistent_sample(
     baseline: str | None = None,
     worker_blocks_per_task: int = 1,
     dag_shape: str = "fork_join",
+    tensor_tile: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     if task_count is None:
         if dag_shape == "tensor_tile":
@@ -566,6 +567,9 @@ def run_persistent_sample(
         queue_capacity=queue_capacity,
         worker_blocks_per_task=worker_blocks_per_task,
         dag_shape=dag_shape,
+        tensor_rows=(tensor_tile or {}).get("rows", 16),
+        tensor_cols=(tensor_tile or {}).get("cols", 16),
+        tensor_inner=(tensor_tile or {}).get("inner", 16),
     )
     result["baseline"] = (
         baseline
@@ -587,6 +591,7 @@ def run_single_sample(
     arch: str,
     task_count: int = 1,
     worker_blocks_per_task: int = 1,
+    tensor_tile: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     if baseline == "pto_host_schedule":
         return run_pto_sample(device=device, n=n, block_dim=block_dim, arch=arch)
@@ -642,6 +647,7 @@ def run_single_sample(
             mode="dag",
             baseline=baseline,
             dag_shape="tensor_tile",
+            tensor_tile=tensor_tile,
         )
     if baseline == "pto_persistent_device_batch":
         return run_persistent_sample(
@@ -708,6 +714,7 @@ def run_benchmark(
     include_persistent: bool = False,
     batch_tasks: int | list[int] = 0,
     worker_blocks_per_task: int | list[int] = 1,
+    tensor_tile: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     batch_task_values = _normalize_batch_tasks(batch_tasks)
     worker_blocks_per_task_values = _normalize_worker_blocks_per_task(worker_blocks_per_task)
@@ -729,6 +736,7 @@ def run_benchmark(
         if isinstance(worker_blocks_per_task, int)
         else worker_blocks_per_task_values,
         "worker_blocks_per_task_values": worker_blocks_per_task_values,
+        "tensor_tile": tensor_tile,
         "nvidia_smi": _nvidia_smi_summary(),
         "paper_setup": (
             "Microbenchmark slice inspired by VDCores/MPK persistent-kernel evaluation; "
@@ -765,12 +773,16 @@ def run_benchmark(
                     "pto_persistent_dag_reuse",
                     "pto_persistent_dag_tensor",
                 ):
+                    sample_kwargs: dict[str, Any] = {}
+                    if baseline == "pto_persistent_dag_tensor" and tensor_tile is not None:
+                        sample_kwargs["tensor_tile"] = tensor_tile
                     persistent = run_single_sample(
                         baseline=baseline,
                         device=device,
                         n=n,
                         block_dim=block_dim,
                         arch=arch,
+                        **sample_kwargs,
                     )
                     persistent.update({"machine": metadata["machine"], "repeat": repeat})
                     results.append(persistent)
@@ -1255,6 +1267,13 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     ]
     if metadata.get("source_labels"):
         lines.append(f"- Source reports: `{', '.join(metadata['source_labels'])}`")
+    tensor_tile = metadata.get("tensor_tile")
+    if isinstance(tensor_tile, dict):
+        rows = tensor_tile.get("rows")
+        cols = tensor_tile.get("cols")
+        inner = tensor_tile.get("inner")
+        if rows is not None and cols is not None and inner is not None:
+            lines.append(f"- Tensor tile descriptor: `{rows}x{cols}x{inner}`.")
     lines.extend(
         [
             "",
@@ -1409,6 +1428,12 @@ def _parse_worker_blocks_per_task(raw: str) -> list[int]:
     return _normalize_worker_blocks_per_task([int(part) for part in raw.split(",") if part])
 
 
+def _parse_tensor_tile(rows: int, cols: int, inner: int) -> dict[str, int]:
+    if rows <= 0 or cols <= 0 or inner <= 0:
+        raise ValueError("tensor rows, cols, and inner must be positive")
+    return {"rows": rows, "cols": cols, "inner": inner}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=int, default=0)
@@ -1450,9 +1475,13 @@ def main() -> None:
         default="1",
         help="comma-separated worker-block counts for persistent direct worker-grid batch rows",
     )
+    parser.add_argument("--tensor-rows", type=int, default=16)
+    parser.add_argument("--tensor-cols", type=int, default=16)
+    parser.add_argument("--tensor-inner", type=int, default=16)
     args = parser.parse_args()
     batch_task_values = _parse_batch_tasks(args.batch_tasks)
     worker_blocks_per_task_values = _parse_worker_blocks_per_task(args.worker_blocks_per_task)
+    tensor_tile = _parse_tensor_tile(args.tensor_rows, args.tensor_cols, args.tensor_inner)
 
     if args.merge_json:
         payloads = [json.loads(path.read_text()) for path in args.merge_json]
@@ -1491,6 +1520,7 @@ def main() -> None:
                     args.arch,
                     task_count=task_count,
                     worker_blocks_per_task=worker_blocks_per_task_values[0],
+                    tensor_tile=tensor_tile if args.single_baseline == "pto_persistent_dag_tensor" else None,
                 ),
                 sort_keys=True,
             )
@@ -1507,6 +1537,7 @@ def main() -> None:
         include_persistent=args.include_persistent,
         batch_tasks=batch_task_values,
         worker_blocks_per_task=worker_blocks_per_task_values,
+        tensor_tile=tensor_tile,
     )
     write_report(payload, args.output_dir)
     print(json.dumps(payload["metadata"], indent=2, sort_keys=True))

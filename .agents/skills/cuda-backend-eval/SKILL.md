@@ -142,8 +142,8 @@ same vector-add PTX kernel through two launch paths:
   rules can be represented by runtime descriptors.
 - `pto_persistent_dag_tensor`: four-task generated-dispatch DAG with a tiled
   GEMM task followed by elementwise residual, gate, and fan-in tasks. The
-  benchmark uses the default 16x16x16 descriptor unless the smoke helper is
-  called directly with tensor descriptor flags.
+  benchmark uses the default 16x16x16 descriptor unless
+  `--tensor-rows`, `--tensor-cols`, and `--tensor-inner` are supplied.
 - `pto_host_schedule_batch`, `pto_persistent_device_batch`,
   `pto_persistent_device_grid_batch`, and `pto_persistent_queue_batch`:
   same-work batch rows enabled by `--batch-tasks N`. Pass a
@@ -189,6 +189,12 @@ The script writes:
 - `cuda-benchmark.svg`: bar chart of median device time by baseline.
 - `cuda-benchmark-ratios.svg`: bar chart of each row's device-time ratio
   against its matched reference.
+
+For tensor-DAG experiments, pass `--tensor-rows`, `--tensor-cols`, and
+`--tensor-inner` to the benchmark script. These flags affect only
+`pto_persistent_dag_tensor`; other baselines keep their normal vector-add
+work. The generated Markdown report records the descriptor as
+`rows x cols x inner`.
 
 Refresh the local artifact index after adding or merging captures:
 

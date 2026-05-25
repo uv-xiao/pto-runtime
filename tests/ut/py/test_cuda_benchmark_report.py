@@ -693,6 +693,35 @@ def test_render_report_describes_dag_tensor_rows():
     assert "pto_persistent_dag_tensor" in svg
 
 
+def test_render_report_describes_tensor_tile_metadata():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "tensor-shape-unit",
+            "tensor_tile": {"rows": 8, "cols": 4, "inner": 12},
+        },
+        "results": [
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_dag_tensor",
+                "n": 64,
+                "task_count": 4,
+                "device_wall_ns": 4200,
+                "tensor_tile": {
+                    "rows": 8,
+                    "cols": 4,
+                    "inner": 12,
+                    "tile_count": 2,
+                },
+            }
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+
+    assert "- Tensor tile descriptor: `8x4x12`." in report
+
+
 def test_render_report_highlights_dag_shape_rows():
     cuda_benchmark = _load_benchmark_module()
     payload = {
@@ -879,6 +908,56 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "pto_persistent_dag_tensor",
     ]
     assert len(payload["results"]) == 9
+
+
+def test_run_benchmark_passes_tensor_descriptor_to_tensor_dag(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = []
+
+    def fake_compile_ptx(work_dir, arch):
+        return b"ptx", f"fake-{arch}"
+
+    def fake_run_single_sample(
+        baseline,
+        device,
+        n,
+        block_dim,
+        arch,
+        task_count=1,
+        worker_blocks_per_task=1,
+        tensor_tile=None,
+    ):
+        seen.append((baseline, tensor_tile))
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count,
+            "block_dim": block_dim,
+            "host_wall_ns": 20,
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    tensor_tile = {"rows": 8, "cols": 4, "inner": 12}
+    monkeypatch.setattr(cuda_benchmark, "_compile_ptx", fake_compile_ptx)
+    monkeypatch.setattr(cuda_benchmark, "run_single_sample", fake_run_single_sample)
+
+    payload = cuda_benchmark.run_benchmark(
+        device=3,
+        sizes=[64],
+        repeats=1,
+        block_dim=128,
+        arch="compute_80",
+        label="unit",
+        include_persistent=True,
+        tensor_tile=tensor_tile,
+    )
+
+    tensor_calls = [item for item in seen if item[0] == "pto_persistent_dag_tensor"]
+    non_tensor_calls = [item for item in seen if item[0] != "pto_persistent_dag_tensor"]
+    assert payload["metadata"]["tensor_tile"] == tensor_tile
+    assert tensor_calls == [("pto_persistent_dag_tensor", tensor_tile)]
+    assert all(call[1] is None for call in non_tensor_calls)
 
 
 def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):

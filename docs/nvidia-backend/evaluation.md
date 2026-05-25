@@ -90,7 +90,8 @@ benchmark artifacts and compact smoke-report artifacts.
   lifecycle validation row rather than a throughput row.
 - `pto_persistent_dag_tensor`: four-task generated-dispatch DAG with a tiled
   GEMM task followed by residual, gate, and fan-in elementwise tasks. The
-  benchmark row uses the default 16x16x16 descriptor.
+  benchmark row uses the default 16x16x16 descriptor unless the benchmark is
+  run with `--tensor-rows`, `--tensor-cols`, and `--tensor-inner`.
 - `*_batch`: same-work rows with six vector-add task descriptors. These rows
   compare repeated host launches with one persistent launch over the same
   descriptor count.
@@ -287,10 +288,11 @@ descriptor ABI with rows, columns, inner dimension, leading dimensions, and
 per-tile strides. Its generated-dispatch `func_id=3` computes one or more GEMM
 tiles before residual, gate, and fan-in elementwise tasks. The smoke helper now
 supports non-square descriptors by allocating separate A, B, and output
-extents. The following rows compare the older default 16x16x16 tensor DAG
-capture against the three-task elementwise DAG and the one-call host-schedule
-vector baseline for shape context only. They are not same-work throughput
-comparisons.
+extents, and the benchmark script can pass the same descriptor flags into the
+`pto_persistent_dag_tensor` row. The following rows compare the older default
+16x16x16 tensor DAG capture against the three-task elementwise DAG and the
+one-call host-schedule vector baseline for shape context only. They are not
+same-work throughput comparisons.
 
 | GPU | N | Host ns | DAG ns | Tensor DAG ns | Tensor/DAG |
 | --- | - | ------- | ------ | ------------- | ---------- |
