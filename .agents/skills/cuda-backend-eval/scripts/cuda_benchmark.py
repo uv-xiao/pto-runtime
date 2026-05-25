@@ -317,6 +317,38 @@ def _sorted_summary_rows(summary: dict[tuple[str, str, int], dict[str, Any]]) ->
     return sorted(summary.values(), key=lambda row: (row["machine"], row["n"], row["baseline"]))
 
 
+def merge_payloads(payloads: list[dict[str, Any]], label: str) -> dict[str, Any]:
+    source_labels = [payload.get("metadata", {}).get("label", "unknown") for payload in payloads]
+    git_commits = sorted(
+        {
+            payload.get("metadata", {}).get("git_commit", "unknown")
+            for payload in payloads
+            if payload.get("metadata", {}).get("git_commit")
+        }
+    )
+    results: list[dict[str, Any]] = []
+    for payload in payloads:
+        results.extend(payload.get("results", []))
+
+    return {
+        "metadata": {
+            "label": label,
+            "git_commit": ",".join(git_commits) if git_commits else "unknown",
+            "git_commits": git_commits,
+            "machine": "combined",
+            "nvidia_smi": "combined report",
+            "paper_setup": (
+                "Combined microbenchmark slice inspired by VDCores/MPK "
+                "persistent-kernel evaluation; not an end-to-end LLM serving "
+                "result."
+            ),
+            "source_labels": source_labels,
+            "timestamp_unix": time.time(),
+        },
+        "results": results,
+    }
+
+
 def render_svg(summary: dict[tuple[str, str, int], dict[str, Any]]) -> str:
     rows = _sorted_summary_rows(summary)
     if not rows:
@@ -367,10 +399,16 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
         f"- Machine: `{metadata.get('machine', 'unknown')}`",
         f"- NVIDIA: `{metadata.get('nvidia_smi', 'unknown')}`",
         f"- Setup note: {metadata.get('paper_setup', 'not provided')}",
-        "",
-        "| Machine | Baseline | N | Samples | Median device ns | Median host ns |",
-        "| ------- | -------- | - | ------- | ---------------- | -------------- |",
     ]
+    if metadata.get("source_labels"):
+        lines.append(f"- Source reports: `{', '.join(metadata['source_labels'])}`")
+    lines.extend(
+        [
+            "",
+            "| Machine | Baseline | N | Samples | Median device ns | Median host ns |",
+            "| ------- | -------- | - | ------- | ---------------- | -------------- |",
+        ]
+    )
     for row in _sorted_summary_rows(summary):
         lines.append(
             f"| {row['machine']} | {row['baseline']} | {row['n']} | {row['samples']} | "
@@ -416,7 +454,14 @@ def main() -> None:
     parser.add_argument("--label", default="local")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/cuda-backend/latest"))
     parser.add_argument("--single-baseline", choices=["pto_host_schedule", "direct_driver"], default=None)
+    parser.add_argument("--merge-json", type=Path, nargs="*", default=None)
     args = parser.parse_args()
+
+    if args.merge_json:
+        payloads = [json.loads(path.read_text()) for path in args.merge_json]
+        write_report(merge_payloads(payloads, label=args.label), args.output_dir)
+        print(f"merged {len(payloads)} reports into {args.output_dir}")
+        return
 
     if args.single_baseline is not None:
         sizes = _parse_sizes(args.sizes)

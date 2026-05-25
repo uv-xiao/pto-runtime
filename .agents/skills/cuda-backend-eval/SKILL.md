@@ -78,6 +78,16 @@ The script writes:
 - `cuda-benchmark.md`: short report with interpretation notes.
 - `cuda-benchmark.svg`: bar chart of median device time by baseline.
 
+Merge local and remote JSON payloads into one comparative report:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --merge-json tmp/cuda-backend/a100/cuda-benchmark.json \
+    tmp/cuda-backend/h200/cuda-benchmark.json \
+    --label cuda-a100-h200 --output-dir tmp/cuda-backend/combined
+```
+
 ## Hardware Checks
 
 Local A100:
