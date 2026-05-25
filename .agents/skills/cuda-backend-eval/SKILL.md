@@ -178,6 +178,19 @@ The script writes:
 - `cuda-benchmark-ratios.svg`: bar chart of each row's device-time ratio
   against its matched reference.
 
+Refresh the local artifact index after adding or merging captures:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_artifact_index.py \
+    --root tmp/cuda-backend
+```
+
+The indexer scans `cuda-benchmark.json` files and writes
+`tmp/cuda-backend/index.md` with each artifact's metadata, baselines, vector
+sizes, and generated report/chart presence. It is a local audit aid under
+`tmp/`; do not commit it with benchmark raw data.
+
 The report's ratio column uses the matched host-schedule row for the same
 machine, vector length, and task count. Same-work batch rows are therefore
 relative to `pto_host_schedule_batch`, not the one-task `pto_host_schedule`

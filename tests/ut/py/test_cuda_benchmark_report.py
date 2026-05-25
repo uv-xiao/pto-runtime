@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ctypes
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -55,6 +56,105 @@ def _load_persistent_smoke_module():
         return module
     finally:
         sys.path.remove(str(script_dir))
+
+
+def _load_artifact_index_module():
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / ".agents"
+        / "skills"
+        / "cuda-backend-eval"
+        / "scripts"
+        / "cuda_artifact_index.py"
+    )
+    spec = importlib.util.spec_from_file_location("cuda_artifact_index", script_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_artifact_payload(path: Path, label: str, machine: str, baseline: str) -> None:
+    path.mkdir(parents=True)
+    payload = {
+        "metadata": {
+            "label": label,
+            "git_commit": "abc123",
+            "machine": machine,
+        },
+        "results": [{"baseline": baseline, "n": 1024, "device_wall_ns": 10}],
+    }
+    (path / "cuda-benchmark.json").write_text(json.dumps(payload) + "\n")
+
+
+def test_cuda_artifact_index_scans_benchmark_outputs(tmp_path):
+    cuda_artifact_index = _load_artifact_index_module()
+    artifact_dir = tmp_path / "combined-graph"
+    _write_artifact_payload(
+        artifact_dir,
+        label="cuda-graph-a100-h200",
+        machine="combined",
+        baseline="direct_driver_graph",
+    )
+    (artifact_dir / "cuda-benchmark.md").write_text("# report\n")
+    (artifact_dir / "cuda-benchmark.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-ratios.svg").write_text("<svg></svg>\n")
+
+    entries = cuda_artifact_index.scan_artifacts(tmp_path)
+
+    assert entries == [
+        {
+            "path": "combined-graph",
+            "label": "cuda-graph-a100-h200",
+            "machine": "combined",
+            "git_commit": "abc123",
+            "result_count": 1,
+            "baselines": ["direct_driver_graph"],
+            "sizes": [1024],
+            "has_markdown": True,
+            "has_svg": True,
+            "has_ratio_svg": True,
+        }
+    ]
+
+
+def test_cuda_artifact_index_renders_markdown_and_writes_default_index(tmp_path):
+    cuda_artifact_index = _load_artifact_index_module()
+    artifact_dir = tmp_path / "a100-graph"
+    _write_artifact_payload(
+        artifact_dir,
+        label="a100-graph",
+        machine="hina",
+        baseline="direct_driver_graph",
+    )
+
+    output = cuda_artifact_index.write_index(tmp_path)
+    report = output.read_text()
+
+    assert output == tmp_path / "index.md"
+    assert "# CUDA Backend Artifact Index" in report
+    assert ("| a100-graph | a100-graph | hina | abc123 | 1 | 1024 | direct_driver_graph |") in report
+    assert "ratio SVG" in report
+
+
+def test_cuda_artifact_index_sorts_numeric_sizes_before_strings(tmp_path):
+    cuda_artifact_index = _load_artifact_index_module()
+    artifact_dir = tmp_path / "mixed-sizes"
+    artifact_dir.mkdir()
+    payload = {
+        "metadata": {"label": "mixed-sizes"},
+        "results": [
+            {"baseline": "pto_host_schedule", "n": 1048576},
+            {"baseline": "pto_host_schedule", "n": 1024},
+            {"baseline": "pto_host_schedule", "n": "unknown"},
+            {"baseline": "pto_host_schedule", "n": 65536},
+        ],
+    }
+    (artifact_dir / "cuda-benchmark.json").write_text(json.dumps(payload) + "\n")
+
+    [entry] = cuda_artifact_index.scan_artifacts(tmp_path)
+
+    assert entry["sizes"] == [1024, 65536, 1048576, "unknown"]
 
 
 def test_find_nvcc_uses_cuda_home_when_nvcc_is_not_on_path(tmp_path, monkeypatch):
@@ -239,9 +339,7 @@ def test_render_report_includes_host_schedule_relative_ratios():
 
     assert "| a100-local | pto_host_schedule | 1024 | 1 | 1 | 1 | 1000 | 1000 | 1.00x |" in report
     assert "| a100-local | direct_driver | 1024 | 1 | 1 | 1 | 500 | 500 | 0.50x |" in report
-    assert (
-        "| a100-local | direct_driver_graph | 1024 | 1 | 1 | 1 | 450 | 450 | 0.45x |"
-    ) in report
+    assert ("| a100-local | direct_driver_graph | 1024 | 1 | 1 | 1 | 450 | 450 | 0.45x |") in report
     assert "| a100-local | pto_persistent_dag | 1024 | 1 | 1 | 1 | 2500 | 2500 | 2.50x |" in report
     assert "`direct_driver_graph` measures a CUDA Graph replay path" in report
     assert "Non-stream ratio columns are relative to the matched" in report
@@ -497,16 +595,9 @@ def test_render_report_highlights_dag_shape_rows():
     report = cuda_benchmark.render_markdown_report(payload)
 
     assert "## DAG Shape Rows" in report
-    assert (
-        "| Machine | N | Baseline | Tasks | Median device ns | "
-        "Device vs pto_persistent_dag |"
-    ) in report
-    assert (
-        "| a100-local | 4096 | pto_persistent_dag_chain | 5 | 1800 | 1.80x |"
-    ) in report
-    assert (
-        "| a100-local | 4096 | pto_persistent_dag_tensor | 4 | 4200 | 4.20x |"
-    ) in report
+    assert ("| Machine | N | Baseline | Tasks | Median device ns | Device vs pto_persistent_dag |") in report
+    assert ("| a100-local | 4096 | pto_persistent_dag_chain | 5 | 1800 | 1.80x |") in report
+    assert ("| a100-local | 4096 | pto_persistent_dag_tensor | 4 | 4200 | 4.20x |") in report
 
 
 def test_render_report_summarizes_ptx_sources_by_machine_and_baseline():
