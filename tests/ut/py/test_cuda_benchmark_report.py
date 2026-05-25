@@ -16,6 +16,8 @@ import json
 import sys
 from pathlib import Path
 
+from simpler_setup import cuda_callable_compiler
+
 
 def _load_benchmark_module():
     script_path = (
@@ -150,6 +152,14 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
     assert "<svg" in svg
     assert "tensor-smoke" in svg
     assert "h200" in svg
+
+
+def test_cuda_smoke_scripts_use_shared_callable_manifest_types():
+    cuda_smoke = _load_smoke_module()
+    cuda_persistent_smoke = _load_persistent_smoke_module()
+
+    assert cuda_smoke.CudaHostCallable is cuda_callable_compiler.CudaHostScheduleCallable
+    assert cuda_persistent_smoke.CudaPersistentCallable is cuda_callable_compiler.CudaPersistentDeviceCallable
 
 
 def test_cuda_artifact_index_scans_benchmark_outputs(tmp_path):
@@ -393,10 +403,11 @@ def test_persistent_dag_compiler_path_uses_kernel_compiler(tmp_path, monkeypatch
     monkeypatch.setattr(cuda_persistent_smoke, "_find_nvcc", lambda: "/usr/local/cuda/bin/nvcc")
     monkeypatch.setattr(cuda_persistent_smoke, "KernelCompiler", FakeKernelCompiler)
 
-    ptx, source_kind = cuda_persistent_smoke._compile_persistent_dag_ptx(tmp_path, "compute_90")
+    ptx, source_kind, artifact = cuda_persistent_smoke._compile_persistent_dag_ptx(tmp_path, "compute_90")
 
     assert ptx == b"persistent-dag-ptx"
     assert source_kind == "nvcc-persistent-generated-dispatch-compute_90"
+    assert artifact.ptx == b"persistent-dag-ptx"
     assert seen["platform"] == "cuda"
     assert seen["arch"] == "compute_90"
     assert seen["nvcc"] == "/usr/local/cuda/bin/nvcc"

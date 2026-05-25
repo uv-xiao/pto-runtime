@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import json
 import re
 import subprocess
@@ -18,7 +19,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from textwrap import indent
-from typing import Union
+from typing import Any, Union
 
 from .environment import PROJECT_ROOT
 
@@ -28,6 +29,8 @@ _PERSISTENT_DAG_ENTRY_NAME = "pto_persistent_dag_f32_executor"
 _PERSISTENT_DAG_SOURCE_KIND = "generated-dispatch"
 _HOST_SCHEDULE_CACHE_RELATIVE_PATH = Path("build") / "cache" / "cuda" / "onboard" / "host_schedule"
 _PERSISTENT_CACHE_RELATIVE_PATH = Path("build") / "cache" / "cuda" / "onboard" / "persistent_device"
+_CUDA_HOST_OP_VECTOR_ADD_F32 = 1
+_CUDA_PERSISTENT_OP_DAG_F32_RING = 1003
 
 
 @dataclass(frozen=True)
@@ -86,7 +89,7 @@ class CudaPersistentTaskBodyFunction:
     task_body: CudaTaskBody
 
 
-CudaPersistentFunctionSpec = Union[CudaPersistentTaskFunction, CudaPersistentTaskBodyFunction]
+CudaPersistentFunctionSpec = Union[CudaPersistentTaskFunction, CudaPersistentTaskBodyFunction]  # noqa: UP007
 
 
 @dataclass(frozen=True)
@@ -102,6 +105,116 @@ class CudaPersistentCallableArtifact:
     entry_name: str
     arch: str
     source_kind: str
+
+
+class CudaHostScheduleCallable(ctypes.Structure):
+    _fields_ = [
+        ("version", ctypes.c_uint32),
+        ("op", ctypes.c_uint32),
+        ("image", ctypes.c_void_p),
+        ("image_size", ctypes.c_size_t),
+        ("entry_name", ctypes.c_char_p),
+        ("grid_dim", ctypes.c_uint32),
+        ("block_dim", ctypes.c_uint32),
+        ("shared_mem_bytes", ctypes.c_size_t),
+        ("stream_id", ctypes.c_uint32),
+    ]
+
+
+class CudaPersistentDeviceCallable(ctypes.Structure):
+    _fields_ = [
+        ("version", ctypes.c_uint32),
+        ("op", ctypes.c_uint32),
+        ("image", ctypes.c_void_p),
+        ("image_size", ctypes.c_size_t),
+        ("entry_name", ctypes.c_char_p),
+        ("grid_dim", ctypes.c_uint32),
+        ("block_dim", ctypes.c_uint32),
+        ("shared_mem_bytes", ctypes.c_size_t),
+    ]
+
+
+@dataclass(frozen=True)
+class PreparedCudaCallable:
+    """ctypes callable manifest plus buffers it points into."""
+
+    runtime: str
+    artifact: CudaHostScheduleCallableArtifact | CudaPersistentCallableArtifact
+    manifest: Any
+    image_buffer: Any
+    entry_name_buffer: Any
+
+    def byref(self) -> Any:
+        return ctypes.byref(self.manifest)
+
+
+def _create_c_string_buffer(value: bytes) -> Any:
+    data = value if value.endswith(b"\0") else value + b"\0"
+    return ctypes.create_string_buffer(data, len(data))
+
+
+def prepare_cuda_host_schedule_callable(
+    artifact: CudaHostScheduleCallableArtifact,
+    *,
+    grid_dim: int,
+    block_dim: int,
+    shared_mem_bytes: int = 0,
+    stream_id: int = 0,
+    op: int = _CUDA_HOST_OP_VECTOR_ADD_F32,
+) -> PreparedCudaCallable:
+    """Build a host-schedule `prepare_callable` manifest from an artifact."""
+
+    image_buffer = _create_c_string_buffer(artifact.ptx)
+    entry_name_buffer = _create_c_string_buffer(artifact.entry_name.encode("utf-8"))
+    manifest = CudaHostScheduleCallable(
+        version=2,
+        op=op,
+        image=ctypes.cast(image_buffer, ctypes.c_void_p),
+        image_size=ctypes.sizeof(image_buffer),
+        entry_name=ctypes.cast(entry_name_buffer, ctypes.c_char_p),
+        grid_dim=grid_dim,
+        block_dim=block_dim,
+        shared_mem_bytes=shared_mem_bytes,
+        stream_id=stream_id,
+    )
+    return PreparedCudaCallable(
+        runtime="host_schedule",
+        artifact=artifact,
+        manifest=manifest,
+        image_buffer=image_buffer,
+        entry_name_buffer=entry_name_buffer,
+    )
+
+
+def prepare_cuda_persistent_device_callable(
+    artifact: CudaPersistentCallableArtifact,
+    *,
+    grid_dim: int,
+    block_dim: int,
+    shared_mem_bytes: int = 0,
+    op: int = _CUDA_PERSISTENT_OP_DAG_F32_RING,
+) -> PreparedCudaCallable:
+    """Build a persistent-device `prepare_callable` manifest from an artifact."""
+
+    image_buffer = _create_c_string_buffer(artifact.ptx)
+    entry_name_buffer = _create_c_string_buffer(artifact.entry_name.encode("utf-8"))
+    manifest = CudaPersistentDeviceCallable(
+        version=1,
+        op=op,
+        image=ctypes.cast(image_buffer, ctypes.c_void_p),
+        image_size=ctypes.sizeof(image_buffer),
+        entry_name=ctypes.cast(entry_name_buffer, ctypes.c_char_p),
+        grid_dim=grid_dim,
+        block_dim=block_dim,
+        shared_mem_bytes=shared_mem_bytes,
+    )
+    return PreparedCudaCallable(
+        runtime="persistent_device",
+        artifact=artifact,
+        manifest=manifest,
+        image_buffer=image_buffer,
+        entry_name_buffer=entry_name_buffer,
+    )
 
 
 def render_cuda_task_wrappers(

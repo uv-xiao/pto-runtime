@@ -262,8 +262,10 @@ compiler object. It accepts task source files plus `func_id` metadata, can
 lower those files through the same `CudaTaskBody` wrapper contract as
 `host_schedule`, writes the generated dispatch source, PTX, and manifest under
 the persistent-device callable cache, and is used by the DAG smoke/evaluation
-path. The remaining work is to plumb the resulting artifacts through normal
-scene-test `ChipCallable` preparation.
+path. `prepare_cuda_persistent_device_callable()` turns the compiled artifact
+into the ctypes manifest consumed by the current host runtime
+`prepare_callable` C API. The remaining work is to plumb the resulting
+artifacts through normal scene-test `ChipCallable` preparation.
 
 ## Static NVCC Linking Feasibility
 

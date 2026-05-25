@@ -10,12 +10,15 @@
 
 from __future__ import annotations
 
+import ctypes
 import json
 
 import pytest
 
 from simpler_setup import cuda_callable_compiler
 from simpler_setup.cuda_callable_compiler import (
+    CudaHostScheduleCallableArtifact,
+    CudaPersistentCallableArtifact,
     CudaPersistentTaskBodyFunction,
     CudaPersistentTaskFunction,
     CudaTaskBody,
@@ -95,6 +98,46 @@ def test_compile_cuda_host_schedule_writes_manifest_and_reuses_cache(tmp_path, m
     assert manifest["arch"] == "compute_80"
     assert manifest["source_kind"] == "task-body-wrapper"
     assert manifest["task_body"] == {"context_type": "PtoTaskContext", "name": "vector_add"}
+
+
+def test_prepare_cuda_host_schedule_callable_keeps_artifact_buffers_alive(tmp_path):
+    assert hasattr(cuda_callable_compiler, "prepare_cuda_host_schedule_callable")
+
+    artifact = CudaHostScheduleCallableArtifact(
+        cache_key="abc",
+        cache_hit=False,
+        source_path=tmp_path / "generated_host_wrapper.cu",
+        ptx_path=tmp_path / "pto_callable.ptx",
+        manifest_path=tmp_path / "pto_callable.json",
+        ptx=b"fake-host-ptx",
+        entry_name="pto_kernel_vector_add",
+        persistent_entry_name="pto_task_vector_add",
+        arch="compute_80",
+        source_kind="task-body-wrapper",
+    )
+
+    prepared = cuda_callable_compiler.prepare_cuda_host_schedule_callable(
+        artifact,
+        grid_dim=7,
+        block_dim=128,
+        shared_mem_bytes=64,
+        stream_id=2,
+    )
+
+    assert prepared.runtime == "host_schedule"
+    assert prepared.artifact is artifact
+    assert prepared.manifest.version == 2
+    assert prepared.manifest.op == 1
+    assert prepared.manifest.image_size == len(artifact.ptx) + 1
+    assert prepared.manifest.entry_name == b"pto_kernel_vector_add"
+    assert prepared.manifest.grid_dim == 7
+    assert prepared.manifest.block_dim == 128
+    assert prepared.manifest.shared_mem_bytes == 64
+    assert prepared.manifest.stream_id == 2
+    assert prepared.byref()
+    assert prepared.image_buffer.raw == b"fake-host-ptx\0"
+    assert prepared.entry_name_buffer.value == artifact.entry_name.encode("utf-8")
+    assert prepared.manifest.image == ctypes.cast(prepared.image_buffer, ctypes.c_void_p).value
 
 
 def test_render_persistent_dag_source_generates_dispatch_switch():
@@ -215,6 +258,43 @@ def test_compile_cuda_persistent_device_writes_manifest_and_reuses_cache(tmp_pat
     assert manifest["arch"] == "compute_80"
     assert manifest["source_kind"] == "generated-dispatch"
     assert manifest["task_functions"] == [{"func_id": 1, "name": "add_f32"}]
+
+
+def test_prepare_cuda_persistent_device_callable_uses_generated_dispatch_entry(tmp_path):
+    assert hasattr(cuda_callable_compiler, "prepare_cuda_persistent_device_callable")
+
+    artifact = CudaPersistentCallableArtifact(
+        cache_key="def",
+        cache_hit=False,
+        source_path=tmp_path / "generated_dispatch.cu",
+        ptx_path=tmp_path / "pto_callable.ptx",
+        manifest_path=tmp_path / "pto_callable.json",
+        ptx=b"fake-persistent-ptx",
+        entry_name="pto_persistent_dag_f32_executor",
+        arch="compute_90",
+        source_kind="generated-dispatch",
+    )
+
+    prepared = cuda_callable_compiler.prepare_cuda_persistent_device_callable(
+        artifact,
+        op=1003,
+        grid_dim=5,
+        block_dim=256,
+    )
+
+    assert prepared.runtime == "persistent_device"
+    assert prepared.artifact is artifact
+    assert prepared.manifest.version == 1
+    assert prepared.manifest.op == 1003
+    assert prepared.manifest.image_size == len(artifact.ptx) + 1
+    assert prepared.manifest.entry_name == b"pto_persistent_dag_f32_executor"
+    assert prepared.manifest.grid_dim == 5
+    assert prepared.manifest.block_dim == 256
+    assert prepared.manifest.shared_mem_bytes == 0
+    assert prepared.byref()
+    assert prepared.image_buffer.raw == b"fake-persistent-ptx\0"
+    assert prepared.entry_name_buffer.value == artifact.entry_name.encode("utf-8")
+    assert prepared.manifest.image == ctypes.cast(prepared.image_buffer, ctypes.c_void_p).value
 
 
 def test_compile_cuda_persistent_device_task_body_manifest(tmp_path, monkeypatch):

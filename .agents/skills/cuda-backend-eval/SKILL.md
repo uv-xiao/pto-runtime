@@ -126,8 +126,11 @@ For host-schedule task-body compiler work, use
 `KernelCompiler(platform="cuda").compile_cuda_host_schedule(...)`. It renders
 one shared PTO CUDA task body into host-schedule and persistent-device wrappers,
 then writes the host-schedule generated source, PTX, and JSON manifest under
-`build/cache/cuda/onboard/host_schedule/callables/`. This is a compiler slice;
-the normal scene-test `ChipCallable` path does not consume the artifact yet.
+`build/cache/cuda/onboard/host_schedule/callables/`. Use
+`prepare_cuda_host_schedule_callable(...)` to turn the artifact into the shared
+ctypes manifest consumed by the current `prepare_callable` C API. This is still
+a compiler/runtime slice; the normal scene-test `ChipCallable` path does not
+consume the artifact yet.
 For real host-schedule smoke coverage, pass a context definition plus
 `host_parameters`/`host_context_initializer` so the generated `__global__`
 wrapper matches the current vector-add launch ABI and can be loaded by

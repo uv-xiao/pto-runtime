@@ -22,6 +22,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from simpler_setup.cuda_callable_compiler import CudaHostScheduleCallable as CudaHostCallable
 from simpler_setup.runtime_builder import RuntimeBuilder
 
 _FALLBACK_VECTOR_ADD_PTX = rb"""
@@ -100,20 +101,6 @@ def _find_nvcc() -> str | None:
         if nvcc.is_file():
             return str(nvcc)
     return None
-
-
-class CudaHostCallable(ctypes.Structure):
-    _fields_ = [
-        ("version", ctypes.c_uint32),
-        ("op", ctypes.c_uint32),
-        ("image", ctypes.c_void_p),
-        ("image_size", ctypes.c_size_t),
-        ("entry_name", ctypes.c_char_p),
-        ("grid_dim", ctypes.c_uint32),
-        ("block_dim", ctypes.c_uint32),
-        ("shared_mem_bytes", ctypes.c_size_t),
-        ("stream_id", ctypes.c_uint32),
-    ]
 
 
 class CudaVectorAddArgs(ctypes.Structure):

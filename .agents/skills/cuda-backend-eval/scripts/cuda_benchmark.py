@@ -38,6 +38,7 @@ from cuda_smoke import (
     run_smoke,
 )
 
+from simpler_setup.cuda_callable_compiler import prepare_cuda_host_schedule_callable
 from simpler_setup.kernel_compiler import KernelCompiler
 
 _FALLBACK_SLOW_VECTOR_ADD_PTX = rb"""
@@ -450,7 +451,6 @@ def run_pto_compiler_sample(device: int, n: int, block_dim: int, arch: str) -> d
     with tempfile.TemporaryDirectory(prefix="pto_cuda_compiler_") as td:
         work_dir = Path(td)
         artifact = _compile_compiler_host_schedule_artifact(work_dir, arch)
-        ptx_buf = ctypes.create_string_buffer(artifact.ptx + b"\0")
 
         runtime, binaries = _load_runtime(True)
         ctx = runtime.create_device_context()
@@ -480,17 +480,13 @@ def run_pto_compiler_sample(device: int, n: int, block_dim: int, arch: str) -> d
                 if runtime.copy_to_device_ctx(ctx, dev_b, ctypes.byref(host_b), nbytes) != 0:
                     raise RuntimeError("copy_to_device b failed")
 
-                manifest = CudaHostCallable(
-                    version=1,
-                    op=1,
-                    image=ctypes.cast(ptx_buf, ctypes.c_void_p),
-                    image_size=len(artifact.ptx) + 1,
-                    entry_name=artifact.entry_name.encode("utf-8"),
+                prepared = prepare_cuda_host_schedule_callable(
+                    artifact,
                     grid_dim=(n + block_dim - 1) // block_dim,
                     block_dim=block_dim,
                     shared_mem_bytes=0,
                 )
-                if runtime.prepare_callable(ctx, 0, ctypes.byref(manifest)) != 0:
+                if runtime.prepare_callable(ctx, 0, prepared.byref()) != 0:
                     raise RuntimeError("prepare_callable failed")
 
                 args = CudaVectorAddArgs(a=dev_a, b=dev_b, out=dev_out, n=n)

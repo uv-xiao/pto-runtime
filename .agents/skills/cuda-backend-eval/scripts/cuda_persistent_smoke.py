@@ -25,9 +25,14 @@ from typing import Any
 from cuda_smoke import PtoRunTiming, _bind_runtime, _find_nvcc
 
 from simpler_setup.cuda_callable_compiler import (
+    CudaPersistentCallableArtifact,
     CudaPersistentTaskBodyFunction,
     CudaTaskBody,
+    prepare_cuda_persistent_device_callable,
     render_persistent_dag_source,
+)
+from simpler_setup.cuda_callable_compiler import (
+    CudaPersistentDeviceCallable as CudaPersistentCallable,
 )
 from simpler_setup.kernel_compiler import KernelCompiler
 from simpler_setup.runtime_builder import RuntimeBuilder
@@ -696,7 +701,7 @@ task->out[out_base + row * task->ldc + col] = acc;
 _PERSISTENT_DAG_SOURCE = render_persistent_dag_source(_PERSISTENT_DAG_TASK_FUNCTIONS)
 
 
-def _compile_persistent_dag_ptx(work_dir: Path, arch: str) -> tuple[bytes, str]:
+def _compile_persistent_dag_ptx(work_dir: Path, arch: str) -> tuple[bytes, str, CudaPersistentCallableArtifact]:
     nvcc = _find_nvcc()
     if nvcc is None:
         raise RuntimeError("nvcc is required for persistent dag mode until the embedded PTX fallback is generated")
@@ -720,20 +725,7 @@ def _compile_persistent_dag_ptx(work_dir: Path, arch: str) -> tuple[bytes, str]:
         arch=arch,
         nvcc=nvcc,
     )
-    return artifact.ptx, f"nvcc-persistent-{artifact.source_kind}-{arch}"
-
-
-class CudaPersistentCallable(ctypes.Structure):
-    _fields_ = [
-        ("version", ctypes.c_uint32),
-        ("op", ctypes.c_uint32),
-        ("image", ctypes.c_void_p),
-        ("image_size", ctypes.c_size_t),
-        ("entry_name", ctypes.c_char_p),
-        ("grid_dim", ctypes.c_uint32),
-        ("block_dim", ctypes.c_uint32),
-        ("shared_mem_bytes", ctypes.c_size_t),
-    ]
+    return artifact.ptx, f"nvcc-persistent-{artifact.source_kind}-{arch}", artifact
 
 
 class CudaPersistentVectorAddTask(ctypes.Structure):
@@ -907,23 +899,28 @@ class DagSmokeConfig:
     queue_capacity: int
     ptx: bytes
     ptx_buf: Any
+    persistent_artifact: CudaPersistentCallableArtifact | None
     ptx_source: str
     start: float
     dag_shape: str
     tensor_tile: dict[str, int]
 
 
-def _compile_persistent_ptx(work_dir: Path, arch: str, mode: str) -> tuple[bytes, str]:
+def _compile_persistent_ptx(
+    work_dir: Path,
+    arch: str,
+    mode: str,
+) -> tuple[bytes, str, CudaPersistentCallableArtifact | None]:
     nvcc = _find_nvcc()
     if nvcc is None:
         if mode == "direct":
-            return _FALLBACK_PERSISTENT_VECTOR_ADD_PTX, "embedded-sm80-persistent-ptx"
+            return _FALLBACK_PERSISTENT_VECTOR_ADD_PTX, "embedded-sm80-persistent-ptx", None
         if mode == "dag":
             if _FALLBACK_PERSISTENT_DAG_F32_PTX:
-                return _FALLBACK_PERSISTENT_DAG_F32_PTX, "embedded-sm80-persistent-dag-ptx"
+                return _FALLBACK_PERSISTENT_DAG_F32_PTX, "embedded-sm80-persistent-dag-ptx", None
             raise RuntimeError("nvcc is required for persistent dag mode until the embedded PTX fallback is generated")
         if _FALLBACK_PERSISTENT_QUEUE_VECTOR_ADD_PTX:
-            return _FALLBACK_PERSISTENT_QUEUE_VECTOR_ADD_PTX, "embedded-sm80-persistent-queue-ptx"
+            return _FALLBACK_PERSISTENT_QUEUE_VECTOR_ADD_PTX, "embedded-sm80-persistent-queue-ptx", None
         raise RuntimeError("nvcc is required for persistent queue mode until the embedded PTX fallback is generated")
 
     source_by_mode = {
@@ -945,7 +942,7 @@ def _compile_persistent_ptx(work_dir: Path, arch: str, mode: str) -> tuple[bytes
         text=True,
     )
     source_kind = "generated-dispatch" if mode == "dag" else mode
-    return ptx_path.read_bytes(), f"nvcc-persistent-{source_kind}-{arch}"
+    return ptx_path.read_bytes(), f"nvcc-persistent-{source_kind}-{arch}", None
 
 
 def _make_dag_shape(
@@ -1453,19 +1450,27 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
 
         scheduler_blocks = 1
         worker_blocks = task_count
-        manifest = CudaPersistentCallable(
-            version=1,
+        artifact = config.persistent_artifact or CudaPersistentCallableArtifact(
+            cache_key="embedded",
+            cache_hit=True,
+            source_path=Path(),
+            ptx_path=Path(),
+            manifest_path=Path(),
+            ptx=config.ptx,
+            entry_name="pto_persistent_dag_f32_executor",
+            arch=config.arch,
+            source_kind="generated-dispatch",
+        )
+        prepared = prepare_cuda_persistent_device_callable(
+            artifact,
             op=1003,
-            image=ctypes.cast(config.ptx_buf, ctypes.c_void_p),
-            image_size=len(config.ptx) + 1,
-            entry_name=b"pto_persistent_dag_f32_executor",
             grid_dim=scheduler_blocks + worker_blocks,
             block_dim=256,
             shared_mem_bytes=0,
         )
         args = CudaPersistentDagArgs(state=dev_state)
         timing = PtoRunTiming()
-        if runtime.prepare_callable(ctx, 0, ctypes.byref(manifest)) != 0:
+        if runtime.prepare_callable(ctx, 0, prepared.byref()) != 0:
             raise RuntimeError("prepare_callable dag failed")
         if runtime.run_prepared(ctx, None, 0, ctypes.byref(args), 256, 0, 0, 0, 0, 0, None, ctypes.byref(timing)) != 0:
             raise RuntimeError("run_prepared dag failed")
@@ -1597,7 +1602,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
     if queue_capacity <= 0:
         raise ValueError("queue_capacity must be positive")
     with tempfile.TemporaryDirectory(prefix="pto_cuda_persistent_") as td:
-        ptx, ptx_source = _compile_persistent_ptx(Path(td), arch, mode)
+        ptx, ptx_source, persistent_artifact = _compile_persistent_ptx(Path(td), arch, mode)
     if mode == "direct" and worker_blocks_per_task > 1 and ptx_source.startswith("embedded-"):
         raise RuntimeError("worker_blocks_per_task > 1 requires nvcc-built persistent direct PTX")
     if mode == "dag" and dag_shape == "tensor_tile" and ptx_source.startswith("embedded-"):
@@ -1625,6 +1630,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
                     queue_capacity=queue_capacity,
                     ptx=ptx,
                     ptx_buf=ptx_buf,
+                    persistent_artifact=persistent_artifact,
                     ptx_source=ptx_source,
                     start=start,
                     dag_shape=dag_shape,

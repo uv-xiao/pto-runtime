@@ -48,6 +48,9 @@ Evidence:
   device data.
 - The stream concurrency smoke validates two independent prepared callables
   on distinct streams.
+- `simpler_setup.cuda_callable_compiler.prepare_cuda_host_schedule_callable()`
+  builds the shared ctypes manifest for host-schedule compiler artifacts and
+  preserves PTX/entry-name buffer lifetimes for `prepare_callable`.
 - `tests/ut/py/test_cuda_kernel_compiler.py` covers the CUDA `KernelCompiler`
   entry point for host-schedule task bodies.
 - `tests/ut/py/test_cuda_backend.py` runs one host-schedule callable compiled
@@ -86,8 +89,8 @@ Evidence:
 - `tests/ut/py/test_cuda_kernel_compiler.py` covers both CUDA
   `KernelCompiler` entry points.
 - `simpler_setup/cuda_callable_compiler.py` contains the generated-dispatch
-  source renderer, shared task-body wrapper renderer, and offline `nvcc`
-  compile helper.
+  source renderer, shared task-body wrapper renderer, prepared-callable
+  manifest helpers, and offline `nvcc` compile helper.
 
 ### Evaluation And Reporting
 
