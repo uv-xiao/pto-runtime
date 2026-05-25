@@ -137,6 +137,11 @@ machine, vector length, and task count. Same-work batch rows are therefore
 relative to `pto_host_schedule_batch`, not the one-task `pto_host_schedule`
 row.
 
+The report also includes a PTX-source table by machine and baseline. Treat any
+`embedded-sm80-*` row as a fallback path: the local CUDA driver JIT compiled
+embedded `sm_80` PTX instead of using `nvcc` to produce fresh PTX for the
+requested target architecture.
+
 Current batch rows match descriptor count, not intra-task grid shape. The
 persistent tracer bullet uses one worker block per descriptor, while
 `pto_host_schedule` vector-add uses a full grid, so large-vector rows expose

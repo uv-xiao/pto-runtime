@@ -787,6 +787,15 @@ def _ratio_text(value: int, reference: int | None) -> str:
     return f"{value / reference:.2f}x"
 
 
+def _ptx_source_rows(payload: dict[str, Any]) -> list[tuple[str, str, str]]:
+    sources: set[tuple[str, str, str]] = set()
+    for row in payload.get("results", []):
+        ptx_source = row.get("ptx_source")
+        if ptx_source:
+            sources.add((str(row["machine"]), str(row["baseline"]), str(ptx_source)))
+    return sorted(sources)
+
+
 def merge_payloads(payloads: list[dict[str, Any]], label: str) -> dict[str, Any]:
     source_labels = [payload.get("metadata", {}).get("label", "unknown") for payload in payloads]
     git_commits = sorted(
@@ -898,6 +907,26 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             f"{row['samples']} | "
             f"{row['median_device_wall_ns']} | {row['median_host_wall_ns']} | "
             f"{_ratio_text(row['median_device_wall_ns'], reference)} |"
+        )
+    ptx_source_rows = _ptx_source_rows(payload)
+    if ptx_source_rows:
+        lines.extend(
+            [
+                "",
+                "## PTX Sources",
+                "",
+                "| Machine | Baseline | PTX source |",
+                "| ------- | -------- | ---------- |",
+            ]
+        )
+        for machine, baseline, ptx_source in ptx_source_rows:
+            lines.append(f"| {machine} | {baseline} | `{ptx_source}` |")
+        lines.extend(
+            [
+                "",
+                "- Embedded `sm_80` PTX means the local driver JIT compiled fallback code",
+                "  instead of compiling a fresh target-architecture PTX with `nvcc`.",
+            ]
         )
     lines.extend(
         [

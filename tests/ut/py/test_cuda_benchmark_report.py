@@ -141,6 +141,49 @@ def test_render_report_uses_batch_host_schedule_reference_for_batch_rows():
     assert "match descriptor count, not intra-task grid shape" in report
 
 
+def test_render_report_summarizes_ptx_sources_by_machine_and_baseline():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "ptx-source-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+        },
+        "results": [
+            {
+                "machine": "a100-local",
+                "baseline": "pto_host_schedule",
+                "n": 1024,
+                "device_wall_ns": 1000,
+                "ptx_source": "nvcc-compute_80",
+            },
+            {
+                "machine": "h200-remote",
+                "baseline": "pto_host_schedule",
+                "n": 1024,
+                "device_wall_ns": 800,
+                "ptx_source": "embedded-sm80-ptx",
+            },
+            {
+                "machine": "h200-remote",
+                "baseline": "pto_persistent_queue_batch",
+                "n": 1024,
+                "task_count": 6,
+                "device_wall_ns": 700,
+                "ptx_source": "embedded-sm80-persistent-queue-ptx",
+            },
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+
+    assert "## PTX Sources" in report
+    assert "| a100-local | pto_host_schedule | `nvcc-compute_80` |" in report
+    assert "| h200-remote | pto_host_schedule | `embedded-sm80-ptx` |" in report
+    assert "| h200-remote | pto_persistent_queue_batch | `embedded-sm80-persistent-queue-ptx` |" in report
+    assert "Embedded `sm_80` PTX means the local driver JIT compiled fallback code" in report
+
+
 def test_merge_payloads_preserves_results_and_records_sources():
     cuda_benchmark = _load_benchmark_module()
     payloads = [
