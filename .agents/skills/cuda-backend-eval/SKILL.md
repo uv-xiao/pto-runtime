@@ -66,6 +66,15 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode queue --queue-capacity 2
 ```
 
+Run the persistent DAG smoke with dispatch and fan-in counters:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 1024 --arch compute_80 \
+    --mode dag --queue-capacity 2
+```
+
 ## Microbenchmark Report
 
 Use `cuda_benchmark.py` for the current early-runtime comparison. It runs the
@@ -76,6 +85,8 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_device`: a descriptor-array persistent executor.
 - `pto_persistent_queue`: one scheduler block publishing ready task IDs to a
   bounded device ring queue consumed by worker blocks inside the same launch.
+- `pto_persistent_dag`: generated-dispatch-like task selection and fan-in
+  counters that release dependent tasks onto the bounded ring.
 
 The smoke helper caches the built and loaded host runtime per process, so the
 benchmark can run repeated PTO and baseline samples without rebuilding a shared

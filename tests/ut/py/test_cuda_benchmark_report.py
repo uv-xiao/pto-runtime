@@ -161,8 +161,14 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         include_persistent=True,
     )
 
-    assert seen == ["pto_host_schedule", "direct_driver", "pto_persistent_device", "pto_persistent_queue"]
-    assert len(payload["results"]) == 4
+    assert seen == [
+        "pto_host_schedule",
+        "direct_driver",
+        "pto_persistent_device",
+        "pto_persistent_queue",
+        "pto_persistent_dag",
+    ]
+    assert len(payload["results"]) == 5
 
 
 def test_render_report_describes_stream_concurrency_rows():

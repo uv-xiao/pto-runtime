@@ -165,7 +165,8 @@ public:
         }
         if (header->op != PTO_CUDA_HOST_OP_VECTOR_ADD_F32 &&
             header->op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_TASKS &&
-            header->op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_QUEUE) {
+            header->op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_QUEUE &&
+            header->op != PTO_CUDA_PERSISTENT_OP_DAG_F32_RING) {
             return -1;
         }
         uint32_t stream_id = 0;
@@ -234,7 +235,8 @@ public:
         PreparedCallable &prepared = it->second;
         if (prepared.op != PTO_CUDA_HOST_OP_VECTOR_ADD_F32 &&
             prepared.op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_TASKS &&
-            prepared.op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_QUEUE) {
+            prepared.op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_QUEUE &&
+            prepared.op != PTO_CUDA_PERSISTENT_OP_DAG_F32_RING) {
             return -1;
         }
         if (cudaSetDevice(device_id_) != cudaSuccess) {
@@ -262,6 +264,7 @@ public:
         const PtoCudaPersistentVectorAddTask *tasks = nullptr;
         uint64_t task_count = 0;
         const PtoCudaPersistentVectorAddQueueState *queue_state = nullptr;
+        const PtoCudaPersistentDagState *dag_state = nullptr;
         void *kernel_args[4] = {};
         if (prepared.op == PTO_CUDA_HOST_OP_VECTOR_ADD_F32) {
             auto *typed_args = static_cast<const PtoCudaVectorAddArgs *>(args);
@@ -299,6 +302,15 @@ public:
             }
             queue_state = typed_args->state;
             kernel_args[0] = &queue_state;
+        } else if (prepared.op == PTO_CUDA_PERSISTENT_OP_DAG_F32_RING) {
+            auto *typed_args = static_cast<const PtoCudaPersistentDagArgs *>(args);
+            if (typed_args->state == nullptr) {
+                cudaEventDestroy(start);
+                cudaEventDestroy(stop);
+                return -1;
+            }
+            dag_state = typed_args->state;
+            kernel_args[0] = &dag_state;
         }
         CUresult cu_rc = cuLaunchKernel(
             prepared.function, prepared.grid_dim, 1, 1, prepared.block_dim, 1, 1, prepared.shared_mem_bytes,

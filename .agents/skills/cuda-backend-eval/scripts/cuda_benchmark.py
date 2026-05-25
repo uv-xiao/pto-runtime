@@ -305,8 +305,8 @@ def run_direct_sample(device: int, n: int, block_dim: int, ptx: bytes) -> dict[s
 
 
 def run_persistent_sample(device: int, n: int, arch: str, mode: str = "direct") -> dict[str, Any]:
-    task_count = 6 if mode == "queue" else 2
-    queue_capacity = 2 if mode == "queue" else None
+    task_count = 3 if mode == "dag" else 6 if mode == "queue" else 2
+    queue_capacity = 2 if mode in {"dag", "queue"} else None
     result = run_persistent_smoke(
         device=device,
         task_count=task_count,
@@ -315,7 +315,11 @@ def run_persistent_sample(device: int, n: int, arch: str, mode: str = "direct") 
         mode=mode,
         queue_capacity=queue_capacity,
     )
-    result["baseline"] = "pto_persistent_queue" if mode == "queue" else "pto_persistent_device"
+    result["baseline"] = {
+        "dag": "pto_persistent_dag",
+        "direct": "pto_persistent_device",
+        "queue": "pto_persistent_queue",
+    }[mode]
     result["block_dim"] = 256
     return result
 
@@ -333,6 +337,8 @@ def run_single_sample(baseline: str, device: int, n: int, block_dim: int, arch: 
         return run_persistent_sample(device=device, n=n, arch=arch, mode="direct")
     if baseline == "pto_persistent_queue":
         return run_persistent_sample(device=device, n=n, arch=arch, mode="queue")
+    if baseline == "pto_persistent_dag":
+        return run_persistent_sample(device=device, n=n, arch=arch, mode="dag")
     raise ValueError(f"unknown baseline: {baseline}")
 
 
@@ -375,7 +381,7 @@ def run_benchmark(
             results.append(direct)
 
             if include_persistent:
-                for baseline in ("pto_persistent_device", "pto_persistent_queue"):
+                for baseline in ("pto_persistent_device", "pto_persistent_queue", "pto_persistent_dag"):
                     persistent = run_single_sample(
                         baseline=baseline,
                         device=device,
@@ -645,6 +651,7 @@ def render_svg(summary: dict[tuple[str, str, int], dict[str, Any]]) -> str:
     colors = {
         "pto_host_schedule": "#2f6fbb",
         "direct_driver": "#2a9d65",
+        "pto_persistent_dag": "#d62728",
         "pto_persistent_device": "#9467bd",
         "pto_persistent_queue": "#c46a2c",
     }
@@ -715,6 +722,9 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "  one scheduler block publishes descriptor IDs into a bounded",
             "  device ring queue and worker blocks pop them inside the same",
             "  CUDA launch.",
+            "- `pto_persistent_dag` measures generated-dispatch-like task",
+            "  selection plus fan-in counters that release a dependent task",
+            "  onto the same bounded ring queue.",
             "- `pto_stream_serial` measures two independent PTO launches issued",
             "  sequentially on the host-schedule stream pool.",
             "- `pto_stream_parallel` measures two independent PTO launches issued",
@@ -751,7 +761,13 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/cuda-backend/latest"))
     parser.add_argument(
         "--single-baseline",
-        choices=["pto_host_schedule", "direct_driver", "pto_persistent_device", "pto_persistent_queue"],
+        choices=[
+            "pto_host_schedule",
+            "direct_driver",
+            "pto_persistent_device",
+            "pto_persistent_queue",
+            "pto_persistent_dag",
+        ],
         default=None,
     )
     parser.add_argument("--merge-json", type=Path, nargs="*", default=None)

@@ -130,6 +130,14 @@ still is not the final TensorMap/ring runtime, but it exercises the
 scheduler/worker split and back-pressure shape that CUDA needs because there
 is no AICPU.
 
+The following slice layers a small DAG on top of that bounded ring. Task
+descriptors carry a `func_id`, dependent ranges, and an initial fan-in count.
+The persistent executor seeds zero-fan-in tasks, dispatches task bodies through
+a generated-switch-shaped `func_id` branch, decrements dependent fan-in counters
+when tasks complete, and pushes newly ready dependents back into the ring. This
+is the first CUDA smoke path that covers both dispatch selection and dependency
+release inside one persistent launch.
+
 ### Runtime Roles
 
 ```text
