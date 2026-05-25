@@ -233,6 +233,12 @@ as evidence for the current microbenchmark, not a tuned default. The
 `--worker-blocks-per-task 128,256`; use that report to reason about
 descriptor-count scaling before setting a policy.
 
+The `cc6869f7` wider range sweep uses `--sizes 16384,262144,4194304`,
+`--batch-tasks 4,8,16`, and `--worker-blocks-per-task 128,256`. It keeps
+worker-grid rows below the matched host-schedule batch row on A100 and H200,
+but the `4194304` rows become compute-sensitive and no fixed `128` or `256`
+blocks/task setting wins across every GPU, vector size, and task count.
+
 The default benchmark includes `direct_driver_graph`. Use it to compare
 `host_schedule` launch overhead against CUDA Graph replay for the same
 one-kernel callable. It should not be interpreted as a persistent-device

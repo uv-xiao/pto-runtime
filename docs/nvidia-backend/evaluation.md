@@ -8,6 +8,11 @@ baselines, local A100 runs, and remote H200 runs.
 
 The latest captured raw reports are under `tmp/`:
 
+- `tmp/cuda-backend/a100-rangewide-cc6869f7/cuda-benchmark.md`
+- `tmp/cuda-backend/h200-rangewide-cc6869f7/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-rangewide-cc6869f7/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-rangewide-cc6869f7/cuda-benchmark.svg`
+- `tmp/cuda-backend/combined-rangewide-cc6869f7/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/a100-taskcount-7194bfc9/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-taskcount-7194bfc9/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-taskcount-7194bfc9/cuda-benchmark.md`
@@ -47,7 +52,8 @@ The latest captured raw reports are under `tmp/`:
 - `tmp/cuda-backend/combined-graph-ba2cdd0e/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-graph-ba2cdd0e/cuda-benchmark-ratios.svg`
 
-The task-count sweep data was captured from commit `7194bfc9`. The extended
+The wider vector/task range data was captured from commit `cc6869f7`. The
+task-count sweep data was captured from commit `7194bfc9`. The extended
 worker-grid data was captured from commit `3eeb399a`. The earlier worker-grid
 data was captured from commit `e430bc1b`. The stream concurrency data was
 captured from commit `37bebf44`. The DAG-chain data was captured from commit
@@ -144,6 +150,36 @@ matched host-schedule reference pays more repeated launch overhead. It does
 not make the one-block persistent rows acceptable: at `N=1048576`, the A100
 plain persistent batch row is still `31.59x`, `16.92x`, and `10.55x` for
 2, 6, and 12 tasks respectively.
+
+## Wider Range Sweep
+
+The `cc6869f7` wider range sweep keeps the same generated callables and
+extends the descriptor-count sweep to `4,8,16` tasks across `N=16384`,
+`262144`, and `4194304`. The worker-grid row stays below the matched
+host-schedule batch row for every captured row, but the largest vectors become
+compute-sensitive and show a smaller ratio advantage.
+
+| GPU | N | Tasks | Best grid blocks/task | Best grid ratio |
+| --- | - | ----- | --------------------- | --------------- |
+| A100 | 16384 | 16 | 256 | 0.13x |
+| H200 | 16384 | 16 | 128 | 0.13x |
+| A100 | 262144 | 16 | 128 | 0.22x |
+| H200 | 262144 | 16 | 256 | 0.22x |
+| A100 | 4194304 | 16 | 128 | 0.53x |
+| H200 | 4194304 | 16 | 128 | 0.51x |
+
+The best grid size is not monotonic. H200 uses 256 blocks/task for the
+`N=4194304`, four-task row, but 128 blocks/task for the eight-task and
+16-task rows. A100 uses 256 blocks/task for the `N=4194304`, eight-task row,
+but 128 blocks/task for the four-task and 16-task rows. This keeps `128` and
+`256` as candidates for the current vector microbenchmark, not tuned defaults.
+
+The one-block persistent rows remain too serial for large vectors. At
+`N=4194304`, `pto_persistent_device_batch` is `47.18x`, `24.26x`, and
+`12.38x` on A100 for 4, 8, and 16 tasks respectively; H200 is `65.28x`,
+`37.53x`, and `18.46x`. The scalar tensor DAG row is also only an ABI and
+scheduler validation row at this size: it reaches `355.69x` on A100 and
+`461.79x` on H200 versus the matched four-task host-schedule batch row.
 
 ## PTX Sources
 
@@ -415,6 +451,36 @@ PYTHONPATH=$PWD:$PWD/python \
     --output-dir tmp/cuda-backend/combined-taskcount-7194bfc9
 ```
 
+Wider range capture:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --device 0 --sizes 16384,262144,4194304 --repeats 3 \
+    --arch compute_80 --include-persistent --batch-tasks 4,8,16 \
+    --worker-blocks-per-task 128,256 \
+    --label a100-rangewide-cc6869f7 \
+    --output-dir tmp/cuda-backend/a100-rangewide-cc6869f7
+
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && git pull --ff-only && \
+   PYTHONPATH=$PWD:$PWD/python \
+   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+     --device 0 --sizes 16384,262144,4194304 --repeats 3 \
+     --arch compute_90 --include-persistent --batch-tasks 4,8,16 \
+     --worker-blocks-per-task 128,256 \
+     --label h200-rangewide-cc6869f7 \
+     --output-dir tmp/cuda-backend/h200-rangewide-cc6869f7'
+
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --merge-json \
+    tmp/cuda-backend/a100-rangewide-cc6869f7/cuda-benchmark.json \
+    tmp/cuda-backend/h200-rangewide-cc6869f7/cuda-benchmark.json \
+    --label cuda-rangewide-a100-h200-cc6869f7 \
+    --output-dir tmp/cuda-backend/combined-rangewide-cc6869f7
+```
+
 Stream concurrency:
 
 ```bash
@@ -435,8 +501,8 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
 
 ## Next Evaluation Gaps
 
-- Sweep a wider vector-length and descriptor-count range before treating the
-  grid row as a tuned baseline.
+- Add model-shaped kernels and more repetitions before treating any
+  worker-grid setting as a tuned baseline.
 - Replace the fixed 16x16 scalar GEMM body with a CUDA implementation closer
   to the intended tensor-core/tiling backend once the runtime ABI can carry
   richer tensor metadata.
