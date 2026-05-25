@@ -199,6 +199,14 @@ serial wall time on both machines, supporting multiple streams for the
 host-schedule runtime when independent callables are launched from separate
 host threads.
 
+The DAG-chain capture at `323f4587` adds `pto_persistent_dag_chain` to the
+normal `--include-persistent` benchmark. It shows the same generated-dispatch
+PTX can run both the three-task fork/join DAG and a five-task post-fan-in
+chain by changing only runtime graph descriptors. The chain row is expectedly
+slower because it performs more vector work and has two more dependency
+levels; use it as a lifecycle/scheduler validation row, not as a throughput
+claim.
+
 ## Hardware Checks
 
 Local A100:

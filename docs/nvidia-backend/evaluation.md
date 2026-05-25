@@ -16,9 +16,14 @@ The latest captured raw reports are under `tmp/`:
 - `tmp/cuda-backend/h200-stream-37bebf44/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-stream-37bebf44/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-stream-37bebf44/cuda-benchmark.svg`
+- `tmp/cuda-backend/a100-dag-323f4587/cuda-benchmark.md`
+- `tmp/cuda-backend/h200-dag-323f4587/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-dag-323f4587/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-dag-323f4587/cuda-benchmark.svg`
 
 The worker-grid data was captured from commit `e430bc1b`. The stream
-concurrency data was captured from commit `37bebf44`.
+concurrency data was captured from commit `37bebf44`. The DAG-chain data was
+captured from commit `323f4587`.
 
 ## Current Baselines
 
@@ -86,6 +91,29 @@ independent prepared callables can overlap when issued from separate host
 threads. It does not solve the persistent-device scheduling problem, where the
 CUDA device-side scheduler still has to run inside a persistent kernel.
 
+## DAG Chain
+
+The `pto_persistent_dag_chain` row validates that the same generated-dispatch
+compiled binary can run a different runtime graph descriptor: two initial
+tasks fan into an add task, then a multiply task, then a final add task. This
+is still a vector microbenchmark, but it is closer to the desired persistent
+runtime shape than a flat descriptor array because dependencies and fan-in
+counters drive the ready queue.
+
+| GPU | N | DAG ns | DAG-chain ns | Chain/DAG |
+| --- | - | ------ | ------------ | --------- |
+| A100 | 1024 | 32768 | 34816 | 1.06x |
+| H200 | 1024 | 39584 | 46528 | 1.18x |
+| A100 | 65536 | 155648 | 270336 | 1.74x |
+| H200 | 65536 | 140032 | 244320 | 1.74x |
+| A100 | 1048576 | 2333696 | 4242432 | 1.82x |
+| H200 | 1048576 | 2010240 | 3581216 | 1.78x |
+
+The chain row is slower than the three-task DAG because it performs more
+device work and serializes two more dependency levels. That is expected here;
+the useful signal is that graph shape, fan-in, and callable selection are
+runtime data while the generated-dispatch device binary stays stable.
+
 ## Reproduction Commands
 
 Local A100:
@@ -123,6 +151,26 @@ PYTHONPATH=$PWD:$PWD/python \
     --output-dir tmp/cuda-backend/combined-wide-e430bc1b
 ```
 
+DAG-chain capture:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --device 0 --sizes 1024,65536,1048576 --repeats 3 --arch compute_80 \
+    --include-persistent --batch-tasks 6 --worker-blocks-per-task 64 \
+    --label a100-dag-323f4587 \
+    --output-dir tmp/cuda-backend/a100-dag-323f4587
+
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && git pull --ff-only && \
+   PYTHONPATH=$PWD:$PWD/python \
+   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+     --device 0 --sizes 1024,65536,1048576 --repeats 3 --arch compute_90 \
+     --include-persistent --batch-tasks 6 --worker-blocks-per-task 64 \
+     --label h200-dag-323f4587 \
+     --output-dir tmp/cuda-backend/h200-dag-323f4587'
+```
+
 Stream concurrency:
 
 ```bash
@@ -145,5 +193,5 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
 
 - Extend the worker-grid sweep beyond 64 blocks per descriptor and add more
   vector lengths before treating the grid row as a tuned baseline.
-- Evaluate the new five-task DAG-chain row on A100 and H200, then add the raw
-  artifact paths and headline numbers here.
+- Add a richer tensor-shaped task graph with non-vector-add work and explicit
+  memory reuse once the runtime ABI is stable enough.
