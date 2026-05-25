@@ -578,6 +578,10 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
             }} else {{
                 for (unsigned int idx = 0; idx < task.dependent_count; ++idx) {{
                     unsigned int dependent_id = state->dependents[task.dependent_begin + idx];
+                    if (static_cast<unsigned long long>(dependent_id) >= state->task_count) {{
+                        pto_dag_record_error(state, 2U, dependent_id);
+                        continue;
+                    }}
                     unsigned int old = atomicSub(&state->fanin[dependent_id], 1U);
                     if (old == 1U) {{
                         pto_dag_push_ready(state, dependent_id);

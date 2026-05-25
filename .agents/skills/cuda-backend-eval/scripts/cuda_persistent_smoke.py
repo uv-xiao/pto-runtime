@@ -1231,6 +1231,27 @@ def _make_dag_shape(
                 )
             ),
         )
+    if dag_shape == "bad_dependent":
+        task_count = 1
+        host_fanin_t = ctypes.c_uint32 * task_count
+        dependents_t = ctypes.c_uint32 * 1
+        task_t = CudaPersistentDagTask * task_count
+        return (
+            host_fanin_t(0),
+            dependents_t(7),
+            task_t(
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_out,
+                    n=n,
+                    dependent_begin=0,
+                    dependent_count=1,
+                    initial_fanin=0,
+                )
+            ),
+        )
     raise ValueError(f"unknown dag shape: {dag_shape}")
 
 
@@ -1630,7 +1651,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
 ) -> dict:
     if mode not in {"dag", "direct", "queue"}:
         raise ValueError(f"unknown persistent mode: {mode}")
-    if dag_shape not in {"bad_func_id", "chain", "fork_join", "scratch_reuse", "tensor_tile"}:
+    if dag_shape not in {"bad_dependent", "bad_func_id", "chain", "fork_join", "scratch_reuse", "tensor_tile"}:
         raise ValueError(f"unknown dag shape: {dag_shape}")
     if worker_blocks_per_task <= 0:
         raise ValueError("worker_blocks_per_task must be positive")
@@ -1793,7 +1814,7 @@ def main() -> None:
     parser.add_argument("--worker-blocks-per-task", type=int, default=1)
     parser.add_argument(
         "--dag-shape",
-        choices=["bad_func_id", "chain", "fork_join", "scratch_reuse", "tensor_tile"],
+        choices=["bad_dependent", "bad_func_id", "chain", "fork_join", "scratch_reuse", "tensor_tile"],
         default="fork_join",
     )
     parser.add_argument("--tensor-rows", type=int, default=16)
