@@ -430,6 +430,13 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
   'hostname; command -v nvcc || true; nvidia-smi --query-gpu=name,compute_cap,driver_version,memory.total --format=csv,noheader'
 ```
 
+The CUDA real-data pytest files use
+`simpler_setup.cuda_preflight.cuda_skip_reason(require_nvcc=True)` before
+running device work. The shared preflight skips with a concrete reason when
+`nvcc`, `nvidia-smi`, or a visible NVIDIA driver/GPU is unavailable. Keep new
+CUDA hardware tests on the same marker path instead of open-coding
+`shutil.which("nvcc")`.
+
 ## Paper-Aligned Evaluation Shape
 
 Use the papers to choose workloads and baselines, but do not claim paper-level

@@ -10,8 +10,6 @@
 
 from __future__ import annotations
 
-import shutil
-
 import pytest
 from simpler.task_interface import ArgDirection
 
@@ -20,6 +18,7 @@ from simpler_setup.cuda_callable_compiler import (
     CudaPersistentCallableArtifact,
     PreparedCudaCallable,
 )
+from simpler_setup.cuda_preflight import cuda_skip_reason
 from simpler_setup.scene_test import (
     SceneTestCase,
     TaskArgsBuilder,
@@ -27,6 +26,9 @@ from simpler_setup.scene_test import (
     _compile_chip_callable_from_spec,
     scene_test,
 )
+
+_CUDA_SKIP_REASON = cuda_skip_reason(require_nvcc=True)
+requires_cuda = pytest.mark.skipif(_CUDA_SKIP_REASON is not None, reason=_CUDA_SKIP_REASON or "")
 
 _VECTOR_ADD_BODY = """
 unsigned long long i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -214,7 +216,7 @@ def test_scene_test_compiles_cuda_persistent_device_callable(tmp_path, monkeypat
     assert seen["kwargs"]["arch"] == "compute_80"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA scene-test smoke")
+@requires_cuda
 def test_scene_test_runs_cuda_host_schedule_vector_add_with_real_data(tmp_path):
     torch = pytest.importorskip("torch")
 
@@ -253,7 +255,7 @@ def test_scene_test_runs_cuda_host_schedule_vector_add_with_real_data(tmp_path):
         worker.close()
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent scene-test smoke")
+@requires_cuda
 def test_scene_test_runs_cuda_persistent_device_dag_with_real_data(tmp_path):
     torch = pytest.importorskip("torch")
 

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import ctypes
 import json
-import shutil
 import subprocess
 import sys
 import threading
@@ -21,9 +20,13 @@ import time
 import pytest
 
 from simpler_setup.cuda_callable_compiler import CudaVectorAddArgs
+from simpler_setup.cuda_preflight import cuda_skip_reason
 from simpler_setup.kernel_compiler import KernelCompiler
 from simpler_setup.platform_info import parse_platform, to_platform
 from simpler_setup.runtime_builder import RuntimeBuilder
+
+_CUDA_SKIP_REASON = cuda_skip_reason(require_nvcc=True)
+requires_cuda = pytest.mark.skipif(_CUDA_SKIP_REASON is not None, reason=_CUDA_SKIP_REASON or "")
 
 
 def test_cuda_platform_maps_to_onboard_variant():
@@ -74,7 +77,7 @@ def cuda_host_runtime_binaries():
     return RuntimeBuilder(platform="cuda").get_binaries("host_schedule", build=True)
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA runtime smoke test")
+@requires_cuda
 def test_cuda_host_schedule_worker_run_accepts_raw_cuda_args():
     result = subprocess.run(
         [
@@ -107,7 +110,7 @@ def test_cuda_host_schedule_worker_run_accepts_raw_cuda_args():
     assert payload["device_wall_ns"] > 0
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA runtime smoke test")
+@requires_cuda
 def test_cuda_host_schedule_runs_kernel_compiler_task_body_with_real_device_data(tmp_path, cuda_host_runtime_binaries):
     task_src = tmp_path / "vector_add.pto.cu"
     task_src.write_text(
@@ -250,7 +253,7 @@ struct PtoTaskContext {
         runtime.destroy_device_context(ctx)
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA runtime smoke test")
+@requires_cuda
 def test_cuda_host_schedule_runs_vector_add_with_real_device_data(tmp_path, cuda_host_runtime_binaries):
     kernel_src = tmp_path / "vector_add.cu"
     kernel_src.write_text(
@@ -382,7 +385,7 @@ extern "C" __global__ void pto_vector_add_f32(
         runtime.destroy_device_context(ctx)
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA runtime smoke test")
+@requires_cuda
 def test_cuda_standalone_smoke_can_run_twice_in_one_process():
     script = """
 import sys
@@ -403,7 +406,7 @@ for _ in range(2):
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_runs_vector_add_tasks():
     script = """
 import sys
@@ -426,7 +429,7 @@ assert result["task_count"] == 2
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent grid smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_runs_multi_block_vector_add_tasks():
     script = """
 import sys
@@ -458,7 +461,7 @@ assert result["worker_blocks"] == 8
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent queue smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_runs_scheduler_worker_queue():
     script = """
 import sys
@@ -484,7 +487,7 @@ assert result["completed_count"] == 4
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent ring smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_runs_bounded_ring_queue():
     script = """
 import sys
@@ -516,7 +519,7 @@ assert result["completed_count"] == 6
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent DAG smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_runs_dispatch_dag():
     script = """
 import sys
@@ -552,7 +555,7 @@ assert result["source_kind"] == "generated-dispatch"
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent DAG smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_reports_device_scheduler_errors():
     script = """
 import sys
@@ -588,7 +591,7 @@ else:
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent DAG smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_runs_dispatch_dag_chain():
     script = """
 import sys
@@ -626,7 +629,7 @@ assert result["source_kind"] == "generated-dispatch"
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent DAG smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_runs_dispatch_dag_with_scratch_reuse():
     script = """
 import sys
@@ -665,7 +668,7 @@ assert result["scratch_reuse"] == {"reused_buffer": "tmp0", "reuse_task": 4}
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA persistent DAG smoke test")
+@requires_cuda
 def test_cuda_persistent_device_smoke_runs_dispatch_dag_tensor_tile():
     script = """
 import sys
@@ -715,7 +718,7 @@ assert result["tensor_tile"] == {
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc is required for CUDA runtime concurrency test")
+@requires_cuda
 def test_cuda_host_schedule_runs_independent_callables_on_multiple_streams(tmp_path, cuda_host_runtime_binaries):
     kernel_src = tmp_path / "slow_vector_add.cu"
     kernel_src.write_text(

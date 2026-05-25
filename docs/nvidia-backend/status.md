@@ -112,6 +112,8 @@ Evidence:
   writing, and cache reuse.
 - `tests/ut/py/test_cuda_kernel_compiler.py` covers both CUDA
   `KernelCompiler` entry points.
+- `simpler_setup/cuda_preflight.py` gives CUDA real-data tests one shared
+  preflight path for `nvcc`, `nvidia-smi`, and driver visibility.
 - `simpler_setup/cuda_callable_compiler.py` contains the generated-dispatch
   source renderer, shared task-body wrapper renderer, prepared-callable
   manifest helpers, and offline `nvcc` compile helper.
@@ -397,6 +399,37 @@ Result: `status=pass`, `ptx_arch=compute_90`,
 The H200 invalid-dispatch check returned the expected diagnostic:
 `persistent dag scheduler error code=1 task_id=0 count=1`.
 
+After adding shared CUDA preflight skip reporting, the local A100-focused test
+set was rerun:
+
+```bash
+.venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_preflight.py \
+  tests/ut/py/test_cuda_backend.py \
+  tests/ut/py/test_cuda_scene_test.py -q
+```
+
+Result: `25 passed`.
+
+The preflight and CUDA scene-test subset was also run on the remote H200
+checkout after pushing this change:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && \
+   git fetch origin design/nvidia-backend >/dev/null && \
+   git checkout -B design/nvidia-backend FETCH_HEAD >/dev/null && \
+   CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH \
+   PYTHONPATH=$PWD:$PWD/python \
+   .venv/bin/python -m pytest \
+     tests/ut/py/test_cuda_preflight.py \
+     tests/ut/py/test_cuda_scene_test.py -q'
+```
+
+Result: `6 passed, 2 skipped`. The skips are the real-data scene cases that
+still require `torch` in the remote Python environment; the compile/plumbing
+and preflight checks passed.
+
 ## Remaining Gaps
 
 ### Kernel Compiler Integration
@@ -458,5 +491,4 @@ local evidence but are not guaranteed in every CI environment.
 
 Needed:
 
-- clear skip reporting when CUDA, `nvcc`, or a driver is unavailable;
 - optional CUDA CI runner coverage if infrastructure becomes available.
