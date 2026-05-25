@@ -296,6 +296,8 @@ The later descriptor-metadata smoke extends that tensor task with
 rows/cols/inner/leading-dimension and per-tile stride fields. Use these rows
 as ABI and scheduler validation; they are still scalar CUDA GEMM
 microbenchmarks, not tuned tensor-core workloads.
+The `38db010e` A100/H200 descriptor smoke outputs were saved under
+`tmp/cuda-backend/tensor-descriptor-smoke-38db010e/`.
 
 The CUDA Graph launch-baseline capture at `ba2cdd0e` adds
 `direct_driver_graph` to the default benchmark. It showed graph replay faster

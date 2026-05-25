@@ -8,6 +8,8 @@ baselines, local A100 runs, and remote H200 runs.
 
 The latest captured raw reports are under `tmp/`:
 
+- `tmp/cuda-backend/tensor-descriptor-smoke-38db010e/a100.json`
+- `tmp/cuda-backend/tensor-descriptor-smoke-38db010e/h200.json`
 - `tmp/cuda-backend/a100-rangewide-cc6869f7/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-rangewide-cc6869f7/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-rangewide-cc6869f7/cuda-benchmark.md`
@@ -52,7 +54,8 @@ The latest captured raw reports are under `tmp/`:
 - `tmp/cuda-backend/combined-graph-ba2cdd0e/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-graph-ba2cdd0e/cuda-benchmark-ratios.svg`
 
-The wider vector/task range data was captured from commit `cc6869f7`. The
+The tensor descriptor smoke data was captured from commit `38db010e`. The
+wider vector/task range data was captured from commit `cc6869f7`. The
 task-count sweep data was captured from commit `7194bfc9`. The extended
 worker-grid data was captured from commit `3eeb399a`. The earlier worker-grid
 data was captured from commit `e430bc1b`. The stream concurrency data was
@@ -294,9 +297,14 @@ At large `N`, the tensor DAG is roughly four times slower than the simple DAG
 because each output element performs a 16-term dot product before the
 elementwise residual, gate, and fan-in tasks. This is expected and confirms
 that the persistent-device scheduler can run non-elementwise callable bodies
-without changing the launch path. A local A100 smoke after the descriptor
-extension validated the metadata-carrying tensor DAG at `N=4096` with
-16 tiles, `compute_80` PTX, and copied-back real CUDA data.
+without changing the launch path. A metadata-carrying tensor DAG smoke after
+the descriptor extension validated `N=4096` and 16 tiles with copied-back real
+CUDA data on both A100 and H200:
+
+| GPU | PTX arch | Device ns | Rows x Cols x Inner | Tile count |
+| --- | -------- | --------- | ------------------- | ---------- |
+| A100 | `compute_80` | 102400 | 16 x 16 x 16 | 16 |
+| H200 | `compute_90` | 70464 | 16 x 16 x 16 | 16 |
 
 ## Reproduction Commands
 
