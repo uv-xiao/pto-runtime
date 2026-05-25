@@ -604,6 +604,20 @@ def _sorted_summary_rows(summary: dict[tuple[str, str, int], dict[str, Any]]) ->
     return sorted(summary.values(), key=lambda row: (row["machine"], row["n"], row["baseline"]))
 
 
+def _host_schedule_device_refs(summary: dict[tuple[str, str, int], dict[str, Any]]) -> dict[tuple[str, int], int]:
+    refs: dict[tuple[str, int], int] = {}
+    for row in summary.values():
+        if row["baseline"] == "pto_host_schedule":
+            refs[(row["machine"], row["n"])] = row["median_device_wall_ns"]
+    return refs
+
+
+def _ratio_text(value: int, reference: int | None) -> str:
+    if reference is None or reference == 0:
+        return "-"
+    return f"{value / reference:.2f}x"
+
+
 def merge_payloads(payloads: list[dict[str, Any]], label: str) -> dict[str, Any]:
     source_labels = [payload.get("metadata", {}).get("label", "unknown") for payload in payloads]
     git_commits = sorted(
@@ -678,6 +692,7 @@ def render_svg(summary: dict[tuple[str, str, int], dict[str, Any]]) -> str:
 
 def render_markdown_report(payload: dict[str, Any]) -> str:
     summary = summarize_results(payload)
+    host_schedule_refs = _host_schedule_device_refs(summary)
     metadata = payload.get("metadata", {})
     lines = [
         "# CUDA Backend Microbenchmark Report",
@@ -698,14 +713,16 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "| Machine | Baseline | N | Samples | Median device ns | Median host ns |",
-            "| ------- | -------- | - | ------- | ---------------- | -------------- |",
+            "| Machine | Baseline | N | Samples | Median device ns | Median host ns | Device vs host_schedule |",
+            "| ------- | -------- | - | ------- | ---------------- | -------------- | ----------------------- |",
         ]
     )
     for row in _sorted_summary_rows(summary):
+        reference = host_schedule_refs.get((row["machine"], row["n"]))
         lines.append(
             f"| {row['machine']} | {row['baseline']} | {row['n']} | {row['samples']} | "
-            f"{row['median_device_wall_ns']} | {row['median_host_wall_ns']} |"
+            f"{row['median_device_wall_ns']} | {row['median_host_wall_ns']} | "
+            f"{_ratio_text(row['median_device_wall_ns'], reference)} |"
         )
     lines.extend(
         [
@@ -731,6 +748,7 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "  concurrently from host threads onto separate CUDA streams.",
             "- Small `n` values are dominated by launch overhead; larger `n` values start",
             "  to include more device work but are still a microbenchmark.",
+            "- Ratio columns are relative to `pto_host_schedule` for the same machine and `N`.",
             "",
             "![Median device time](cuda-benchmark.svg)",
             "",

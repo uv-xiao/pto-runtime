@@ -66,10 +66,36 @@ def test_render_report_contains_table_and_svg():
     svg = cuda_benchmark.render_svg(cuda_benchmark.summarize_results(payload))
 
     assert "CUDA Backend Microbenchmark Report" in report
-    assert "| Machine | Baseline | N | Samples | Median device ns |" in report
+    expected_header = (
+        "| Machine | Baseline | N | Samples | Median device ns | Median host ns | Device vs host_schedule |"
+    )
+    assert expected_header in report
     assert "a100-local" in report
     assert "<svg" in svg
     assert "direct_driver" in svg
+
+
+def test_render_report_includes_host_schedule_relative_ratios():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "ratio-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+        },
+        "results": [
+            {"machine": "a100-local", "baseline": "pto_host_schedule", "n": 1024, "device_wall_ns": 1000},
+            {"machine": "a100-local", "baseline": "direct_driver", "n": 1024, "device_wall_ns": 500},
+            {"machine": "a100-local", "baseline": "pto_persistent_dag", "n": 1024, "device_wall_ns": 2500},
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+
+    assert "| a100-local | pto_host_schedule | 1024 | 1 | 1000 | 1000 | 1.00x |" in report
+    assert "| a100-local | direct_driver | 1024 | 1 | 500 | 500 | 0.50x |" in report
+    assert "| a100-local | pto_persistent_dag | 1024 | 1 | 2500 | 2500 | 2.50x |" in report
+    assert "relative to `pto_host_schedule` for the same machine and `N`" in report
 
 
 def test_merge_payloads_preserves_results_and_records_sources():
