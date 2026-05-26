@@ -58,7 +58,20 @@ through the same `(a, b, out, n)` host-schedule ABI without requiring `torch`:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_smoke.py \
     --runner worker --op mul --device 0 --n 1024 --block-dim 256 \
-    --arch compute_80 --no-build
+    --arch compute_80 --no-build \
+    --output-json tmp/cuda-backend/worker-mul-smoke/a100.json
+```
+
+Use `cuda_smoke_report.py` to turn captured smoke JSON from A100 and H200 into
+Markdown and SVG evidence:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_smoke_report.py \
+    tmp/cuda-backend/worker-mul-smoke/a100.json \
+    tmp/cuda-backend/worker-mul-smoke/h200.json \
+    --label worker-mul-smoke \
+    --output-dir tmp/cuda-backend/worker-mul-smoke
 ```
 
 Run the persistent-device tracer-bullet smoke:

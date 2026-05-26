@@ -542,6 +542,60 @@ def test_cuda_worker_smoke_generates_multiply_task_body():
     assert "ctx->a[i] + ctx->b[i]" not in body
 
 
+def test_cuda_smoke_main_writes_output_json(tmp_path, monkeypatch, capsys):
+    cuda_smoke = _load_smoke_module()
+    output = tmp_path / "smoke.json"
+
+    monkeypatch.setattr(
+        cuda_smoke,
+        "run_worker_smoke",
+        lambda device, n, block_dim, arch, build, op: {
+            "status": "pass",
+            "runner": "worker",
+            "runtime": "host_schedule",
+            "mode": f"worker/{op}",
+            "op": op,
+            "device": device,
+            "n": n,
+            "block_dim": block_dim,
+            "ptx_arch": arch,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "cuda_smoke.py",
+            "--runner",
+            "worker",
+            "--op",
+            "mul",
+            "--device",
+            "1",
+            "--n",
+            "64",
+            "--block-dim",
+            "32",
+            "--arch",
+            "compute_90",
+            "--no-build",
+            "--output-json",
+            str(output),
+        ],
+    )
+
+    cuda_smoke.main()
+
+    printed = json.loads(capsys.readouterr().out)
+    written = json.loads(output.read_text())
+    assert printed == written
+    assert written["op"] == "mul"
+    assert written["runtime"] == "host_schedule"
+    assert written["mode"] == "worker/mul"
+    assert written["device"] == 1
+    assert written["ptx_arch"] == "compute_90"
+
+
 def test_persistent_direct_launch_can_use_multiple_worker_blocks_per_task():
     cuda_persistent_smoke = _load_persistent_smoke_module()
     ptx_buf = ctypes.create_string_buffer(b"ptx\0")

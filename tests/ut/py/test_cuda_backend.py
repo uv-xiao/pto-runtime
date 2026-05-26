@@ -104,6 +104,8 @@ def test_cuda_host_schedule_worker_run_accepts_raw_cuda_args():
     payload = json.loads(result.stdout)
     assert payload["status"] == "pass"
     assert payload["runner"] == "worker"
+    assert payload["runtime"] == "host_schedule"
+    assert payload["mode"] == "worker/add"
     assert payload["ptx_arch"] == "compute_80"
     assert payload["ptx_source"] == "kernel-compiler-worker-task-body-compute_80"
     assert payload["host_wall_ns"] > 0
@@ -139,6 +141,8 @@ def test_cuda_host_schedule_worker_run_accepts_multiply_task_body():
     payload = json.loads(result.stdout)
     assert payload["status"] == "pass"
     assert payload["runner"] == "worker"
+    assert payload["runtime"] == "host_schedule"
+    assert payload["mode"] == "worker/mul"
     assert payload["op"] == "mul"
     assert payload["ptx_source"] == "kernel-compiler-worker-task-body-mul-compute_80"
     assert payload["host_wall_ns"] > 0

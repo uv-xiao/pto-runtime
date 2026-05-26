@@ -288,6 +288,15 @@ PYTHONPATH=$PWD:$PWD/python \
 Result: `status=pass`, `runner=worker`, `ptx_arch=compute_80`,
 `ptx_source=kernel-compiler-worker-task-body-compute_80`.
 
+The no-torch host-schedule Worker multiply smoke was captured on both GPUs
+with `--output-json` and rendered through `cuda_smoke_report.py`:
+
+- A100: `status=pass`, `mode=worker/mul`, `ptx_arch=compute_80`
+- H200: `status=pass`, `mode=worker/mul`, `ptx_arch=compute_90`
+- Report:
+  `tmp/cuda-backend/worker-mul-smoke-output-json/cuda-smoke-report.md`
+- SVG: `tmp/cuda-backend/worker-mul-smoke-output-json/cuda-smoke-report.svg`
+
 The docs and skill updates were checked with targeted `pre-commit` runs and
 `git diff --check` before commit.
 

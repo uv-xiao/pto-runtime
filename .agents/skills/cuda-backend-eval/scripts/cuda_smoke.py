@@ -370,6 +370,8 @@ struct PtoTaskContext {
     return {
         "status": "pass",
         "runner": "worker",
+        "runtime": "host_schedule",
+        "mode": f"worker/{op}",
         "op": op,
         "device": device,
         "n": n,
@@ -396,6 +398,7 @@ def main() -> None:
     parser.add_argument("--runner", choices=("direct_c_api", "worker"), default="direct_c_api")
     parser.add_argument("--op", choices=("add", "mul"), default="add", help="Worker task body operation")
     parser.add_argument("--no-build", action="store_true", help="Use existing runtime binaries without rebuilding")
+    parser.add_argument("--output-json", type=Path, help="Optional path to write the smoke JSON payload")
     args = parser.parse_args()
 
     if args.runner == "worker":
@@ -404,7 +407,11 @@ def main() -> None:
         if args.op != "add":
             parser.error("--op is only supported by --runner worker")
         result = run_smoke(args.device, args.n, args.block_dim, args.arch, build=not args.no_build)
-    print(json.dumps(result, indent=2, sort_keys=True))
+    rendered = json.dumps(result, indent=2, sort_keys=True)
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(rendered + "\n")
+    print(rendered)
 
 
 if __name__ == "__main__":
