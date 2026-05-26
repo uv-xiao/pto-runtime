@@ -194,15 +194,16 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - same-work batch rows;
 - worker-grid batch rows.
 
-The latest paired capture at commit `c0dc1372` uses the `8x4x12` tensor
+The latest paired capture at commit `9c99ae8a` uses the `8x4x12` tensor
 descriptor, sizes `1024,65536,1048576`, three repeats, task counts `2,6,12`,
 and worker-grid values `32,64,128,256`. It includes the compiler-backed
 host-schedule row, unary square host-schedule row, quad host-schedule row, and
 `pto_persistent_dag_scalar_axpy`, `pto_persistent_dag_scalar_affine`, and
 `pto_persistent_dag_triad` on both A100 and H200. It also includes
 `pto_persistent_dag_quad`, validating fourth tensor task descriptor fields,
-and `pto_persistent_dag_unary_square`, validating unary persistent DAG
-arguments in the full paired benchmark path.
+`pto_persistent_dag_generic_args`, validating indexed generic tensor/scalar
+argument slots, and `pto_persistent_dag_unary_square`, validating unary
+persistent DAG arguments in the full paired benchmark path.
 
 Evidence:
 
@@ -1187,8 +1188,27 @@ The same command was run on H200 with `--arch compute_90`. Result:
 `dispatch_func_ids=[9,2,1]`, and `device_wall_ns=30720`; H200 reported
 `status=pass`, `ptx_source=nvcc-persistent-generated-dispatch-compute_90`,
 `dispatch_func_ids=[9,2,1]`, and `device_wall_ns=33600`.
-The paired-current validator now expects this baseline in the next refreshed
-full paired capture, raising the combined sample count from `684` to `702`.
+
+The full paired current benchmark was then refreshed at commit `9c99ae8a`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python \
+    .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
+    --sync-remote-tree
+```
+
+Result: `tmp/cuda-backend/combined-current-9c99ae8a/` contains
+`cuda-benchmark.json`, `cuda-benchmark.md`, `cuda-benchmark.svg`, and
+`cuda-benchmark-ratios.svg`. The combined JSON has `702` samples, including
+`18` `pto_persistent_dag_generic_args` samples. All rows reported pass
+status. The paired-current validator reported:
+`validated tmp/cuda-backend/combined-current-9c99ae8a/cuda-benchmark.json`.
+The compact DAG table now includes `Generic Args/DAG`; the H200 generic-args
+ratios versus `pto_persistent_dag` are `1.00x`, `1.06x`, and `0.99x` for
+`N=1024,65536,1048576`, while the A100 ratios are `0.82x`, `0.09x`, and
+`1.15x`. Treat the A100 `N=65536` DAG ratios as noisy current evidence rather
+than a tuned throughput claim.
 
 ## Remaining Gaps
 

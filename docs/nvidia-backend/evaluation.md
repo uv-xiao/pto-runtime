@@ -8,12 +8,12 @@ local A100 runs, and remote H200 runs.
 
 ## Current Evidence
 
-The latest paired A100/H200 capture was taken at commit `c0dc1372`:
+The latest paired A100/H200 capture was taken at commit `9c99ae8a`:
 
 - [Current capture](evaluation-current.md) summarizes the latest
   `8x4x12` tensor-descriptor sweep, selected baselines, host-schedule unary
-  and quad rows, scalar AXPY, scalar affine, triad, quad, and unary-square
-  descriptor rows, and headline interpretation.
+  and quad rows, scalar AXPY, scalar affine, triad, quad, generic-args, and
+  unary-square descriptor rows, and headline interpretation.
 - [Historical captures](evaluation-history.md) preserve the previous
   accumulated benchmark notes, including earlier graph, stream, task-count,
   worker-grid, DAG-chain, scratch-reuse, and tensor-tile captures.
@@ -21,9 +21,9 @@ The latest paired A100/H200 capture was taken at commit `c0dc1372`:
 The latest raw artifacts remain under `tmp/` and are intentionally not
 committed:
 
-- `tmp/cuda-backend/a100-current-c0dc1372/`
-- `tmp/cuda-backend/h200-current-c0dc1372/`
-- `tmp/cuda-backend/combined-current-c0dc1372/`
+- `tmp/cuda-backend/a100-current-9c99ae8a/`
+- `tmp/cuda-backend/h200-current-9c99ae8a/`
+- `tmp/cuda-backend/combined-current-9c99ae8a/`
 - `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/worker-square-smoke-4cdde399/`
 - `tmp/cuda-backend/worker-quad-smoke-4327698e/`
@@ -152,7 +152,7 @@ Validate the current paired capture before copying numbers into
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/combined-current-c0dc1372/cuda-benchmark.json \
+    tmp/cuda-backend/combined-current-9c99ae8a/cuda-benchmark.json \
     --preset paired-current
 ```
 
