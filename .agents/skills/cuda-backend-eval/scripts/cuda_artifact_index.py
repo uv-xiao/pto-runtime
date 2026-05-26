@@ -97,6 +97,13 @@ def _resource_policy(payload: dict[str, Any]) -> str | None:
     )
 
 
+def _scalar_args(payload: dict[str, Any]) -> str | None:
+    scalars = payload.get("scalar_args")
+    if not isinstance(scalars, dict) or not scalars:
+        return None
+    return ",".join(f"{key}={scalars[key]}" for key in sorted(scalars))
+
+
 def _read_artifact(path: Path, root: Path) -> dict[str, Any]:
     payload = json.loads((path / "cuda-benchmark.json").read_text())
     metadata = payload.get("metadata", {})
@@ -155,6 +162,9 @@ def _read_smoke_artifact(path: Path, root: Path) -> dict[str, Any]:
         "resource_policies": _sorted_unique(
             {policy for payload in payloads for policy in (_resource_policy(payload),) if policy is not None}
         ),
+        "scalar_args": _sorted_unique(
+            {scalars for payload in payloads for scalars in (_scalar_args(payload),) if scalars is not None}
+        ),
         "tensor_tiles": _tensor_tile_shapes(payloads),
         "has_markdown": True,
         "has_svg": (path / "cuda-smoke-report.svg").exists(),
@@ -195,12 +205,14 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
         (
             "| Path | Kind | Label | Machine | Commit | Results | Sizes | "
             "Tensor tile | Smoke mode | Dispatch | Scheduler errors | "
-            "Resource policy | Baselines | Markdown | SVG | ratio SVG |"
+            "Resource policy | Scalar args | Baselines | Markdown | SVG | "
+            "ratio SVG |"
         ),
         (
             "| ---- | ---- | ----- | ------- | ------ | ------- | ----- | "
             "----------- | ---------- | -------- | ---------------- | "
-            "--------------- | --------- | -------- | --- | --------- |"
+            "--------------- | ----------- | --------- | -------- | --- | "
+            "--------- |"
         ),
     ]
     for entry in entries:
@@ -212,6 +224,7 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             f"{_format_list(entry.get('dispatches', []))} | "
             f"{_format_list(entry.get('scheduler_errors', []))} | "
             f"{_format_list(entry.get('resource_policies', []))} | "
+            f"{_format_list(entry.get('scalar_args', []))} | "
             f"{_format_list(entry['baselines'])} | "
             f"{_checkmark(entry['has_markdown'])} | {_checkmark(entry['has_svg'])} | "
             f"{_checkmark(entry['has_ratio_svg'])} |"

@@ -76,6 +76,7 @@ struct PtoCudaPersistentDagTask {
     uint32_t dependent_begin;
     uint32_t dependent_count;
     uint32_t initial_fanin;
+    float scalar0;
     uint32_t rows;
     uint32_t cols;
     uint32_t inner;

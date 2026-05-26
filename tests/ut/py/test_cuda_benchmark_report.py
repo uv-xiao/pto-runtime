@@ -206,6 +206,7 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
             "block_dim": 256,
             "grid_dim": 3,
         },
+        "scalar_args": {"scalar0": 1.5},
         "tensor_tile": {
             "rows": 16,
             "cols": 16,
@@ -230,17 +231,24 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
     markdown = cuda_smoke_report.render_markdown_report(payload, label="tensor-smoke")
     svg = cuda_smoke_report.render_svg_report(payload, label="tensor-smoke")
 
-    assert "| Dispatch | Scheduler errors | Resource policy |" in markdown
+    assert "| Dispatch | Scheduler errors | Resource policy | Scalar args |" in markdown
     assert "| a100 | pass | persistent_device | dag/tensor_tile | 4096 | `compute_80` | 102400 | 122260 |" in markdown
     assert "| h200 | pass | persistent_device | dag/tensor_tile | 4096 | `compute_90` | 70464 | 79788 |" in markdown
-    assert "| `3,1,2,1` | `count=0,code=0,task=0` | `sched=1,workers=2,wp=1,stream=1,block=256,grid=3` |" in markdown
-    assert "| `3,1,2,1` | `count=1,code=7,task=3` | `sched=1,workers=2,wp=1,stream=1,block=256,grid=3` |" in markdown
+    assert (
+        "| `3,1,2,1` | `count=0,code=0,task=0` | `sched=1,workers=2,wp=1,stream=1,block=256,grid=3` | `scalar0=1.5` |"
+        in markdown
+    )
+    assert (
+        "| `3,1,2,1` | `count=1,code=7,task=3` | `sched=1,workers=2,wp=1,stream=1,block=256,grid=3` | `scalar0=1.5` |"
+        in markdown
+    )
     assert "nvcc-persistent-generated-dispatch-compute_90" in markdown
     assert "<svg" in svg
     assert "tensor-smoke" in svg
     assert "h200" in svg
     assert "errors: count=1,code=7,task=3" in svg
     assert "policy: sched=1,workers=2,wp=1,stream=1,block=256,grid=3" in svg
+    assert "scalars: scalar0=1.5" in svg
 
 
 def test_cuda_smoke_scripts_use_shared_callable_manifest_types():
@@ -300,7 +308,7 @@ def test_cuda_artifact_index_renders_markdown_and_writes_default_index(tmp_path)
     assert output == tmp_path / "index.md"
     assert "# CUDA Backend Artifact Index" in report
     assert (
-        "| a100-graph | benchmark | a100-graph | hina | abc123 | 1 | 1024 |  |  |  |  |  | direct_driver_graph |"
+        "| a100-graph | benchmark | a100-graph | hina | abc123 | 1 | 1024 |  |  |  |  |  |  | direct_driver_graph |"
     ) in report
     assert "ratio SVG" in report
 
@@ -359,6 +367,7 @@ def test_cuda_artifact_index_scans_smoke_report_outputs(tmp_path):
             "block_dim": 256,
             "grid_dim": 3,
         },
+        "scalar_args": {"scalar0": 1.5},
         "tensor_tile": {
             "rows": 16,
             "cols": 16,
@@ -395,17 +404,19 @@ def test_cuda_artifact_index_scans_smoke_report_outputs(tmp_path):
                 "count=1,code=7,task=3",
             ],
             "resource_policies": ["sched=1,workers=2,wp=1,stream=1,block=256,grid=3"],
+            "scalar_args": ["scalar0=1.5"],
             "tensor_tiles": ["16x16x16"],
             "has_markdown": True,
             "has_svg": True,
             "has_ratio_svg": False,
         }
     ]
-    assert "Smoke mode | Dispatch | Scheduler errors | Resource policy |" in report
+    assert "Smoke mode | Dispatch | Scheduler errors | Resource policy | Scalar args |" in report
     assert "| tensor-descriptor-smoke | smoke | tensor-smoke | combined | unknown | 2 |" in report
     assert "| 4096 | 16x16x16 | dag/tensor_tile | 3,1,2,1 |" in report
     assert "count=0,code=0,task=0, count=1,code=7,task=3 |" in report
     assert "sched=1,workers=2,wp=1,stream=1,block=256,grid=3 |" in report
+    assert "scalar0=1.5 |" in report
 
 
 def test_cuda_artifact_index_sorts_numeric_sizes_before_strings(tmp_path):
@@ -861,6 +872,29 @@ def test_cuda_pair_persistent_smoke_builds_tensor_tile_descriptor_workflow(tmp_p
     assert "persistent-tensor_tile-8x4x12-smoke-abc123" in report
 
 
+def test_cuda_pair_persistent_smoke_builds_scalar_axpy_workflow(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape="scalar_axpy",
+        task_count=3,
+        queue_capacity=2,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+
+    assert "persistent-scalar_axpy-smoke-abc123" in str(local)
+    assert "--dag-shape" in local
+    assert "scalar_axpy" in local
+    assert "--dag-shape scalar_axpy" in remote[-1]
+    assert "persistent-scalar_axpy-smoke-abc123/h200.json" in remote[-1]
+
+
 def test_cuda_pair_persistent_smoke_can_sync_local_tree_and_dry_run(tmp_path):
     cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
     calls = []
@@ -1181,11 +1215,12 @@ def test_persistent_dag_compiler_path_uses_kernel_compiler(tmp_path, monkeypatch
     assert seen["platform"] == "cuda"
     assert seen["arch"] == "compute_90"
     assert seen["nvcc"] == "/usr/local/cuda/bin/nvcc"
-    assert [task["func_id"] for task in seen["task_sources"]] == [1, 2, 3]
+    assert [task["func_id"] for task in seen["task_sources"]] == [1, 2, 3, 4]
     assert [task["task_name"] for task in seen["task_sources"]] == [
         "add_f32",
         "mul_f32",
         "matmul_tile_f32",
+        "axpy_f32",
     ]
     assert {task["body_style"] for task in seen["task_sources"]} == {"task_body"}
     assert all("PtoCudaPersistentDagTask" in task["context_definition"] for task in seen["task_sources"])

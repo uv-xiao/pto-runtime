@@ -697,6 +697,18 @@ task->out[out_base + row * task->ldc + col] = acc;
 """.strip(),
         ),
     ),
+    CudaPersistentTaskBodyFunction(
+        func_id=4,
+        task_body=CudaTaskBody(
+            name="axpy_f32",
+            context_definition=_PERSISTENT_DAG_CONTEXT_DEFINITION,
+            body="""
+const PtoCudaPersistentDagTask *task = ctx->task;
+unsigned long long i = ctx->i;
+task->out[i] = task->scalar0 * task->a[i] + task->b[i];
+""".strip(),
+        ),
+    ),
 ]
 _PERSISTENT_DAG_SOURCE = render_persistent_dag_source(_PERSISTENT_DAG_TASK_FUNCTIONS)
 
@@ -781,6 +793,7 @@ class CudaPersistentDagTask(ctypes.Structure):
         ("dependent_begin", ctypes.c_uint32),
         ("dependent_count", ctypes.c_uint32),
         ("initial_fanin", ctypes.c_uint32),
+        ("scalar0", ctypes.c_float),
         ("rows", ctypes.c_uint32),
         ("cols", ctypes.c_uint32),
         ("inner", ctypes.c_uint32),
@@ -1208,6 +1221,48 @@ def _make_dag_shape(
                     out=dev_out,
                     n=n,
                     dependent_begin=4,
+                    dependent_count=0,
+                    initial_fanin=2,
+                ),
+            ),
+        )
+    if dag_shape == "scalar_axpy":
+        task_count = 3
+        host_fanin_t = ctypes.c_uint32 * task_count
+        dependents_t = ctypes.c_uint32 * 2
+        task_t = CudaPersistentDagTask * task_count
+        return (
+            host_fanin_t(0, 0, 2),
+            dependents_t(2, 2),
+            task_t(
+                CudaPersistentDagTask(
+                    func_id=4,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp0,
+                    n=n,
+                    dependent_begin=0,
+                    dependent_count=1,
+                    initial_fanin=0,
+                    scalar0=1.5,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp1,
+                    n=n,
+                    dependent_begin=1,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp0,
+                    b=dev_tmp1,
+                    out=dev_out,
+                    n=n,
+                    dependent_begin=2,
                     dependent_count=0,
                     initial_fanin=2,
                 ),
@@ -1669,6 +1724,9 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         if config.dag_shape == "scratch_reuse":
             expected_tmp0 = [_f32(expected_tmp2[i] + host_a[i]) for i in range(n)]
             expected_out = [_f32(expected_tmp0[i] + expected_tmp3[i]) for i in range(n)]
+        if config.dag_shape == "scalar_axpy":
+            expected_tmp0 = [_f32(_f32(1.5 * host_a[i]) + host_b[i]) for i in range(n)]
+            expected_out = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
         if config.dag_shape == "tensor_tile":
             expected_tmp0 = _matmul_expected(host_a, host_b, n, config.tensor_tile)
             expected_tmp1 = [_f32(expected_tmp0[i] + host_a[i]) for i in range(n)]
@@ -1734,6 +1792,8 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 **config.tensor_tile,
                 "tile_count": (tensor_lengths or _tensor_tile_buffer_lengths(n, config.tensor_tile))["tile_count"],
             }
+        if config.dag_shape == "scalar_axpy":
+            result["scalar_args"] = {"scalar0": 1.5}
         return result
     finally:
         for ptr in allocated:
@@ -1781,6 +1841,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
         "bad_initial_fanin",
         "chain",
         "fork_join",
+        "scalar_axpy",
         "scratch_reuse",
         "tensor_tile",
     }:
@@ -1975,6 +2036,7 @@ def main() -> None:
             "bad_initial_fanin",
             "chain",
             "fork_join",
+            "scalar_axpy",
             "scratch_reuse",
             "tensor_tile",
         ],

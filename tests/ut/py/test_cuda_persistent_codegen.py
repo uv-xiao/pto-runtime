@@ -226,6 +226,21 @@ def test_render_persistent_dag_source_includes_tensor_descriptor_metadata():
     assert "unsigned long long out_batch_stride;" in source
 
 
+def test_render_persistent_dag_source_includes_scalar_descriptor_metadata():
+    source = render_persistent_dag_source(
+        [
+            CudaPersistentTaskFunction(
+                func_id=4,
+                name="axpy_f32",
+                body="task->out[i] = task->scalar0 * task->a[i] + task->b[i];",
+            )
+        ]
+    )
+
+    assert "float scalar0;" in source
+    assert "task->scalar0 * task->a[i] + task->b[i]" in source
+
+
 def test_render_persistent_dag_source_records_device_scheduler_errors():
     source = render_persistent_dag_source(
         [

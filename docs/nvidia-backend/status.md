@@ -89,7 +89,9 @@ execution modes:
 - generated-dispatch DAG with fan-in counters;
 - five-task DAG-chain runtime graph descriptor;
 - six-task scratch-reuse DAG descriptor;
-- tensor-tile DAG descriptor with rows/cols/inner/stride metadata.
+- tensor-tile DAG descriptor with rows/cols/inner/stride metadata;
+- scalar-argument DAG descriptor for mixed tensor/scalar AXPY-style task
+  bodies.
 - device-side scheduler diagnostics for unsupported generated-dispatch
   `func_id` values, invalid dependent task IDs, and out-of-range dependent
   spans, fan-in underflow, and initial-fan-in mismatch.
@@ -172,7 +174,7 @@ Evidence:
 - `.agents/skills/cuda-backend-eval/scripts/cuda_smoke_report.py` writes
   compact smoke Markdown and SVG reports, including persistent-device dispatch
   `func_id` sequences, device scheduler error counters, and resource-policy
-  metadata when present.
+  metadata and scalar task arguments when present.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py` automates
   the local A100 run, remote H200 run, artifact copy, merge, and index refresh.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_pair_smoke.py` automates the
@@ -761,7 +763,8 @@ it is not yet a full TensorMap/ringbuffer analogue.
 
 Needed:
 
-- generalized task argument ABI;
+- broader generalized task argument ABI beyond the current tensor-shape and
+  single-scalar descriptor fields;
 - graph construction from normal PTO task graphs;
 - lifecycle validation beyond the current scratch-reuse smoke;
 - broader resource policy beyond the current single scheduler block,
