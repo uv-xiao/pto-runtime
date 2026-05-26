@@ -136,7 +136,7 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - same-work batch rows;
 - worker-grid batch rows.
 
-The latest paired capture at commit `0e1be392` uses the `8x4x12` tensor
+The latest paired capture at commit `32744245` uses the `8x4x12` tensor
 descriptor, sizes `1024,65536,1048576`, three repeats, task counts `2,6,12`,
 and worker-grid values `32,64,128,256`. It includes the compiler-backed
 host-schedule row on both A100 and H200.
@@ -285,7 +285,7 @@ Result: `status=pass`, `runner=worker`, `ptx_arch=compute_80`,
 The docs and skill updates were checked with targeted `pre-commit` runs and
 `git diff --check` before commit.
 
-The H200 paired benchmark capture was also run at commit `0e1be392` after
+The H200 paired benchmark capture was also run at commit `32744245` after
 syncing the local checkout to the remote H200 host:
 
 ```bash
@@ -294,9 +294,9 @@ PYTHONPATH=$PWD:$PWD/python \
     --sync-remote-tree
 ```
 
-Result: `label=h200-current-0e1be392`, `ptx_arch=compute_90`,
+Result: `label=h200-current-32744245`, `ptx_arch=compute_90`,
 `ptx_source=nvcc-compute_90`, with generated compiler and persistent-device
-rows included in `tmp/cuda-backend/h200-current-0e1be392/`.
+rows included in `tmp/cuda-backend/h200-current-32744245/`.
 
 The local A100 persistent DAG smoke was run through the persistent-device
 `KernelCompiler` entry point with task-body style DAG sources:
