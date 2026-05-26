@@ -8,11 +8,12 @@ local A100 runs, and remote H200 runs.
 
 ## Current Evidence
 
-The latest paired A100/H200 capture was taken at commit `0eed34ff`:
+The latest paired A100/H200 capture was taken at commit `832d24bf`:
 
 - [Current capture](evaluation-current.md) summarizes the latest
   `8x4x12` tensor-descriptor sweep, selected baselines, scalar AXPY,
-  scalar affine, and triad descriptor rows, and headline interpretation.
+  scalar affine, triad, and unary-square descriptor rows, and headline
+  interpretation.
 - [Historical captures](evaluation-history.md) preserve the previous
   accumulated benchmark notes, including earlier graph, stream, task-count,
   worker-grid, DAG-chain, scratch-reuse, and tensor-tile captures.
@@ -20,9 +21,9 @@ The latest paired A100/H200 capture was taken at commit `0eed34ff`:
 The latest raw artifacts remain under `tmp/` and are intentionally not
 committed:
 
-- `tmp/cuda-backend/a100-current-0eed34ff/`
-- `tmp/cuda-backend/h200-current-0eed34ff/`
-- `tmp/cuda-backend/combined-current-0eed34ff/`
+- `tmp/cuda-backend/a100-current-832d24bf/`
+- `tmp/cuda-backend/h200-current-832d24bf/`
+- `tmp/cuda-backend/combined-current-832d24bf/`
 - `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/worker-square-smoke-4cdde399/`
 - `tmp/cuda-backend/worker-mul-smoke-output-json/`
@@ -66,6 +67,8 @@ with `.agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py`.
   before downstream fan-in.
 - `pto_persistent_dag_triad`: generated-dispatch DAG that reads a third tensor
   task descriptor field for three-input triad work before downstream fan-in.
+- `pto_persistent_dag_unary_square`: generated-dispatch DAG with a one-input
+  square task body before downstream fan-in.
 - `pto_persistent_dag_tensor`: four-task generated-dispatch DAG with a tiled
   GEMM task followed by residual, gate, and fan-in elementwise tasks.
 - `*_batch`: same-work rows comparing repeated host launches with one
@@ -141,7 +144,7 @@ Validate the current paired capture before copying numbers into
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/combined-current-0eed34ff/cuda-benchmark.json \
+    tmp/cuda-backend/combined-current-832d24bf/cuda-benchmark.json \
     --preset paired-current
 ```
 

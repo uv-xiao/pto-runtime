@@ -181,14 +181,14 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - same-work batch rows;
 - worker-grid batch rows.
 
-The latest paired capture at commit `0eed34ff` uses the `8x4x12` tensor
+The latest paired capture at commit `832d24bf` uses the `8x4x12` tensor
 descriptor, sizes `1024,65536,1048576`, three repeats, task counts `2,6,12`,
 and worker-grid values `32,64,128,256`. It includes the compiler-backed
 host-schedule row, unary square host-schedule row, and
 `pto_persistent_dag_scalar_axpy`, `pto_persistent_dag_scalar_affine`, and
-`pto_persistent_dag_triad` on both A100 and H200. The unary-square persistent
-DAG row was added after this paired capture and has been checked through
-single-baseline A100/H200 runs.
+`pto_persistent_dag_triad` on both A100 and H200. It also includes the
+`pto_persistent_dag_unary_square` row that validates unary persistent DAG
+arguments in the full paired benchmark path.
 
 Evidence:
 
@@ -1036,20 +1036,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --sync-remote-tree
 ```
 
-Result: `tmp/cuda-backend/combined-current-0eed34ff/` contains
+Result: `tmp/cuda-backend/combined-current-832d24bf/` contains
 `cuda-benchmark.json`, `cuda-benchmark.md`, `cuda-benchmark.svg`, and
-`cuda-benchmark-ratios.svg`. The combined JSON has `630` samples, including
+`cuda-benchmark-ratios.svg`. The combined JSON has `648` samples, including
 `18` `pto_persistent_dag_scalar_affine` samples and `18`
-`pto_persistent_dag_triad` samples. The compact DAG table reports triad ratios
-versus `pto_persistent_dag` of `1.00x`, `0.14x`, and `1.02x` on A100 for
-`N=1024,65536,1048576`, and `0.93x`, `1.00x`, and `1.00x` on H200 for the
-same sizes. The A100 `N=65536` triad ratio is an unusually fast row in this
-capture, so it is recorded as correctness evidence and should be rechecked
-before using it as a throughput conclusion.
-
-With the unary-square persistent DAG baseline added to the default benchmark
-set, the next full paired refresh should produce `648` combined samples under
-the same sizes, repeats, batch task counts, and worker-grid values.
+`pto_persistent_dag_triad` samples, and `18`
+`pto_persistent_dag_unary_square` samples. The compact DAG table reports
+unary-square ratios versus `pto_persistent_dag` of `1.20x`, `7.18x`, and
+`1.38x` on A100 for `N=1024,65536,1048576`, and `1.01x`, `1.47x`, and
+`1.37x` on H200 for the same sizes. The A100 `N=65536` scalar-affine, triad,
+unary-square, and tensor rows are much slower than the base DAG in this
+capture, so they are recorded as correctness evidence and should be rechecked
+before using them as throughput conclusions.
 
 The combined capture was validated with:
 
@@ -1057,11 +1055,11 @@ The combined capture was validated with:
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python \
     .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/combined-current-0eed34ff/cuda-benchmark.json \
+    tmp/cuda-backend/combined-current-832d24bf/cuda-benchmark.json \
     --preset paired-current
 ```
 
-Result: `validated tmp/cuda-backend/combined-current-0eed34ff/cuda-benchmark.json`.
+Result: `validated tmp/cuda-backend/combined-current-832d24bf/cuda-benchmark.json`.
 
 After adding `persistent_dag_unary_square_f32` to the normal SceneTestCase L2
 persistent-device argument builders, the CUDA scene-test file was rerun
