@@ -49,6 +49,18 @@ def _dispatch(row: dict[str, Any]) -> str | None:
     return ",".join(str(func_id) for func_id in dispatch)
 
 
+def _tensor_tile_shape(row: dict[str, Any]) -> str | None:
+    tensor_tile = row.get("tensor_tile")
+    if not isinstance(tensor_tile, dict):
+        return None
+    rows = tensor_tile.get("rows")
+    cols = tensor_tile.get("cols")
+    inner = tensor_tile.get("inner")
+    if rows is None or cols is None or inner is None:
+        return None
+    return f"{rows}x{cols}x{inner}"
+
+
 def load_smoke_payloads(paths: Sequence[Path]) -> list[dict[str, Any]]:
     payloads = []
     for path in paths:
@@ -99,6 +111,7 @@ def _validate_common_fields(
     expected_mode: str | None,
     expected_dag_shape: str | None,
     expected_dispatch: str | None,
+    expected_tensor_tile: str | None,
 ) -> list[str]:
     errors: list[str] = []
     for payload in payloads:
@@ -115,6 +128,11 @@ def _validate_common_fields(
                 )
         if expected_dispatch is not None and _dispatch(payload) != expected_dispatch:
             errors.append(f"expected dispatch {expected_dispatch} for artifact={artifact}, found {_dispatch(payload)}")
+        if expected_tensor_tile is not None and _tensor_tile_shape(payload) != expected_tensor_tile:
+            errors.append(
+                f"expected tensor tile {expected_tensor_tile} for artifact={artifact}, "
+                f"found {_tensor_tile_shape(payload)}"
+            )
     return errors
 
 
@@ -166,6 +184,7 @@ def validate_smoke(
     expected_repeat_runs: int | None = None,
     expected_completed_count: int | None = None,
     expected_dispatch: str | None = None,
+    expected_tensor_tile: str | None = None,
     require_report_files: bool = False,
 ) -> list[str]:
     errors: list[str] = []
@@ -181,6 +200,7 @@ def validate_smoke(
             expected_mode=expected_mode,
             expected_dag_shape=expected_dag_shape,
             expected_dispatch=expected_dispatch,
+            expected_tensor_tile=expected_tensor_tile,
         )
     )
     errors.extend(
@@ -205,6 +225,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-repeat-runs", type=int)
     parser.add_argument("--expected-completed-count", type=int)
     parser.add_argument("--expected-dispatch")
+    parser.add_argument("--expected-tensor-tile")
     parser.add_argument("--require-report-files", action="store_true")
     return parser.parse_args(argv)
 
@@ -223,6 +244,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         expected_repeat_runs=args.expected_repeat_runs,
         expected_completed_count=args.expected_completed_count,
         expected_dispatch=args.expected_dispatch,
+        expected_tensor_tile=args.expected_tensor_tile,
         require_report_files=args.require_report_files,
     )
     if errors:

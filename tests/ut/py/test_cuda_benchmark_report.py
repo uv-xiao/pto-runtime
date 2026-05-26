@@ -696,6 +696,37 @@ def test_cuda_smoke_validator_accepts_paired_lifecycle_artifact(tmp_path):
     assert errors == []
 
 
+def test_cuda_smoke_validator_checks_tensor_tile_shape(tmp_path):
+    cuda_validate_smoke = _load_smoke_validator_module()
+    artifact_dir = tmp_path / "persistent-tensor-tile-smoke"
+    artifact_dir.mkdir()
+    payload = {
+        "status": "pass",
+        "runtime": "persistent_device",
+        "mode": "dag",
+        "dag_shape": "tensor_tile",
+        "n": 768,
+        "repeat_runs": 1,
+        "launch_completed_counts": [4],
+        "dispatch_func_ids": [3, 1, 2, 1],
+        "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+        "tensor_tile": {"rows": 8, "cols": 4, "inner": 16, "tile_count": 24},
+    }
+    (artifact_dir / "a100.json").write_text(json.dumps(payload) + "\n")
+
+    payloads = cuda_validate_smoke.load_smoke_payloads([artifact_dir / "a100.json"])
+    errors = cuda_validate_smoke.validate_smoke(
+        payloads,
+        expected_runtime="persistent_device",
+        expected_mode="dag",
+        expected_dag_shape="tensor_tile",
+        expected_completed_count=4,
+        expected_tensor_tile="8x4x12",
+    )
+
+    assert "expected tensor tile 8x4x12 for artifact=a100, found 8x4x16" in errors
+
+
 def test_cuda_smoke_validator_reports_lifecycle_and_report_errors(tmp_path):
     cuda_validate_smoke = _load_smoke_validator_module()
     artifact_dir = tmp_path / "persistent-graph-smoke"
@@ -1239,6 +1270,7 @@ def test_cuda_pair_persistent_smoke_builds_tensor_tile_descriptor_workflow(tmp_p
 
     local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
     remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+    validate = cuda_pair_persistent_smoke.build_validate_command(config, "abc123")
     report = cuda_pair_persistent_smoke.build_report_command(config, "abc123")
 
     assert "persistent-tensor_tile-8x4x12-smoke-abc123" in str(local)
@@ -1252,6 +1284,8 @@ def test_cuda_pair_persistent_smoke_builds_tensor_tile_descriptor_workflow(tmp_p
     assert "--tensor-rows 8" in remote[-1]
     assert "--tensor-cols 4" in remote[-1]
     assert "--tensor-inner 12" in remote[-1]
+    assert "--expected-tensor-tile" in validate
+    assert "8x4x12" in validate
     assert "persistent-tensor_tile-8x4x12-smoke-abc123" in report
 
 

@@ -259,6 +259,12 @@ def _expected_dispatch(config: PairedPersistentSmokeConfig) -> str | None:
     }.get(config.dag_shape)
 
 
+def _expected_tensor_tile(config: PairedPersistentSmokeConfig) -> str | None:
+    if config.mode == "dag" and config.dag_shape == "tensor_tile":
+        return f"{config.tensor_rows}x{config.tensor_cols}x{config.tensor_inner}"
+    return None
+
+
 def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> list[str]:
     output_dir = _output_dir(config, suffix)
     command = [
@@ -287,6 +293,9 @@ def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> 
     expected_dispatch = _expected_dispatch(config)
     if expected_dispatch is not None:
         command.extend(["--expected-dispatch", expected_dispatch])
+    expected_tensor_tile = _expected_tensor_tile(config)
+    if expected_tensor_tile is not None:
+        command.extend(["--expected-tensor-tile", expected_tensor_tile])
     return command
 
 
