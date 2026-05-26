@@ -382,6 +382,13 @@ local and remote commits differ, the combined artifact name includes both
 commits. A skip-refresh dry run still performs the read-only remote
 `git rev-parse --short HEAD` probe so the printed artifact paths are accurate.
 
+If remote Git remains unhealthy and the local checkout is the source of truth,
+pass `--sync-remote-tree` to copy the current local tree to `bizhaoh200` with
+`rsync` before running H200. This mode skips remote Git entirely, excludes
+`.venv`, `build`, and `tmp`, and labels both A100 and H200 artifacts with the
+local commit. It syncs `.git` so the remote benchmark metadata reports the
+same commit as the synced source tree.
+
 Use `--dry-run` to print the commands without launching benchmarks. The current
 committed summary uses the `38ff341e` artifact names in
 `docs/nvidia-backend/evaluation-current.md`.

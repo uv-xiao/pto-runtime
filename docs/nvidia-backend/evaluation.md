@@ -86,6 +86,12 @@ the runner reads the remote checkout commit and uses it in the H200 artifact
 name; if local and remote commits differ, the combined artifact name includes
 both commits. A skip-refresh dry run still performs the read-only remote
 commit probe so the printed artifact paths are accurate.
+When remote Git remains unhealthy and the local checkout is the source of
+truth, add `--sync-remote-tree` to copy the current local tree to
+`bizhaoh200` with `rsync` before running H200. This mode skips remote Git,
+excludes `.venv`, `build`, and `tmp`, and labels both GPU artifacts with the
+local commit. It syncs `.git` so the remote benchmark metadata reports the
+same commit as the synced source tree.
 
 Refresh the local artifact index after adding or merging captures:
 

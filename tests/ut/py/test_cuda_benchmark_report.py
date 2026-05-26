@@ -447,6 +447,40 @@ def test_cuda_pair_benchmark_reused_checkout_uses_remote_commit(tmp_path):
     assert "combined-current-local123-remote456" in commands[3]
 
 
+def test_cuda_pair_benchmark_can_sync_local_tree_to_remote(tmp_path):
+    cuda_pair_benchmark = _load_pair_benchmark_module()
+    calls = []
+
+    def fake_runner(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0, stdout="local123\n", stderr="")
+
+    config = cuda_pair_benchmark.PairedBenchmarkConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        sync_remote_tree=True,
+    )
+
+    commands = cuda_pair_benchmark.run_paired_benchmark(config, runner=fake_runner, dry_run=True)
+
+    assert calls == [(["git", "rev-parse", "--short", "HEAD"], {"check": True, "capture_output": True, "text": True})]
+    assert len(commands) == 6
+    sync = commands[1]
+    assert sync[:3] == ["rsync", "-a", "--delete"]
+    assert "--exclude=.git" not in sync
+    assert sync[-2:] == [f"{Path.cwd()}/", "h200-box:/remote/pto-cu/"]
+    remote_shell = commands[2][-1]
+    assert "git fetch" not in remote_shell
+    assert "git checkout" not in remote_shell
+    assert "git rev-parse" not in remote_shell
+    assert "h200-current-local123" in remote_shell
+    assert "h200-current-local123" in commands[3][2]
+    assert "combined-current-local123" in commands[4]
+
+
 def test_cuda_pair_benchmark_dry_run_does_not_launch_benchmarks(tmp_path):
     cuda_pair_benchmark = _load_pair_benchmark_module()
     calls = []

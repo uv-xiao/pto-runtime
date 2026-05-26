@@ -46,6 +46,7 @@ class PairedBenchmarkConfig:
     remote_git_low_speed_time: int = 30
     remote_git_fetch_timeout: int = 60
     refresh_remote: bool = True
+    sync_remote_tree: bool = False
 
 
 def _csv(values: Sequence[int]) -> str:
@@ -66,6 +67,21 @@ def build_remote_git_commit_command(config: PairedBenchmarkConfig) -> list[str]:
         f"ConnectTimeout={config.ssh_connect_timeout}",
         config.remote,
         f"cd {shlex.quote(config.remote_workdir)} && git rev-parse --short HEAD",
+    ]
+
+
+def build_remote_sync_command(config: PairedBenchmarkConfig) -> list[str]:
+    return [
+        "rsync",
+        "-a",
+        "--delete",
+        "--exclude=.venv",
+        "--exclude=build",
+        "--exclude=tmp",
+        "--exclude=__pycache__",
+        "--exclude=.pytest_cache",
+        f"{Path.cwd()}/",
+        f"{config.remote}:{config.remote_workdir}/",
     ]
 
 
@@ -150,7 +166,7 @@ def _remote_shell_command(config: PairedBenchmarkConfig, commit: str) -> str:
         f"fetch origin {shlex.quote(config.branch)} >/dev/null"
     )
     commands = [f"cd {shlex.quote(config.remote_workdir)}"]
-    if config.refresh_remote:
+    if config.refresh_remote and not config.sync_remote_tree:
         commands.extend(
             [
                 fetch_command,
@@ -225,15 +241,21 @@ def run_paired_benchmark(
 ) -> list[list[str]]:
     local_commit = _git_commit(runner)
     remote_commit = local_commit
-    if not config.refresh_remote:
+    if not config.refresh_remote and not config.sync_remote_tree:
         remote_commit = _remote_git_commit(config, runner)
     commands = [
         build_local_benchmark_command(config, local_commit),
-        build_remote_benchmark_command(config, remote_commit),
-        build_scp_command(config, remote_commit),
-        build_merge_command(config, local_commit, remote_commit),
-        build_index_command(config),
     ]
+    if config.sync_remote_tree:
+        commands.append(build_remote_sync_command(config))
+    commands.extend(
+        [
+            build_remote_benchmark_command(config, remote_commit),
+            build_scp_command(config, remote_commit),
+            build_merge_command(config, local_commit, remote_commit),
+            build_index_command(config),
+        ]
+    )
     for command in commands:
         print(" ".join(shlex.quote(part) for part in command))
         if not dry_run:
@@ -269,6 +291,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--remote-git-low-speed-time", type=int, default=30)
     parser.add_argument("--remote-git-fetch-timeout", type=int, default=60)
     parser.add_argument("--skip-remote-refresh", action="store_true")
+    parser.add_argument("--sync-remote-tree", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args(argv)
 
@@ -297,7 +320,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         remote_git_low_speed_limit=args.remote_git_low_speed_limit,
         remote_git_low_speed_time=args.remote_git_low_speed_time,
         remote_git_fetch_timeout=args.remote_git_fetch_timeout,
-        refresh_remote=not args.skip_remote_refresh,
+        refresh_remote=not args.skip_remote_refresh and not args.sync_remote_tree,
+        sync_remote_tree=args.sync_remote_tree,
     )
     run_paired_benchmark(config, dry_run=args.dry_run)
 
