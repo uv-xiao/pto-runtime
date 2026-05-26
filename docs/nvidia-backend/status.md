@@ -105,6 +105,9 @@ CPU tensors, and validates real copied-back CUDA output data.
 The host-schedule scene path also accepts the neutral
 `elementwise_binary_f32` adapter for non-addition task bodies that still use
 the current `(a, b, out, n)` launch ABI.
+The no-torch Worker smoke can validate that same non-addition host-schedule
+ABI with `--op mul`, which keeps H200 coverage available when the remote
+Python environment lacks `torch`.
 
 Evidence:
 

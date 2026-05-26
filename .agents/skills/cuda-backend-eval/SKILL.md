@@ -51,6 +51,16 @@ PYTHONPATH=$PWD:$PWD/python \
     --arch compute_80 --no-build
 ```
 
+Use `--op mul` on the Worker smoke to validate a non-addition task body
+through the same `(a, b, out, n)` host-schedule ABI without requiring `torch`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_smoke.py \
+    --runner worker --op mul --device 0 --n 1024 --block-dim 256 \
+    --arch compute_80 --no-build
+```
+
 Run the persistent-device tracer-bullet smoke:
 
 ```bash

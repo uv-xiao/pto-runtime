@@ -533,6 +533,15 @@ def test_find_nvcc_uses_cuda_home_when_nvcc_is_not_on_path(tmp_path, monkeypatch
     assert cuda_smoke._find_nvcc() == str(nvcc)
 
 
+def test_cuda_worker_smoke_generates_multiply_task_body():
+    cuda_smoke = _load_smoke_module()
+
+    body = cuda_smoke._worker_task_body("mul")
+
+    assert "ctx->out[i] = ctx->a[i] * ctx->b[i];" in body
+    assert "ctx->a[i] + ctx->b[i]" not in body
+
+
 def test_persistent_direct_launch_can_use_multiple_worker_blocks_per_task():
     cuda_persistent_smoke = _load_persistent_smoke_module()
     ptx_buf = ctypes.create_string_buffer(b"ptx\0")

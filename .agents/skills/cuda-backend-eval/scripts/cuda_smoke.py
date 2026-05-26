@@ -192,6 +192,29 @@ def _load_runtime(build: bool):
     return runtime, binaries
 
 
+def _worker_task_body(op: str) -> str:
+    if op == "add":
+        expression = "ctx->a[i] + ctx->b[i]"
+    elif op == "mul":
+        expression = "ctx->a[i] * ctx->b[i]"
+    else:
+        raise ValueError(f"unknown worker smoke op: {op}")
+    return f"""
+unsigned long long i = blockIdx.x * blockDim.x + threadIdx.x;
+if (i < ctx->n) {{
+    ctx->out[i] = {expression};
+}}
+""".lstrip()
+
+
+def _worker_expected_output(op: str, n: int) -> list[float]:
+    if op == "add":
+        return [float(3 * i) for i in range(n)]
+    if op == "mul":
+        return [float(i * (2 * i)) for i in range(n)]
+    raise ValueError(f"unknown worker smoke op: {op}")
+
+
 def run_smoke(device: int, n: int, block_dim: int, arch: str, build: bool = True) -> dict:
     with tempfile.TemporaryDirectory(prefix="pto_cuda_smoke_") as td:
         ptx, ptx_source = _compile_ptx(Path(td), arch)
@@ -278,21 +301,14 @@ def run_smoke(device: int, n: int, block_dim: int, arch: str, build: bool = True
     }
 
 
-def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool = True) -> dict:
+def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool = True, op: str = "add") -> dict:
     with tempfile.TemporaryDirectory(prefix="pto_cuda_worker_smoke_") as td:
         work_dir = Path(td)
-        task_src = work_dir / "vector_add.pto.cu"
-        task_src.write_text(
-            """
-unsigned long long i = blockIdx.x * blockDim.x + threadIdx.x;
-if (i < ctx->n) {
-    ctx->out[i] = ctx->a[i] + ctx->b[i];
-}
-""".lstrip()
-        )
+        task_src = work_dir / f"vector_{op}.pto.cu"
+        task_src.write_text(_worker_task_body(op))
         artifact = KernelCompiler(platform="cuda").compile_cuda_host_schedule(
             str(task_src),
-            task_name="vector_add_worker_smoke",
+            task_name=f"vector_{op}_worker_smoke",
             arch=arch,
             cache_root=work_dir / "cache",
             context_definition="""
@@ -341,9 +357,9 @@ struct PtoTaskContext {
             config.block_dim = block_dim
             timing = worker.run(cid, args, config)
             worker.copy_from(ctypes.addressof(host_out), dev_out, nbytes)
-            expected = [float(3 * i) for i in range(n)]
+            expected = _worker_expected_output(op, n)
             if list(host_out) != expected:
-                raise RuntimeError("vector-add output mismatch")
+                raise RuntimeError(f"vector-{op} output mismatch")
         finally:
             worker.free(dev_a)
             worker.free(dev_b)
@@ -354,11 +370,16 @@ struct PtoTaskContext {
     return {
         "status": "pass",
         "runner": "worker",
+        "op": op,
         "device": device,
         "n": n,
         "block_dim": block_dim,
         "ptx_arch": arch,
-        "ptx_source": f"kernel-compiler-worker-task-body-{arch}",
+        "ptx_source": (
+            f"kernel-compiler-worker-task-body-{arch}"
+            if op == "add"
+            else f"kernel-compiler-worker-task-body-{op}-{arch}"
+        ),
         "host_wall_ns": timing.host_wall_ns,
         "device_wall_ns": timing.device_wall_ns,
         "elapsed_s": time.time() - start,
@@ -373,12 +394,15 @@ def main() -> None:
     parser.add_argument("--block-dim", type=int, default=256)
     parser.add_argument("--arch", default="compute_80")
     parser.add_argument("--runner", choices=("direct_c_api", "worker"), default="direct_c_api")
+    parser.add_argument("--op", choices=("add", "mul"), default="add", help="Worker task body operation")
     parser.add_argument("--no-build", action="store_true", help="Use existing runtime binaries without rebuilding")
     args = parser.parse_args()
 
     if args.runner == "worker":
-        result = run_worker_smoke(args.device, args.n, args.block_dim, args.arch, build=not args.no_build)
+        result = run_worker_smoke(args.device, args.n, args.block_dim, args.arch, build=not args.no_build, op=args.op)
     else:
+        if args.op != "add":
+            parser.error("--op is only supported by --runner worker")
         result = run_smoke(args.device, args.n, args.block_dim, args.arch, build=not args.no_build)
     print(json.dumps(result, indent=2, sort_keys=True))
 
