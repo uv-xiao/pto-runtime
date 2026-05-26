@@ -8,7 +8,7 @@ local A100 runs, and remote H200 runs.
 
 ## Current Evidence
 
-The latest paired A100/H200 capture was taken at commit `b060039c`:
+The latest paired A100/H200 capture was taken at commit `0eed34ff`:
 
 - [Current capture](evaluation-current.md) summarizes the latest
   `8x4x12` tensor-descriptor sweep, selected baselines, scalar AXPY,
@@ -20,9 +20,9 @@ The latest paired A100/H200 capture was taken at commit `b060039c`:
 The latest raw artifacts remain under `tmp/` and are intentionally not
 committed:
 
-- `tmp/cuda-backend/a100-current-b060039c/`
-- `tmp/cuda-backend/h200-current-b060039c/`
-- `tmp/cuda-backend/combined-current-b060039c/`
+- `tmp/cuda-backend/a100-current-0eed34ff/`
+- `tmp/cuda-backend/h200-current-0eed34ff/`
+- `tmp/cuda-backend/combined-current-0eed34ff/`
 - `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/worker-square-smoke-4cdde399/`
 - `tmp/cuda-backend/worker-mul-smoke-output-json/`

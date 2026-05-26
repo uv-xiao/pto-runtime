@@ -1,7 +1,7 @@
 # CUDA Current Evaluation Capture
 
 This page summarizes the current paired A100/H200 CUDA backend capture from
-commit `b060039c`. The raw JSON, Markdown, and SVG reports are generated
+commit `0eed34ff`. The raw JSON, Markdown, and SVG reports are generated
 locally under `tmp/cuda-backend/` and intentionally remain uncommitted.
 
 The capture uses `nvcc` for target-specific PTX on both machines:
@@ -17,14 +17,14 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 
 ## Artifact Paths
 
-- `tmp/cuda-backend/a100-current-b060039c/cuda-benchmark.json`
-- `tmp/cuda-backend/a100-current-b060039c/cuda-benchmark.md`
-- `tmp/cuda-backend/h200-current-b060039c/cuda-benchmark.json`
-- `tmp/cuda-backend/h200-current-b060039c/cuda-benchmark.md`
-- `tmp/cuda-backend/combined-current-b060039c/cuda-benchmark.json`
-- `tmp/cuda-backend/combined-current-b060039c/cuda-benchmark.md`
-- `tmp/cuda-backend/combined-current-b060039c/cuda-benchmark.svg`
-- `tmp/cuda-backend/combined-current-b060039c/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/a100-current-0eed34ff/cuda-benchmark.json`
+- `tmp/cuda-backend/a100-current-0eed34ff/cuda-benchmark.md`
+- `tmp/cuda-backend/h200-current-0eed34ff/cuda-benchmark.json`
+- `tmp/cuda-backend/h200-current-0eed34ff/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-current-0eed34ff/cuda-benchmark.json`
+- `tmp/cuda-backend/combined-current-0eed34ff/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-current-0eed34ff/cuda-benchmark.svg`
+- `tmp/cuda-backend/combined-current-0eed34ff/cuda-benchmark-ratios.svg`
 
 ## Launch Baselines
 
@@ -39,17 +39,20 @@ the shared task wrapper generator.
 
 | GPU | N | PTO host ns | Compiler ns | Driver ns | Graph ns | Compiler/PTO | Graph/PTO |
 | --- | - | ----------- | ----------- | --------- | -------- | ------------ | --------- |
-| A100 | 1024 | 8192 | 7168 | 8191 | 8191 | 0.88x | 1.00x |
-| A100 | 65536 | 30496 | 19136 | 196160 | 418112 | 0.63x | 13.71x |
-| A100 | 1048576 | 23264 | 26240 | 31263 | 22016 | 1.13x | 0.95x |
-| H200 | 1024 | 30400 | 30368 | 20703 | 16992 | 1.00x | 0.56x |
-| H200 | 65536 | 21856 | 19328 | 24960 | 19519 | 0.88x | 0.89x |
-| H200 | 1048576 | 18976 | 19232 | 22336 | 19007 | 1.01x | 1.00x |
+| A100 | 1024 | 7168 | 7168 | 8191 | 8191 | 1.00x | 1.14x |
+| A100 | 65536 | 693888 | 347936 | 296032 | 774688 | 0.50x | 1.12x |
+| A100 | 1048576 | 751296 | 309280 | 814848 | 549023 | 0.41x | 0.73x |
+| H200 | 1024 | 37216 | 36288 | 38368 | 29120 | 0.98x | 0.78x |
+| H200 | 65536 | 25600 | 27232 | 39391 | 31295 | 1.06x | 1.22x |
+| H200 | 1048576 | 23360 | 32063 | 28384 | 20864 | 1.37x | 0.89x |
 
 The compiler row stays in the same launch-latency band as the handwritten
 host-schedule PTX. That is the important signal for this slice: the shared
 task-body wrapper path can feed the existing host runtime without changing
 the launch ABI or adding a separate generated-kernel calling convention.
+The A100 host-schedule rows in this capture show larger host-side variance
+than the prior capture, so use the paired report as current evidence rather
+than a final launch-overhead ranking.
 
 ## Unary Host-Schedule Row
 
@@ -61,11 +64,11 @@ because exact Python integer squares no longer match single-precision output.
 | GPU | N | Unary square ns |
 | --- | - | --------------- |
 | A100 | 1024 | 7168 |
-| A100 | 65536 | 34624 |
-| A100 | 1048576 | 21664 |
-| H200 | 1024 | 28672 |
-| H200 | 65536 | 20736 |
-| H200 | 1048576 | 20128 |
+| A100 | 65536 | 300128 |
+| A100 | 1048576 | 347232 |
+| H200 | 1024 | 38432 |
+| H200 | 65536 | 29728 |
+| H200 | 1048576 | 27232 |
 
 ## Worker Grid Rows
 
@@ -76,29 +79,29 @@ worker blocks to each task descriptor.
 
 | GPU | N | Tasks | Best worker blocks/task | Device ns | Vs host batch |
 | --- | - | ----- | ----------------------- | --------- | ------------- |
-| A100 | 1024 | 2 | 32 | 8192 | 0.57x |
-| A100 | 1024 | 6 | 64 | 7168 | 0.17x |
-| A100 | 1024 | 12 | 32 | 8192 | 0.09x |
-| A100 | 65536 | 2 | 128 | 9216 | 0.03x |
-| A100 | 65536 | 6 | 64 | 10240 | 0.03x |
-| A100 | 65536 | 12 | 32 | 12288 | 0.02x |
-| A100 | 1048576 | 2 | 256 | 24576 | 0.77x |
-| A100 | 1048576 | 6 | 128 | 36864 | 0.49x |
-| A100 | 1048576 | 12 | 256 | 58368 | 0.45x |
-| H200 | 1024 | 2 | 32 | 29632 | 1.11x |
-| H200 | 1024 | 6 | 64 | 28960 | 0.38x |
-| H200 | 1024 | 12 | 32 | 29376 | 0.23x |
-| H200 | 65536 | 2 | 64 | 14976 | 0.71x |
-| H200 | 65536 | 6 | 128 | 14528 | 0.27x |
-| H200 | 65536 | 12 | 64 | 15296 | 0.20x |
-| H200 | 1048576 | 2 | 256 | 18432 | 0.68x |
-| H200 | 1048576 | 6 | 128 | 24800 | 0.42x |
-| H200 | 1048576 | 12 | 256 | 36000 | 0.33x |
+| A100 | 1024 | 2 | 32 | 7168 | 0.54x |
+| A100 | 1024 | 6 | 32 | 7168 | 0.18x |
+| A100 | 1024 | 12 | 32 | 7168 | 0.09x |
+| A100 | 65536 | 2 | 256 | 8192 | 0.03x |
+| A100 | 65536 | 6 | 64 | 9216 | 0.03x |
+| A100 | 65536 | 12 | 64 | 10240 | 0.01x |
+| A100 | 1048576 | 2 | 256 | 18432 | 0.05x |
+| A100 | 1048576 | 6 | 128 | 31744 | 0.04x |
+| A100 | 1048576 | 12 | 256 | 53248 | 0.12x |
+| H200 | 1024 | 2 | 256 | 36640 | 1.14x |
+| H200 | 1024 | 6 | 256 | 35744 | 0.33x |
+| H200 | 1024 | 12 | 32 | 35712 | 0.21x |
+| H200 | 65536 | 2 | 256 | 24000 | 0.72x |
+| H200 | 65536 | 6 | 128 | 23072 | 0.34x |
+| H200 | 65536 | 12 | 32 | 23840 | 0.22x |
+| H200 | 1048576 | 2 | 256 | 21568 | 0.69x |
+| H200 | 1048576 | 6 | 128 | 26944 | 0.44x |
+| H200 | 1048576 | 12 | 256 | 39840 | 0.36x |
 
-The H200 worker-grid rows keep the same broad signal as prior captures: more
-worker blocks help larger vectors, but the best worker-block count is not
+The H200 worker-grid rows keep the same broad signal as prior captures:
+larger worker-block counts help larger vectors, but the best count is not
 monotonic across GPUs, vector sizes, and descriptor counts. The A100 host
-batch rows still show run-to-run host-time noise, so ratios should be read as
+batch rows show run-to-run noise in this capture, so ratios should be read as
 capture evidence rather than a final resource policy.
 
 ## Persistent DAG Shapes
@@ -113,20 +116,23 @@ DAG closely.
 
 | GPU | N | Chain/DAG | Reuse/DAG | Scalar AXPY/DAG | Scalar Affine/DAG | Triad/DAG | Tensor/DAG |
 | --- | - | --------- | --------- | --------------- | ----------------- | --------- | ---------- |
-| A100 | 1024 | 1.40x | 1.50x | 1.00x | 0.95x | 1.00x | 1.65x |
-| A100 | 65536 | 1.66x | 1.66x | 1.01x | 0.99x | 1.02x | 3.84x |
-| A100 | 1048576 | 1.80x | 1.82x | 1.01x | 1.00x | 1.07x | 4.31x |
-| H200 | 1024 | 1.26x | 1.30x | 1.06x | 1.00x | 0.85x | 1.12x |
-| H200 | 65536 | 1.77x | 1.80x | 0.99x | 1.00x | 1.00x | 2.96x |
-| H200 | 1048576 | 1.79x | 1.79x | 0.99x | 1.00x | 1.00x | 3.07x |
+| A100 | 1024 | 1.40x | 1.50x | 1.00x | 1.00x | 1.00x | 1.70x |
+| A100 | 65536 | 1.05x | 1.05x | 1.00x | 0.99x | 0.14x | 1.22x |
+| A100 | 1048576 | 1.59x | 1.61x | 1.04x | 1.02x | 1.02x | 3.27x |
+| H200 | 1024 | 1.30x | 1.33x | 1.10x | 1.04x | 0.93x | 1.17x |
+| H200 | 65536 | 1.74x | 1.75x | 0.99x | 0.99x | 1.00x | 2.89x |
+| H200 | 1048576 | 1.79x | 1.79x | 0.99x | 1.00x | 1.00x | 3.11x |
 
 The key correctness signal is that all DAG variants use generated dispatch
 and runtime graph descriptors without changing the persistent launch path.
 The scalar AXPY, scalar affine, and triad rows prove mixed tensor/scalar and
 extra tensor-pointer descriptor lowering while tracking the base DAG closely.
 The tensor row also proves the descriptor metadata path for non-square
-`8x4x12` tiles. The `N=1024` DAG-shape ratios are small-launch rows and
-should be treated as scheduling-smoke evidence rather than throughput signal.
+`8x4x12` tiles. The A100 `N=65536` triad row is unusually faster than the
+base DAG in this capture, so treat that row as correctness evidence and
+recheck before drawing a throughput conclusion from it. The `N=1024`
+DAG-shape ratios are small-launch rows and should be treated as
+scheduling-smoke evidence rather than throughput signal.
 
 ## Reproduction Commands
 
@@ -157,8 +163,8 @@ Merge reports:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --merge-json \
-    tmp/cuda-backend/a100-current-b060039c/cuda-benchmark.json \
-    tmp/cuda-backend/h200-current-b060039c/cuda-benchmark.json \
-    --label combined-current-b060039c \
-    --output-dir tmp/cuda-backend/combined-current-b060039c
+    tmp/cuda-backend/a100-current-0eed34ff/cuda-benchmark.json \
+    tmp/cuda-backend/h200-current-0eed34ff/cuda-benchmark.json \
+    --label combined-current-0eed34ff \
+    --output-dir tmp/cuda-backend/combined-current-0eed34ff
 ```

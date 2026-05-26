@@ -737,7 +737,7 @@ directly from a combined benchmark JSON payload:
 ```bash
 PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py \
-    tmp/cuda-backend/combined-current-5f80dbdd/cuda-benchmark.json
+    tmp/cuda-backend/combined-current-0eed34ff/cuda-benchmark.json
 ```
 
 Use `--section launch`, `--section unary-square`, `--section worker-grid`, or

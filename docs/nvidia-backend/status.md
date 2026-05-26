@@ -174,7 +174,7 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - same-work batch rows;
 - worker-grid batch rows.
 
-The latest paired capture at commit `b060039c` uses the `8x4x12` tensor
+The latest paired capture at commit `0eed34ff` uses the `8x4x12` tensor
 descriptor, sizes `1024,65536,1048576`, three repeats, task counts `2,6,12`,
 and worker-grid values `32,64,128,256`. It includes the compiler-backed
 host-schedule row, unary square host-schedule row, and
@@ -972,14 +972,16 @@ PYTHONPATH=$PWD:$PWD/python \
     --sync-remote-tree
 ```
 
-Result: `tmp/cuda-backend/combined-current-b060039c/` contains
+Result: `tmp/cuda-backend/combined-current-0eed34ff/` contains
 `cuda-benchmark.json`, `cuda-benchmark.md`, `cuda-benchmark.svg`, and
 `cuda-benchmark-ratios.svg`. The combined JSON has `630` samples, including
 `18` `pto_persistent_dag_scalar_affine` samples and `18`
 `pto_persistent_dag_triad` samples. The compact DAG table reports triad ratios
-versus `pto_persistent_dag` of `1.00x`, `1.02x`, and `1.07x` on A100 for
-`N=1024,65536,1048576`, and `0.85x`, `1.00x`, and `1.00x` on H200 for the
-same sizes.
+versus `pto_persistent_dag` of `1.00x`, `0.14x`, and `1.02x` on A100 for
+`N=1024,65536,1048576`, and `0.93x`, `1.00x`, and `1.00x` on H200 for the
+same sizes. The A100 `N=65536` triad ratio is an unusually fast row in this
+capture, so it is recorded as correctness evidence and should be rechecked
+before using it as a throughput conclusion.
 
 ## Remaining Gaps
 
