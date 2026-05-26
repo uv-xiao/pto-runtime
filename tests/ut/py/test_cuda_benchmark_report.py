@@ -1112,6 +1112,29 @@ def test_cuda_pair_persistent_smoke_builds_unary_square_workflow(tmp_path):
     assert "persistent-unary_square-smoke-abc123/h200.json" in remote[-1]
 
 
+def test_cuda_pair_persistent_smoke_builds_generic_args_workflow(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape="generic_args",
+        task_count=3,
+        queue_capacity=2,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+
+    assert "persistent-generic_args-smoke-abc123" in str(local)
+    assert "--dag-shape" in local
+    assert "generic_args" in local
+    assert "--dag-shape generic_args" in remote[-1]
+    assert "persistent-generic_args-smoke-abc123/h200.json" in remote[-1]
+
+
 def test_cuda_pair_persistent_smoke_builds_scalar_affine_workflow(tmp_path):
     cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
     config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
@@ -1930,7 +1953,7 @@ def test_persistent_dag_compiler_path_uses_kernel_compiler(tmp_path, monkeypatch
     assert seen["platform"] == "cuda"
     assert seen["arch"] == "compute_90"
     assert seen["nvcc"] == "/usr/local/cuda/bin/nvcc"
-    assert [task["func_id"] for task in seen["task_sources"]] == [1, 2, 3, 4, 5, 6, 7, 8]
+    assert [task["func_id"] for task in seen["task_sources"]] == [1, 2, 3, 4, 5, 6, 7, 8, 9]
     assert [task["task_name"] for task in seen["task_sources"]] == [
         "add_f32",
         "mul_f32",
@@ -1940,6 +1963,7 @@ def test_persistent_dag_compiler_path_uses_kernel_compiler(tmp_path, monkeypatch
         "triad_f32",
         "square_f32",
         "quad_f32",
+        "generic_args_f32",
     ]
     assert {task["body_style"] for task in seen["task_sources"]} == {"task_body"}
     assert all("PtoCudaPersistentDagTask" in task["context_definition"] for task in seen["task_sources"])

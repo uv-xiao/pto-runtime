@@ -250,6 +250,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape quad
 ```
 
+Use `--dag-shape generic_args` to validate the generic persistent DAG
+argument slots. The first DAG task reads `tensor_args[0]` from `tmp0`,
+`tensor_args[1]` from `tmp3`, `scalar_args[0]`, and `scalar_args[1]`, then a
+downstream add task combines it with an independent `a * b` branch.
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 4096 --arch compute_80 \
+    --mode dag --queue-capacity 2 --dag-shape generic_args
+```
+
 Use `--dag-shape unary_square` to validate a generated-dispatch task body
 that reads only one tensor input from the persistent DAG descriptor. The
 first DAG task computes `tmp0 = a * a`, then downstream add tasks consume its
@@ -290,12 +302,16 @@ unreliable or the remote `origin` URL is not accessible.
 The JSON payload and compact report include `resource_policy` fields for
 `scheduler_blocks`, `worker_blocks`, `worker_blocks_per_task`, `stream_id`,
 `block_dim`, and `grid_dim`. Scalar DAG payloads also include `scalar_args`
-and third-tensor DAG payloads include `tensor_args`, so descriptor arguments
-are visible in the Markdown and SVG reports.
+and tensor DAG payloads include `tensor_args`, so descriptor arguments are
+visible in the Markdown and SVG reports. The `generic_args` payload also
+includes a nested `generic_args` summary showing the indexed generic tensor
+and scalar slots used by the task descriptor.
 The current two-scalar descriptor capture is under
 `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`.
 The current third-tensor descriptor capture is under
 `tmp/cuda-backend/persistent-triad-smoke-3a3bcdb1/`.
+The current generic-argument descriptor capture is under
+`tmp/cuda-backend/persistent-generic_args-smoke-7c99f607/`.
 For `--dag-shape tensor_tile`, pass `--tensor-rows`, `--tensor-cols`, and
 `--tensor-inner`; the artifact directory includes the descriptor shape, such
 as `persistent-tensor_tile-8x4x12-smoke-<commit>/`.

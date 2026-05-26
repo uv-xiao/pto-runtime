@@ -270,6 +270,10 @@ class CudaPersistentDagTask(ctypes.Structure):
         ("out_batch_stride", ctypes.c_uint64),
         ("c", ctypes.c_void_p),
         ("d", ctypes.c_void_p),
+        ("tensor_args", ctypes.c_void_p * 4),
+        ("scalar_args", ctypes.c_float * 4),
+        ("tensor_arg_count", ctypes.c_uint32),
+        ("scalar_arg_count", ctypes.c_uint32),
     ]
 
 
@@ -594,6 +598,10 @@ struct PtoCudaPersistentDagTask {{
     unsigned long long out_batch_stride;
     const float *c;
     const float *d;
+    const float *tensor_args[4];
+    float scalar_args[4];
+    unsigned int tensor_arg_count;
+    unsigned int scalar_arg_count;
 }};
 
     {rendered_context_block}\

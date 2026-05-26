@@ -279,6 +279,15 @@ argument/state structs from
 `TaskArgsBuilder` CPU tensors and scalars. The remaining work is to add
 broader CUDA argument builders beyond those tracer bullets.
 
+The descriptor now also carries bounded generic argument slots:
+`tensor_args[4]`, `scalar_args[4]`, `tensor_arg_count`, and
+`scalar_arg_count`. The current `generic_args` smoke uses those slots to pass
+two auxiliary tensors and two scalars to a generated-dispatch task body
+without adding more fixed `c`/`d`-style fields. This is still a descriptor
+tracer bullet rather than full PTO graph lowering, but it sets the ABI
+direction for persistent tasks whose arity differs from the early hand-coded
+vector cases.
+
 ## Static NVCC Linking Feasibility
 
 The stable path is feasible with ordinary `nvcc`, but it changes what "runtime

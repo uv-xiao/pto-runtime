@@ -757,6 +757,23 @@ task->out[i] = task->a[i] * task->b[i] + task->c[i] * task->d[i];
 """.strip(),
         ),
     ),
+    CudaPersistentTaskBodyFunction(
+        func_id=9,
+        task_body=CudaTaskBody(
+            name="generic_args_f32",
+            context_definition=_PERSISTENT_DAG_CONTEXT_DEFINITION,
+            body="""
+const PtoCudaPersistentDagTask *task = ctx->task;
+unsigned long long i = ctx->i;
+if (task->tensor_arg_count < 2U || task->scalar_arg_count < 2U) {
+  return;
+}
+task->out[i] = task->scalar_args[0] * task->a[i] +
+               task->tensor_args[0][i] +
+               task->scalar_args[1] * task->tensor_args[1][i];
+""".strip(),
+        ),
+    ),
 ]
 _PERSISTENT_DAG_SOURCE = render_persistent_dag_source(_PERSISTENT_DAG_TASK_FUNCTIONS)
 
@@ -854,6 +871,10 @@ class CudaPersistentDagTask(ctypes.Structure):
         ("out_batch_stride", ctypes.c_uint64),
         ("c", ctypes.c_void_p),
         ("d", ctypes.c_void_p),
+        ("tensor_args", ctypes.c_void_p * 4),
+        ("scalar_args", ctypes.c_float * 4),
+        ("tensor_arg_count", ctypes.c_uint32),
+        ("scalar_arg_count", ctypes.c_uint32),
     ]
 
 
@@ -1032,7 +1053,7 @@ def _compile_persistent_ptx(
     return ptx_path.read_bytes(), f"nvcc-persistent-{source_kind}-{arch}", None
 
 
-def _make_dag_shape(
+def _make_dag_shape(  # noqa: PLR0912
     dag_shape: str,
     n: int,
     dev_a: int,
@@ -1505,6 +1526,53 @@ def _make_dag_shape(
                 ),
             ),
         )
+    if dag_shape == "generic_args":
+        task_count = 3
+        host_fanin_t = ctypes.c_uint32 * task_count
+        dependents_t = ctypes.c_uint32 * 2
+        task_t = CudaPersistentDagTask * task_count
+        tensor_args_t = ctypes.c_void_p * 4
+        scalar_args_t = ctypes.c_float * 4
+        return (
+            host_fanin_t(0, 0, 2),
+            dependents_t(2, 2),
+            task_t(
+                CudaPersistentDagTask(
+                    func_id=9,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp1,
+                    n=n,
+                    dependent_begin=0,
+                    dependent_count=1,
+                    initial_fanin=0,
+                    tensor_args=tensor_args_t(dev_tmp0, dev_tmp3, 0, 0),
+                    scalar_args=scalar_args_t(1.5, 0.25, 0.0, 0.0),
+                    tensor_arg_count=2,
+                    scalar_arg_count=2,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp2,
+                    n=n,
+                    dependent_begin=1,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp1,
+                    b=dev_tmp2,
+                    out=dev_out,
+                    n=n,
+                    dependent_begin=2,
+                    dependent_count=0,
+                    initial_fanin=2,
+                ),
+            ),
+        )
     if dag_shape == "bad_func_id":
         task_count = 1
         host_fanin_t = ctypes.c_uint32 * task_count
@@ -1827,13 +1895,13 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
     else:
         host_a = array_a_t(*[float(i) for i in range(a_len)])
         host_b = array_b_t(*[float(2 * i) for i in range(b_len)])
-    if config.dag_shape in {"triad", "quad"}:
+    if config.dag_shape in {"triad", "quad", "generic_args"}:
         host_tmp0 = array_t(*[float(3 * i) for i in range(output_len)])
     else:
         host_tmp0 = array_t()
     host_tmp1 = array_t()
     host_tmp2 = array_t()
-    if config.dag_shape == "quad":
+    if config.dag_shape in {"quad", "generic_args"}:
         host_tmp3 = array_t(*[float(4 * i) for i in range(output_len)])
     else:
         host_tmp3 = array_t()
@@ -1939,11 +2007,11 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 (dev_tmp2, ctypes.byref(zero_output), output_nbytes, "tmp2"),
                 (dev_out, ctypes.byref(zero_output), output_nbytes, "out"),
             ]
-            if config.dag_shape in {"triad", "quad"}:
+            if config.dag_shape in {"triad", "quad", "generic_args"}:
                 reset_copies.append((dev_tmp0, ctypes.byref(host_tmp0), output_nbytes, "tmp0/c"))
             else:
                 reset_copies.append((dev_tmp0, ctypes.byref(zero_output), output_nbytes, "tmp0"))
-            if config.dag_shape == "quad":
+            if config.dag_shape in {"quad", "generic_args"}:
                 reset_copies.append((dev_tmp3, ctypes.byref(host_tmp3), output_nbytes, "tmp3/d"))
             else:
                 reset_copies.append((dev_tmp3, ctypes.byref(zero_output), output_nbytes, "tmp3"))
@@ -2049,6 +2117,15 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 ]
                 expected_tmp2 = [_f32(host_a[i] * host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp1[i] + expected_tmp2[i]) for i in range(n)]
+            if config.dag_shape == "generic_args":
+                expected_tmp0 = [_f32(3 * i) for i in range(n)]
+                expected_tmp3 = [_f32(4 * i) for i in range(n)]
+                expected_tmp1 = [
+                    _f32(_f32(1.5 * host_a[i]) + _f32(expected_tmp0[i] + _f32(0.25 * expected_tmp3[i])))
+                    for i in range(n)
+                ]
+                expected_tmp2 = [_f32(host_a[i] * host_b[i]) for i in range(n)]
+                expected_out = [_f32(expected_tmp1[i] + expected_tmp2[i]) for i in range(n)]
             if config.dag_shape == "unary_square":
                 expected_tmp0 = [_f32(host_a[i] * host_a[i]) for i in range(n)]
                 expected_tmp1 = [_f32(expected_tmp0[i] + host_b[i]) for i in range(n)]
@@ -2065,11 +2142,14 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 mismatch = _first_mismatch(list(host_tmp1), expected_tmp1)
                 raise RuntimeError(f"dag tmp1 mismatch on launch {launch_idx}: {mismatch}")
             if (
-                config.dag_shape in {"chain", "scratch_reuse", "tensor_tile", "triad", "quad"}
+                config.dag_shape in {"chain", "scratch_reuse", "tensor_tile", "triad", "quad", "generic_args"}
                 and list(host_tmp2) != expected_tmp2
             ):
                 raise RuntimeError(f"dag tmp2 mismatch on launch {launch_idx}")
-            if config.dag_shape in {"chain", "scratch_reuse", "quad"} and list(host_tmp3) != expected_tmp3:
+            if (
+                config.dag_shape in {"chain", "scratch_reuse", "quad", "generic_args"}
+                and list(host_tmp3) != expected_tmp3
+            ):
                 raise RuntimeError(f"dag tmp3 mismatch on launch {launch_idx}")
             if list(host_out) != expected_out:
                 raise RuntimeError(f"dag output mismatch on launch {launch_idx}")
@@ -2138,6 +2218,13 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             result["tensor_args"] = {"c": "tmp0"}
         if config.dag_shape == "quad":
             result["tensor_args"] = {"c": "tmp0", "d": "tmp3"}
+        if config.dag_shape == "generic_args":
+            result["generic_args"] = {
+                "tensor_args": {"0": "tmp0", "1": "tmp3"},
+                "scalar_args": [1.5, 0.25],
+            }
+            result["tensor_args"] = {"tensor_args[0]": "tmp0", "tensor_args[1]": "tmp3"}
+            result["scalar_args"] = {"scalar_args[0]": 1.5, "scalar_args[1]": 0.25}
         return result
     finally:
         for ptr in allocated:
@@ -2187,7 +2274,7 @@ def _reset_queue_launch_state(runtime, ctx: int, launch: PersistentLaunch, queue
         raise RuntimeError("copy_to_device queue flags failed")
 
 
-def run_persistent_smoke(  # noqa: PLR0912, PLR0913
+def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
     device: int,
     task_count: int,
     n: int,
@@ -2214,6 +2301,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
         "bad_no_root",
         "chain",
         "fork_join",
+        "generic_args",
         "quad",
         "scalar_affine",
         "scalar_axpy",
@@ -2250,6 +2338,8 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
         raise RuntimeError("triad DAG shape requires nvcc-built generated-dispatch PTX")
     if mode == "dag" and dag_shape == "quad" and ptx_source.startswith("embedded-"):
         raise RuntimeError("quad DAG shape requires nvcc-built generated-dispatch PTX")
+    if mode == "dag" and dag_shape == "generic_args" and ptx_source.startswith("embedded-"):
+        raise RuntimeError("generic_args DAG shape requires nvcc-built generated-dispatch PTX")
     if mode == "dag" and dag_shape == "unary_square" and ptx_source.startswith("embedded-"):
         raise RuntimeError("unary_square DAG shape requires nvcc-built generated-dispatch PTX")
     ptx_buf = ctypes.create_string_buffer(ptx + b"\0")
@@ -2437,6 +2527,7 @@ def main() -> None:
             "bad_no_root",
             "chain",
             "fork_join",
+            "generic_args",
             "quad",
             "scalar_affine",
             "scalar_axpy",

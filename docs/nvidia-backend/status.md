@@ -98,6 +98,9 @@ execution modes:
   body.
 - fourth tensor-argument DAG descriptor for a generated-dispatch quad task
   body.
+- generic tensor/scalar argument slots in the persistent DAG descriptor, with
+  a generated-dispatch task reading `tensor_args[0]`, `tensor_args[1]`,
+  `scalar_args[0]`, and `scalar_args[1]`.
 - unary generated-dispatch DAG descriptor for a task body that reads one
   tensor input and leaves the second tensor pointer unused.
 - device-side scheduler diagnostics for unsupported generated-dispatch
@@ -1140,6 +1143,18 @@ Markdown report, median-device SVG, and ratio SVG. The combined JSON has
 `pto_persistent_dag_quad` samples. The paired-current validator reported:
 `validated tmp/cuda-backend/combined-current-c0dc1372/cuda-benchmark.json`.
 
+After adding generic persistent DAG tensor/scalar argument slots, the
+`generic_args` smoke was run locally on A100 and remotely on H200 with a tree
+sync. The graph uses generated-dispatch `func_id` sequence `[9, 2, 1]`; the
+first task computes from the base tensor fields plus `tensor_args[0]`,
+`tensor_args[1]`, `scalar_args[0]`, and `scalar_args[1]`, and the final task
+joins with an independent `a * b` branch. Result:
+`tmp/cuda-backend/persistent-generic_args-smoke-7c99f607/` contains
+`a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. Both runs reported zero scheduler errors and
+argument metadata
+`scalar_args[0]=1.5,scalar_args[1]=0.25,tensor_args[0]=tmp0,tensor_args[1]=tmp3`.
+
 ## Remaining Gaps
 
 ### Kernel Compiler Integration
@@ -1244,8 +1259,8 @@ it is not yet a full TensorMap/ringbuffer analogue.
 
 Needed:
 
-- broader generalized task argument ABI beyond the current unary tensor,
-  tensor-shape, scalar descriptor, and two-extra-tensor-pointer fields;
+- graph-level use of the generic tensor/scalar argument slots from normal PTO
+  task graph lowering, beyond the current hand-built `generic_args` smoke;
 - graph construction from normal PTO task graphs;
 - broader lifecycle validation beyond the current scratch-reuse and
   direct/queue/DAG prepared-callable repeat-run smokes;

@@ -288,6 +288,28 @@ def test_render_persistent_dag_source_includes_fourth_tensor_descriptor():
     assert "task->d[i]" in source
 
 
+def test_render_persistent_dag_source_includes_generic_argument_slots():
+    source = render_persistent_dag_source(
+        [
+            CudaPersistentTaskFunction(
+                func_id=9,
+                name="generic_args_f32",
+                body=(
+                    "task->out[i] = task->scalar_args[0] * task->a[i] + "
+                    "task->tensor_args[0][i] + task->scalar_args[1] * task->tensor_args[1][i];"
+                ),
+            )
+        ]
+    )
+
+    assert "const float *tensor_args[4];" in source
+    assert "float scalar_args[4];" in source
+    assert "unsigned int tensor_arg_count;" in source
+    assert "unsigned int scalar_arg_count;" in source
+    assert "task->tensor_args[1][i]" in source
+    assert "task->scalar_args[1]" in source
+
+
 def test_render_persistent_dag_source_records_device_scheduler_errors():
     source = render_persistent_dag_source(
         [
