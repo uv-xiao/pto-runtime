@@ -385,16 +385,16 @@ def _build_cuda_host_schedule_args(
     from simpler_setup.cuda_callable_compiler import CudaVectorAddArgs  # noqa: PLC0415
 
     arg_builder = cuda_spec.get("arg_builder", "vector_add_f32")
-    if arg_builder != "vector_add_f32":
+    if arg_builder not in {"vector_add_f32", "elementwise_binary_f32"}:
         raise NotImplementedError(f"Unsupported CUDA scene-test arg_builder: {arg_builder}")
 
     tensor_names = [spec.name for spec in test_args.specs if isinstance(spec, Tensor)]
     names = list(cuda_spec.get("args", tensor_names[:3]))
     if len(names) != 3:
-        raise ValueError("CUDA vector_add_f32 scene tests require exactly three tensor args")
+        raise ValueError(f"CUDA {arg_builder} scene tests require exactly three tensor args")
     missing = [name for name in names if name not in device_buffers.ptrs]
     if missing:
-        raise ValueError(f"CUDA vector_add_f32 args reference unknown tensors: {', '.join(missing)}")
+        raise ValueError(f"CUDA {arg_builder} args reference unknown tensors: {', '.join(missing)}")
 
     n = int(cuda_spec.get("n", getattr(test_args, names[0]).numel()))
     return CudaVectorAddArgs(

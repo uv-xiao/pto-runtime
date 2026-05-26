@@ -102,6 +102,9 @@ and composes the generated dispatch entry.
 normal L2 `Worker`, builds `persistent_dag_fork_join_f32` and
 `persistent_dag_tensor_tile_f32` state objects from normal `TaskArgsBuilder`
 CPU tensors, and validates real copied-back CUDA output data.
+The host-schedule scene path also accepts the neutral
+`elementwise_binary_f32` adapter for non-addition task bodies that still use
+the current `(a, b, out, n)` launch ABI.
 
 Evidence:
 
@@ -553,13 +556,14 @@ Host-schedule task-body compilation and persistent-device generated dispatch
 now have first `KernelCompiler` entry points. Both paths can consume
 `CudaTaskBody` style sources. CUDA prepared-callable artifacts can be staged
 through the L2 Python `Worker` registration path. The normal scene-test flow
-can compile and run host-schedule CUDA vector-add callable specs and
+can compile and run host-schedule CUDA vector-add and binary elementwise
+callable specs and
 persistent-device fork/join DAG callable specs end to end.
 
 Needed:
 
-- broader CUDA scene-test argument builders beyond the current
-  `vector_add_f32`, `persistent_dag_fork_join_f32`, and
+- broader CUDA scene-test argument builders beyond the current binary
+  elementwise, `persistent_dag_fork_join_f32`, and
   `persistent_dag_tensor_tile_f32` tracer bullets.
 
 ### Target Role Cleanup
