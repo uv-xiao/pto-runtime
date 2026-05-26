@@ -99,6 +99,22 @@ def _load_pair_benchmark_module():
         sys.modules.pop(spec.name, None)
 
 
+def _load_current_summary_module():
+    script_dir = Path(__file__).resolve().parents[3] / ".agents" / "skills" / "cuda-backend-eval" / "scripts"
+    script_path = script_dir / "cuda_current_summary.py"
+    sys.path.insert(0, str(script_dir))
+    try:
+        spec = importlib.util.spec_from_file_location("cuda_current_summary", script_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.modules.pop("cuda_current_summary", None)
+        sys.path.remove(str(script_dir))
+
+
 def _load_smoke_report_module():
     script_path = (
         Path(__file__).resolve().parents[3]
@@ -613,6 +629,92 @@ def test_persistent_dag_compiler_path_uses_kernel_compiler(tmp_path, monkeypatch
     assert {task["body_style"] for task in seen["task_sources"]} == {"task_body"}
     assert all("PtoCudaPersistentDagTask" in task["context_definition"] for task in seen["task_sources"])
     assert all(Path(task["source_path"]).is_file() for task in seen["task_sources"])
+
+
+def test_cuda_current_summary_renders_launch_table():
+    cuda_current_summary = _load_current_summary_module()
+    payload = {
+        "results": [
+            {"machine": "hina", "baseline": "pto_host_schedule", "n": 1024, "device_wall_ns": 1000},
+            {"machine": "hina", "baseline": "pto_host_schedule_compiler", "n": 1024, "device_wall_ns": 900},
+            {"machine": "hina", "baseline": "direct_driver", "n": 1024, "device_wall_ns": 1200},
+            {"machine": "hina", "baseline": "direct_driver_graph", "n": 1024, "device_wall_ns": 500},
+            {"machine": "dasys-h200x8", "baseline": "pto_host_schedule", "n": 1024, "device_wall_ns": 800},
+            {
+                "machine": "dasys-h200x8",
+                "baseline": "pto_host_schedule_compiler",
+                "n": 1024,
+                "device_wall_ns": 840,
+            },
+            {"machine": "dasys-h200x8", "baseline": "direct_driver", "n": 1024, "device_wall_ns": 880},
+            {"machine": "dasys-h200x8", "baseline": "direct_driver_graph", "n": 1024, "device_wall_ns": 400},
+        ],
+    }
+
+    table = cuda_current_summary.render_launch_table(payload)
+
+    assert "| GPU | N | PTO host ns | Compiler ns | Driver ns | Graph ns | Compiler/PTO | Graph/PTO |" in table
+    assert "| A100 | 1024 | 1000 | 900 | 1200 | 500 | 0.90x | 0.50x |" in table
+    assert "| H200 | 1024 | 800 | 840 | 880 | 400 | 1.05x | 0.50x |" in table
+
+
+def test_cuda_current_summary_renders_worker_and_dag_tables():
+    cuda_current_summary = _load_current_summary_module()
+    payload = {
+        "results": [
+            {
+                "machine": "hina",
+                "baseline": "pto_host_schedule_batch",
+                "n": 65536,
+                "task_count": 6,
+                "device_wall_ns": 10000,
+            },
+            {
+                "machine": "hina",
+                "baseline": "pto_persistent_device_grid_batch",
+                "n": 65536,
+                "task_count": 6,
+                "worker_blocks_per_task": 32,
+                "device_wall_ns": 7000,
+            },
+            {
+                "machine": "hina",
+                "baseline": "pto_persistent_device_grid_batch",
+                "n": 65536,
+                "task_count": 6,
+                "worker_blocks_per_task": 128,
+                "device_wall_ns": 3000,
+            },
+            {"machine": "hina", "baseline": "pto_persistent_dag", "n": 65536, "task_count": 3, "device_wall_ns": 2000},
+            {
+                "machine": "hina",
+                "baseline": "pto_persistent_dag_chain",
+                "n": 65536,
+                "task_count": 5,
+                "device_wall_ns": 3000,
+            },
+            {
+                "machine": "hina",
+                "baseline": "pto_persistent_dag_reuse",
+                "n": 65536,
+                "task_count": 6,
+                "device_wall_ns": 4000,
+            },
+            {
+                "machine": "hina",
+                "baseline": "pto_persistent_dag_tensor",
+                "n": 65536,
+                "task_count": 4,
+                "device_wall_ns": 5000,
+            },
+        ],
+    }
+
+    worker_table = cuda_current_summary.render_worker_grid_table(payload)
+    dag_table = cuda_current_summary.render_dag_shape_table(payload)
+
+    assert "| A100 | 65536 | 6 | 128 | 3000 | 0.30x |" in worker_table
+    assert "| A100 | 65536 | 1.50x | 2.00x | 2.50x |" in dag_table
 
 
 def test_summarize_results_groups_by_machine_and_baseline():

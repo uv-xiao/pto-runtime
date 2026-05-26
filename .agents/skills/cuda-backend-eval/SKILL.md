@@ -446,6 +446,19 @@ is the clearest visual for launch-overhead comparisons such as
 `direct_driver_graph` vs. `pto_host_schedule`, stream parallel-vs-serial, and
 same-work persistent batch rows.
 
+Render the compact tables used by `docs/nvidia-backend/evaluation-current.md`
+directly from a combined benchmark JSON payload:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py \
+    tmp/cuda-backend/combined-current-0e1be392/cuda-benchmark.json
+```
+
+Use `--section launch`, `--section worker-grid`, or `--section dag-shapes` to
+refresh only one table. This avoids hand-calculating the current-evaluation
+summary from raw JSON.
+
 When worker-grid rows are present, the report includes a
 `Best Worker Grid Rows` table that picks the lowest median device time for
 each machine, vector length, and task count.

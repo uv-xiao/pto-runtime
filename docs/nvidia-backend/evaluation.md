@@ -30,6 +30,9 @@ committed:
 `.agents/skills/cuda-backend-eval/scripts/cuda_artifact_index.py`. It indexes
 local benchmark and smoke artifacts, including tensor-tile descriptor shapes
 when the JSON payloads carry that metadata.
+The compact tables in [Current capture](evaluation-current.md) can be
+regenerated from the combined JSON with
+`.agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py`.
 
 ## Baselines
 
