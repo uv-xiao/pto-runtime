@@ -183,6 +183,23 @@ class CudaVectorAxpyArgs(ctypes.Structure):
         return ctypes.sizeof(self)
 
 
+class CudaVectorAffineArgs(ctypes.Structure):
+    _fields_ = [
+        ("a", ctypes.c_void_p),
+        ("b", ctypes.c_void_p),
+        ("out", ctypes.c_void_p),
+        ("alpha", ctypes.c_float),
+        ("beta", ctypes.c_float),
+        ("n", ctypes.c_uint64),
+    ]
+
+    def buffer_ptr(self) -> int:
+        return ctypes.addressof(self)
+
+    def buffer_size(self) -> int:
+        return ctypes.sizeof(self)
+
+
 class CudaPersistentDeviceCallable(ctypes.Structure):
     _fields_ = [
         ("version", ctypes.c_uint32),

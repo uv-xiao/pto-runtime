@@ -94,6 +94,17 @@ PYTHONPATH=$PWD:$PWD/python \
     --output-json tmp/cuda-backend/worker-axpy-smoke/a100.json
 ```
 
+Use `--op affine` to validate the two-scalar host-schedule ABI
+`(a, b, out, alpha, beta, n)`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_smoke.py \
+    --runner worker --op affine --device 0 --n 1024 --block-dim 256 \
+    --arch compute_80 \
+    --output-json tmp/cuda-backend/worker-affine-smoke/a100.json
+```
+
 Use `cuda_smoke_report.py` to turn captured smoke JSON from A100 and H200 into
 Markdown and SVG evidence. Persistent-device reports include dispatch
 `func_id` sequences and device-side scheduler error counters:
@@ -429,7 +440,8 @@ that expose `buffer_ptr()` / `buffer_size()`. The normal `SceneTestCase` L2
 path can now build `CALLABLE["cuda"]` host-schedule specs and run the current
 `arg_builder: vector_add_f32`, `arg_builder: elementwise_binary_f32`,
 `arg_builder: elementwise_unary_f32`, `arg_builder: elementwise_scale_f32`,
-and `arg_builder: elementwise_axpy_f32` adapters from CPU
+`arg_builder: elementwise_axpy_f32`, and
+`arg_builder: elementwise_affine_f32` adapters from CPU
 `TaskArgsBuilder` tensors and scalars through real CUDA device buffers.
 Use the neutral `elementwise_binary_f32` name when the compiled task body is
 not addition but still uses the current `(a, b, out, n)` launch ABI. The same
@@ -438,7 +450,8 @@ path can build
 `arg_builder: persistent_dag_fork_join_f32`,
 `arg_builder: persistent_dag_chain_f32`,
 `arg_builder: persistent_dag_reuse_f32`,
-`arg_builder: persistent_dag_scalar_axpy_f32`, and
+`arg_builder: persistent_dag_scalar_axpy_f32`,
+`arg_builder: persistent_dag_scalar_affine_f32`, and
 `arg_builder: persistent_dag_tensor_tile_f32` adapters through the L2
 `Worker`.
 For real host-schedule smoke coverage, pass a context definition plus
@@ -556,7 +569,7 @@ the full benchmark:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_smoke.py \
-    --op axpy --sync-remote-tree --build-runtime
+    --op affine --sync-remote-tree --build-runtime
 ```
 
 It mirrors the benchmark runner's remote refresh, `--skip-remote-refresh`,

@@ -384,6 +384,7 @@ def _build_cuda_host_schedule_args(
 ):
     from simpler_setup.cuda_callable_compiler import (  # noqa: PLC0415
         CudaVectorAddArgs,
+        CudaVectorAffineArgs,
         CudaVectorAxpyArgs,
         CudaVectorScaleArgs,
         CudaVectorUnaryArgs,
@@ -396,13 +397,16 @@ def _build_cuda_host_schedule_args(
         "elementwise_unary_f32",
         "elementwise_scale_f32",
         "elementwise_axpy_f32",
+        "elementwise_affine_f32",
     }:
         raise NotImplementedError(f"Unsupported CUDA scene-test arg_builder: {arg_builder}")
 
     tensor_names = [spec.name for spec in test_args.specs if isinstance(spec, Tensor)]
     default_arg_count = 2 if arg_builder == "elementwise_unary_f32" else 3
     names = list(cuda_spec.get("args", tensor_names[:default_arg_count]))
-    if arg_builder == "elementwise_axpy_f32":
+    if arg_builder == "elementwise_affine_f32":
+        expected_arg_count = 5
+    elif arg_builder == "elementwise_axpy_f32":
         expected_arg_count = 4
     elif arg_builder == "elementwise_unary_f32":
         expected_arg_count = 2
@@ -414,7 +418,7 @@ def _build_cuda_host_schedule_args(
         missing = [name for name in names[:2] if name not in device_buffers.ptrs]
     elif arg_builder == "elementwise_unary_f32":
         missing = [name for name in names if name not in device_buffers.ptrs]
-    elif arg_builder == "elementwise_axpy_f32":
+    elif arg_builder in {"elementwise_axpy_f32", "elementwise_affine_f32"}:
         missing = [name for name in names[:3] if name not in device_buffers.ptrs]
     else:
         missing = [name for name in names if name not in device_buffers.ptrs]
@@ -445,6 +449,19 @@ def _build_cuda_host_schedule_args(
             b=device_buffers.ptrs[names[1]],
             out=device_buffers.ptrs[names[2]],
             alpha=float(alpha_value),
+            n=n,
+        )
+    if arg_builder == "elementwise_affine_f32":
+        alpha = getattr(test_args, names[3])
+        beta = getattr(test_args, names[4])
+        alpha_value = alpha.value if hasattr(alpha, "value") else alpha
+        beta_value = beta.value if hasattr(beta, "value") else beta
+        return CudaVectorAffineArgs(
+            a=device_buffers.ptrs[names[0]],
+            b=device_buffers.ptrs[names[1]],
+            out=device_buffers.ptrs[names[2]],
+            alpha=float(alpha_value),
+            beta=float(beta_value),
             n=n,
         )
     return CudaVectorAddArgs(

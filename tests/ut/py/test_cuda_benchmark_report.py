@@ -666,6 +666,15 @@ def test_cuda_pair_smoke_builds_worker_mul_a100_h200_workflow(tmp_path):
     assert index[-2:] == ["--root", str(tmp_path / "cuda-backend")]
 
 
+def test_cuda_pair_smoke_accepts_affine_op():
+    cuda_pair_smoke = _load_pair_smoke_module()
+
+    args = cuda_pair_smoke.parse_args(["--op", "affine", "--sync-remote-tree"])
+
+    assert args.op == "affine"
+    assert args.sync_remote_tree is True
+
+
 def test_cuda_pair_smoke_can_sync_local_tree_and_dry_run(tmp_path):
     cuda_pair_smoke = _load_pair_smoke_module()
     calls = []
@@ -1012,6 +1021,31 @@ def test_cuda_worker_smoke_generates_axpy_task_body():
     assert "ctx->out[i] = ctx->alpha * ctx->a[i] + ctx->b[i];" in body
 
 
+def test_cuda_worker_smoke_generates_affine_task_body():
+    cuda_smoke = _load_smoke_module()
+
+    body = cuda_smoke._worker_task_body("affine")
+
+    assert "ctx->out[i] = ctx->alpha * ctx->a[i] + ctx->beta * ctx->b[i];" in body
+
+
+def test_cuda_worker_smoke_affine_helpers_use_two_scalars():
+    cuda_smoke = _load_smoke_module()
+
+    assert cuda_smoke._worker_expected_output("affine", 4) == [0.0, 2.5, 5.0, 7.5]
+    assert "float beta;" in cuda_smoke._worker_context_definition("affine")
+    assert cuda_smoke._worker_host_parameters("affine") == (
+        "const float *a",
+        "const float *b",
+        "float *out",
+        "float alpha",
+        "float beta",
+        "unsigned long long n",
+    )
+    assert cuda_smoke._worker_host_context_initializer("affine") == "a, b, out, alpha, beta, n"
+    assert cuda_smoke._worker_host_op("affine") == 5
+
+
 def test_cuda_smoke_main_writes_output_json(tmp_path, monkeypatch, capsys):
     cuda_smoke = _load_smoke_module()
     output = tmp_path / "smoke.json"
@@ -1217,6 +1251,57 @@ def test_cuda_smoke_main_accepts_axpy_output_json(tmp_path, monkeypatch, capsys)
     assert printed == written
     assert written["op"] == "axpy"
     assert written["mode"] == "worker/axpy"
+
+
+def test_cuda_smoke_main_accepts_affine_output_json(tmp_path, monkeypatch, capsys):
+    cuda_smoke = _load_smoke_module()
+    output = tmp_path / "affine-smoke.json"
+
+    monkeypatch.setattr(
+        cuda_smoke,
+        "run_worker_smoke",
+        lambda device, n, block_dim, arch, build, op: {
+            "status": "pass",
+            "runner": "worker",
+            "runtime": "host_schedule",
+            "mode": f"worker/{op}",
+            "op": op,
+            "device": device,
+            "n": n,
+            "block_dim": block_dim,
+            "ptx_arch": arch,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "cuda_smoke.py",
+            "--runner",
+            "worker",
+            "--op",
+            "affine",
+            "--device",
+            "1",
+            "--n",
+            "64",
+            "--block-dim",
+            "32",
+            "--arch",
+            "compute_90",
+            "--no-build",
+            "--output-json",
+            str(output),
+        ],
+    )
+
+    cuda_smoke.main()
+
+    printed = json.loads(capsys.readouterr().out)
+    written = json.loads(output.read_text())
+    assert printed == written
+    assert written["op"] == "affine"
+    assert written["mode"] == "worker/affine"
 
 
 def test_persistent_direct_launch_can_use_multiple_worker_blocks_per_task():

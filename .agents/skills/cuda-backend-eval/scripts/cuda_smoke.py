@@ -28,6 +28,7 @@ from simpler.worker import Worker
 from simpler_setup.cuda_callable_compiler import CudaHostScheduleCallable as CudaHostCallable
 from simpler_setup.cuda_callable_compiler import (
     CudaVectorAddArgs,
+    CudaVectorAffineArgs,
     CudaVectorAxpyArgs,
     CudaVectorScaleArgs,
     CudaVectorUnaryArgs,
@@ -209,6 +210,8 @@ def _worker_task_body(op: str) -> str:
         expression = "ctx->a[i] * ctx->a[i]"
     elif op == "axpy":
         expression = "ctx->alpha * ctx->a[i] + ctx->b[i]"
+    elif op == "affine":
+        expression = "ctx->alpha * ctx->a[i] + ctx->beta * ctx->b[i]"
     else:
         raise ValueError(f"unknown worker smoke op: {op}")
     return f"""
@@ -234,6 +237,8 @@ def _worker_expected_output(op: str, n: int) -> list[float]:
         return [_float32(_float32(float(i)) * _float32(float(i))) for i in range(n)]
     if op == "axpy":
         return [float(1.5 * i + (2 * i)) for i in range(n)]
+    if op == "affine":
+        return [float(1.5 * i + 0.5 * (2 * i)) for i in range(n)]
     raise ValueError(f"unknown worker smoke op: {op}")
 
 
@@ -262,6 +267,17 @@ struct PtoTaskContext {
     const float *b;
     float *out;
     float alpha;
+    unsigned long long n;
+};
+""".strip()
+    if op == "affine":
+        return """
+struct PtoTaskContext {
+    const float *a;
+    const float *b;
+    float *out;
+    float alpha;
+    float beta;
     unsigned long long n;
 };
 """.strip()
@@ -297,6 +313,15 @@ def _worker_host_parameters(op: str) -> tuple[str, ...]:
             "float alpha",
             "unsigned long long n",
         )
+    if op == "affine":
+        return (
+            "const float *a",
+            "const float *b",
+            "float *out",
+            "float alpha",
+            "float beta",
+            "unsigned long long n",
+        )
     return (
         "const float *a",
         "const float *b",
@@ -312,6 +337,8 @@ def _worker_host_context_initializer(op: str) -> str:
         return "a, out, n"
     if op == "axpy":
         return "a, b, out, alpha, n"
+    if op == "affine":
+        return "a, b, out, alpha, beta, n"
     return "a, b, out, n"
 
 
@@ -322,6 +349,8 @@ def _worker_host_op(op: str) -> int:
         return 3
     if op == "square":
         return 4
+    if op == "affine":
+        return 5
     return 1
 
 
@@ -458,6 +487,8 @@ def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool
                 args = CudaVectorUnaryArgs(a=dev_a, out=dev_out, n=n)
             elif op == "axpy":
                 args = CudaVectorAxpyArgs(a=dev_a, b=dev_b, out=dev_out, alpha=1.5, n=n)
+            elif op == "affine":
+                args = CudaVectorAffineArgs(a=dev_a, b=dev_b, out=dev_out, alpha=1.5, beta=0.5, n=n)
             else:
                 args = CudaVectorAddArgs(a=dev_a, b=dev_b, out=dev_out, n=n)
             config = CallConfig()
@@ -506,7 +537,7 @@ def main() -> None:
     parser.add_argument("--runner", choices=("direct_c_api", "worker"), default="direct_c_api")
     parser.add_argument(
         "--op",
-        choices=("add", "mul", "scale", "square", "axpy"),
+        choices=("add", "mul", "scale", "square", "axpy", "affine"),
         default="add",
         help="Worker task body operation",
     )
