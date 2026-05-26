@@ -316,6 +316,19 @@ PYTHONPATH=$PWD:$PWD/python \
     --worker-blocks 2 --stream-id 1 --sync-remote-tree
 ```
 
+Use `--dag-shape graph_descriptor --repeat-runs 2` with the paired persistent
+smoke runner to validate explicit graph-descriptor lifecycle reuse on A100 and
+H200. This path prepares the generated-dispatch callable once, resets fan-in,
+ready flags, counters, and scratch/output buffers between launches, then runs
+the same prepared callable twice.
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor --task-count 3 --queue-capacity 2 \
+    --repeat-runs 2 --sync-remote-tree
+```
+
 This writes `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
 `cuda-smoke-report.svg` under
 `tmp/cuda-backend/persistent-<shape>-smoke-<commit>/`, then refreshes

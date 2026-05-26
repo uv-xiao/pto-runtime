@@ -303,6 +303,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "chain",
             "fork_join",
             "generic_args",
+            "graph_descriptor",
             "quad",
             "scalar_affine",
             "scalar_axpy",

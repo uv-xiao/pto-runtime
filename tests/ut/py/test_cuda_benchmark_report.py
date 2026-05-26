@@ -1166,6 +1166,46 @@ def test_cuda_pair_persistent_smoke_builds_generic_args_workflow(tmp_path):
     assert "persistent-generic_args-smoke-abc123/h200.json" in remote[-1]
 
 
+def test_cuda_pair_persistent_smoke_accepts_graph_descriptor_repeat_runs(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+
+    args = cuda_pair_persistent_smoke.parse_args(
+        [
+            "--dag-shape",
+            "graph_descriptor",
+            "--repeat-runs",
+            "2",
+            "--sync-remote-tree",
+        ]
+    )
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape=args.dag_shape,
+        repeat_runs=args.repeat_runs,
+        sync_remote_tree=args.sync_remote_tree,
+        refresh_remote=not args.skip_remote_refresh and not args.sync_remote_tree,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+
+    assert config.dag_shape == "graph_descriptor"
+    assert config.repeat_runs == 2
+    assert config.sync_remote_tree is True
+    assert "persistent-graph_descriptor-repeat2-smoke-abc123" in str(local)
+    assert "--dag-shape" in local
+    assert "graph_descriptor" in local
+    assert "--repeat-runs" in local
+    assert "2" in local
+    assert "--dag-shape graph_descriptor" in remote[-1]
+    assert "--repeat-runs 2" in remote[-1]
+    assert "persistent-graph_descriptor-repeat2-smoke-abc123/h200.json" in remote[-1]
+
+
 def test_cuda_pair_persistent_smoke_builds_scalar_affine_workflow(tmp_path):
     cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
     config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
