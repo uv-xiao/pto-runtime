@@ -102,6 +102,8 @@ execution modes:
 - explicit resource-policy smoke metadata for the current single scheduler
   block, configurable queue/DAG worker blocks, direct-mode worker blocks per
   task, and callable `stream_id`.
+- prepared-callable repeat-run lifecycle metadata for direct, queue, and DAG
+  modes, with queue counters/flags and DAG graph state reset between launches.
 
 The persistent DAG path compiles generated CUDA source with `nvcc` and stores
 the generated source, PTX, and manifest under
@@ -577,9 +579,10 @@ The H200 initial-fan-in mismatch check returned the expected diagnostic:
 The H200 no-root check returned the expected diagnostic:
 `persistent dag scheduler error code=6 task_id=0 count=1`.
 
-The persistent DAG callable lifecycle path now has a repeat-run smoke that
-prepares the generated-dispatch callable once, resets the graph state, and
-launches the same callable twice:
+The persistent callable lifecycle path has repeat-run smoke support that
+prepares the callable once and launches it multiple times. Direct mode reuses
+the prepared callable, queue mode resets the ready queue counters and flags,
+and DAG mode resets the graph state between launches:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
@@ -588,11 +591,25 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape chain --repeat-runs 2
 ```
 
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 4 --n 4096 --arch compute_80 \
+    --mode queue --queue-capacity 2 --repeat-runs 2
+```
+
 Result: `tmp/cuda-backend/persistent-chain-repeat2-smoke-4bcd56c4/`
 contains A100 and H200 JSON plus Markdown/SVG reports. Local A100 returned
 `launch_completed_counts=[5,5]`, `launch_device_wall_ns=[44032,41984]`, and
 zero scheduler errors. Remote H200 returned `launch_completed_counts=[5,5]`,
 `launch_device_wall_ns=[45760,39616]`, and zero scheduler errors.
+
+The queue-mode lifecycle capture at
+`tmp/cuda-backend/persistent-queue-repeat2-smoke-0a4447c0/` verifies that the
+ready-queue counters and flags are reset between prepared-callable launches.
+Local A100 returned `launch_completed_counts=[4,4]` and
+`launch_device_wall_ns=[22528,14336]`. Remote H200 returned
+`launch_completed_counts=[4,4]` and `launch_device_wall_ns=[25280,14272]`.
 
 After adding invalid-dependent, dependent-range, fan-in-underflow,
 initial-fan-in, and no-root scheduler diagnostics, the focused CUDA test set
@@ -1054,8 +1071,8 @@ Needed:
 - broader generalized task argument ABI beyond the current tensor-shape and
   scalar descriptor fields and one extra tensor pointer field;
 - graph construction from normal PTO task graphs;
-- broader lifecycle validation beyond the current scratch-reuse and prepared
-  callable repeat-run smokes;
+- broader lifecycle validation beyond the current scratch-reuse and
+  direct/queue/DAG prepared-callable repeat-run smokes;
 - broader resource policy beyond the current single scheduler block,
   configurable queue/DAG worker blocks, direct worker-blocks-per-task, and
   callable stream id tracer bullet;

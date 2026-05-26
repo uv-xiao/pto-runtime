@@ -995,6 +995,23 @@ def test_cuda_pair_persistent_smoke_passes_repeat_runs(tmp_path):
     assert "persistent-chain-repeat2-smoke-abc123/h200.json" in remote[-1]
 
 
+def test_cuda_pair_persistent_smoke_labels_queue_mode_by_mode(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        mode="queue",
+        task_count=4,
+        queue_capacity=2,
+        repeat_runs=2,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+
+    assert str(tmp_path / "cuda-backend" / "persistent-queue-repeat2-smoke-abc123" / "a100.json") in local
+    assert "persistent-fork_join-repeat2-smoke-abc123" not in " ".join(local)
+
+
 def test_cuda_pair_persistent_smoke_builds_tensor_tile_descriptor_workflow(tmp_path):
     cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
     config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
@@ -1563,6 +1580,87 @@ def test_persistent_direct_launch_can_use_multiple_worker_blocks_per_task():
     assert launch.manifest.version == 2
     assert launch.manifest.stream_id == 0
     assert launch.args.worker_blocks_per_task == 4
+
+
+def test_persistent_direct_smoke_reuses_prepared_callable_for_repeat_runs(monkeypatch):
+    cuda_persistent_smoke = _load_persistent_smoke_module()
+    run_timings = []
+
+    class FakeRuntime:
+        def __init__(self):
+            self.next_ptr = 1000
+            self.run_calls = 0
+
+        def create_device_context(self):
+            return 1
+
+        def simpler_init(self, *args):
+            return 0
+
+        def device_malloc_ctx(self, ctx, size):
+            ptr = self.next_ptr
+            self.next_ptr += max(8, int(size))
+            return ptr
+
+        def copy_to_device_ctx(self, *args):
+            return 0
+
+        def prepare_callable(self, *args):
+            return 0
+
+        def run_prepared(self, *args):
+            self.run_calls += 1
+            timing = args[-1]._obj
+            timing.host_wall_ns = 10 * self.run_calls
+            timing.device_wall_ns = 5 * self.run_calls
+            run_timings.append((timing.host_wall_ns, timing.device_wall_ns))
+            return 0
+
+        def copy_from_device_ctx(self, ctx, dst, src, size):
+            value_count = int(size) // ctypes.sizeof(ctypes.c_float)
+            expected_t = ctypes.c_float * value_count
+            expected = expected_t(*[float(3 * i) for i in range(value_count)])
+            ctypes.memmove(dst, ctypes.byref(expected), size)
+            return 0
+
+        def unregister_callable(self, *args):
+            return 0
+
+        def device_free_ctx(self, *args):
+            return 0
+
+        def finalize_device(self, *args):
+            return 0
+
+        def destroy_device_context(self, *args):
+            return 0
+
+    fake_runtime = FakeRuntime()
+    fake_binaries = type("FakeBinaries", (), {"host_path": Path("libhost_runtime.so")})()
+    monkeypatch.setattr(
+        cuda_persistent_smoke,
+        "_compile_persistent_ptx",
+        lambda work_dir, arch, mode: (b"ptx", f"fake-{mode}-{arch}", None),
+    )
+    monkeypatch.setattr(cuda_persistent_smoke, "_load_persistent_runtime", lambda: (fake_runtime, fake_binaries))
+
+    result = cuda_persistent_smoke.run_persistent_smoke(
+        device=0,
+        task_count=2,
+        n=8,
+        arch="compute_80",
+        mode="direct",
+        repeat_runs=3,
+    )
+
+    assert fake_runtime.run_calls == 3
+    assert result["repeat_runs"] == 3
+    assert result["launch_completed_counts"] == [2, 2, 2]
+    assert result["launch_host_wall_ns"] == [10, 20, 30]
+    assert result["launch_device_wall_ns"] == [5, 10, 15]
+    assert result["host_wall_ns"] == 60
+    assert result["device_wall_ns"] == 30
+    assert run_timings == [(10, 5), (20, 10), (30, 15)]
 
 
 def test_tensor_tile_dag_shape_uses_caller_provided_descriptor():

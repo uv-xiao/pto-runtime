@@ -925,6 +925,8 @@ class PersistentLaunch:
     completed_count: int
     host_counters: Any | None = None
     dev_counters: int | None = None
+    host_ready_flags: Any | None = None
+    dev_ready_flags: int | None = None
     host_fanin: Any | None = None
     dev_fanin: int | None = None
     dispatch_func_ids: list[int] | None = None
@@ -1644,6 +1646,8 @@ def _make_queue_launch(
         completed_count=0,
         host_counters=host_counters,
         dev_counters=dev_counters,
+        host_ready_flags=host_flags,
+        dev_ready_flags=dev_ready_flags,
         device_allocations=device_allocations,
     )
 
@@ -2011,6 +2015,33 @@ def _completed_count(runtime, ctx: int, launch: PersistentLaunch, task_count: in
     return completed_count
 
 
+def _reset_queue_launch_state(runtime, ctx: int, launch: PersistentLaunch, queue_capacity: int) -> None:
+    if launch.host_counters is None or launch.dev_counters is None:
+        return
+    counters_t = type(launch.host_counters)
+    host_counters = counters_t(*([0] * len(launch.host_counters)))
+    launch.host_counters = host_counters
+    dev_counters = launch.dev_counters
+    if runtime.copy_to_device_ctx(ctx, dev_counters, ctypes.byref(host_counters), ctypes.sizeof(host_counters)) != 0:
+        raise RuntimeError("copy_to_device queue counters failed")
+    if launch.host_ready_flags is None or launch.dev_ready_flags is None:
+        return
+    flags_t = type(launch.host_ready_flags)
+    host_ready_flags = flags_t(*([0] * queue_capacity))
+    launch.host_ready_flags = host_ready_flags
+    dev_ready_flags = launch.dev_ready_flags
+    if (
+        runtime.copy_to_device_ctx(
+            ctx,
+            dev_ready_flags,
+            ctypes.byref(host_ready_flags),
+            ctypes.sizeof(host_ready_flags),
+        )
+        != 0
+    ):
+        raise RuntimeError("copy_to_device queue flags failed")
+
+
 def run_persistent_smoke(  # noqa: PLR0912, PLR0913
     device: int,
     task_count: int,
@@ -2142,35 +2173,44 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
                 worker_blocks,
                 stream_id,
             )
-            timing = PtoRunTiming()
             if runtime.prepare_callable(ctx, 0, ctypes.byref(launch.manifest)) != 0:
                 raise RuntimeError("prepare_callable failed")
-            if (
-                runtime.run_prepared(
-                    ctx,
-                    None,
-                    0,
-                    ctypes.byref(launch.args),
-                    256,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    None,
-                    ctypes.byref(timing),
-                )
-                != 0
-            ):
-                raise RuntimeError("run_prepared failed")
-
             expected = [float(3 * i) for i in range(n)]
-            for idx, out in enumerate(host_out):
-                if runtime.copy_from_device_ctx(ctx, ctypes.byref(out), dev_out[idx], nbytes) != 0:
-                    raise RuntimeError(f"copy_from_device {idx} failed")
-                if list(out) != expected:
-                    raise RuntimeError(f"persistent output {idx} mismatch")
-            completed_count = _completed_count(runtime, ctx, launch, task_count)
+            launch_completed_counts = []
+            launch_host_wall_ns = []
+            launch_device_wall_ns = []
+            completed_count = 0
+            for launch_idx in range(repeat_runs):
+                _reset_queue_launch_state(runtime, ctx, launch, queue_capacity)
+                timing = PtoRunTiming()
+                if (
+                    runtime.run_prepared(
+                        ctx,
+                        None,
+                        0,
+                        ctypes.byref(launch.args),
+                        256,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        None,
+                        ctypes.byref(timing),
+                    )
+                    != 0
+                ):
+                    raise RuntimeError("run_prepared failed")
+
+                for idx, out in enumerate(host_out):
+                    if runtime.copy_from_device_ctx(ctx, ctypes.byref(out), dev_out[idx], nbytes) != 0:
+                        raise RuntimeError(f"copy_from_device {idx} failed")
+                    if list(out) != expected:
+                        raise RuntimeError(f"persistent output {idx} mismatch on launch {launch_idx}")
+                completed_count = _completed_count(runtime, ctx, launch, task_count)
+                launch_completed_counts.append(completed_count)
+                launch_host_wall_ns.append(timing.host_wall_ns)
+                launch_device_wall_ns.append(timing.device_wall_ns)
             if runtime.unregister_callable(ctx, 0) != 0:
                 raise RuntimeError("unregister_callable failed")
         finally:
@@ -2201,6 +2241,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
         "worker_blocks": launch.worker_blocks,
         "worker_blocks_per_task": worker_blocks_per_task,
         "stream_id": stream_id,
+        "repeat_runs": repeat_runs,
         "resource_policy": {
             "scheduler_blocks": launch.scheduler_blocks,
             "worker_blocks": launch.worker_blocks,
@@ -2210,10 +2251,13 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
             "grid_dim": launch.scheduler_blocks + launch.worker_blocks,
         },
         "completed_count": completed_count,
+        "launch_completed_counts": launch_completed_counts,
         "ptx_arch": arch,
         "ptx_source": ptx_source,
-        "host_wall_ns": timing.host_wall_ns,
-        "device_wall_ns": timing.device_wall_ns,
+        "host_wall_ns": sum(launch_host_wall_ns),
+        "device_wall_ns": sum(launch_device_wall_ns),
+        "launch_host_wall_ns": launch_host_wall_ns,
+        "launch_device_wall_ns": launch_device_wall_ns,
         "elapsed_s": time.time() - start,
         "host_runtime": str(binaries.host_path),
     }

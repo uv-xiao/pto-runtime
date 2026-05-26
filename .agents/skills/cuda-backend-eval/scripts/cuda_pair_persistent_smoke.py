@@ -61,6 +61,8 @@ def _git_commit(runner: Runner = subprocess.run) -> str:
 
 def _artifact_label(config: PairedPersistentSmokeConfig, suffix: str) -> str:
     repeat = f"-repeat{config.repeat_runs}" if config.repeat_runs > 1 else ""
+    if config.mode != "dag":
+        return f"persistent-{config.mode}{repeat}-smoke-{suffix}"
     if config.dag_shape == "tensor_tile":
         return (
             f"persistent-tensor_tile-{config.tensor_rows}x"
