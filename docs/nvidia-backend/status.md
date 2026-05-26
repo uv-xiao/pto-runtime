@@ -1300,6 +1300,28 @@ row reported `status=pass`,
 `status=pass`, `ptx_source=nvcc-persistent-generated-dispatch-compute_90`,
 `dispatch_func_ids=[9,2,1]`, and `device_wall_ns=31424`.
 
+The paired persistent-smoke runner also supports `graph_descriptor`, so the
+explicit graph path can be captured with the same A100/H200 lifecycle workflow
+as the fixed DAG shapes. A repeat-run lifecycle smoke was captured at commit
+`d3a86494`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python \
+    .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor --task-count 3 --queue-capacity 2 \
+    --repeat-runs 2 --sync-remote-tree
+```
+
+Result:
+`tmp/cuda-backend/persistent-graph_descriptor-repeat2-smoke-d3a86494/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. Both A100 and H200 reported `status=pass`,
+`launch_completed_counts=[3,3]`, `device_scheduler_errors=count=0`, and
+`dispatch_func_ids=[9,2,1]`. This validates that the explicit graph descriptor
+path can reuse one prepared generated-dispatch callable across two launches
+after resetting fan-in, ready flags, counters, and scratch/output buffers.
+
 Needed:
 
 - broader CUDA scene-test argument builders beyond the current binary
@@ -1388,8 +1410,9 @@ Needed:
 - graph construction from normal PTO task graphs;
 - broader graph-lowering coverage beyond the current explicit
   `persistent_dag_graph_f32` descriptor adapter;
-- broader lifecycle validation beyond the current scratch-reuse and
-  direct/queue/DAG prepared-callable repeat-run smokes;
+- broader lifecycle validation beyond the current scratch-reuse,
+  graph-descriptor repeat-run, and direct/queue/DAG prepared-callable
+  repeat-run smokes;
 - broader resource policy beyond the current single scheduler block,
   configurable queue/DAG worker blocks, direct worker-blocks-per-task, and
   callable stream id tracer bullet;
