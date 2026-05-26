@@ -173,7 +173,8 @@ Evidence:
   remote H200, including optional remote tree sync, compact report rendering,
   and artifact-index refresh.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_artifact_index.py` indexes
-  local `tmp/cuda-backend/` artifacts, including tensor-tile shapes.
+  local `tmp/cuda-backend/` artifacts, including tensor-tile shapes,
+  persistent smoke modes, dispatch sequences, and scheduler error counters.
 - `.agents/skills/cuda-backend-eval/SKILL.md` documents the current paired
   A100/H200 recipe.
 

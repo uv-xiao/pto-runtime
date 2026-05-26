@@ -290,7 +290,9 @@ def test_cuda_artifact_index_renders_markdown_and_writes_default_index(tmp_path)
 
     assert output == tmp_path / "index.md"
     assert "# CUDA Backend Artifact Index" in report
-    assert ("| a100-graph | benchmark | a100-graph | hina | abc123 | 1 | 1024 |  | direct_driver_graph |") in report
+    assert (
+        "| a100-graph | benchmark | a100-graph | hina | abc123 | 1 | 1024 |  |  |  |  | direct_driver_graph |"
+    ) in report
     assert "ratio SVG" in report
 
 
@@ -335,6 +337,11 @@ def test_cuda_artifact_index_scans_smoke_report_outputs(tmp_path):
     smoke_payload = {
         "status": "pass",
         "runtime": "persistent_device",
+        "mode": "dag",
+        "dag_shape": "tensor_tile",
+        "n": 4096,
+        "dispatch_func_ids": [3, 1, 2, 1],
+        "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
         "tensor_tile": {
             "rows": 16,
             "cols": 16,
@@ -343,7 +350,11 @@ def test_cuda_artifact_index_scans_smoke_report_outputs(tmp_path):
         },
     }
     (artifact_dir / "a100.json").write_text(json.dumps(smoke_payload) + "\n")
-    (artifact_dir / "h200.json").write_text(json.dumps(smoke_payload) + "\n")
+    h200_payload = {
+        **smoke_payload,
+        "device_scheduler_errors": {"count": 1, "code": 7, "task_id": 3},
+    }
+    (artifact_dir / "h200.json").write_text(json.dumps(h200_payload) + "\n")
     (artifact_dir / "cuda-smoke-report.md").write_text("# CUDA Smoke Report\n\n- Label: `tensor-smoke`\n")
     (artifact_dir / "cuda-smoke-report.svg").write_text("<svg></svg>\n")
 
@@ -359,14 +370,23 @@ def test_cuda_artifact_index_scans_smoke_report_outputs(tmp_path):
             "git_commit": "unknown",
             "result_count": 2,
             "baselines": ["persistent_device"],
-            "sizes": ["unknown"],
+            "sizes": [4096],
+            "smoke_modes": ["dag/tensor_tile"],
+            "dispatches": ["3,1,2,1"],
+            "scheduler_errors": [
+                "count=0,code=0,task=0",
+                "count=1,code=7,task=3",
+            ],
             "tensor_tiles": ["16x16x16"],
             "has_markdown": True,
             "has_svg": True,
             "has_ratio_svg": False,
         }
     ]
+    assert "Smoke mode | Dispatch | Scheduler errors |" in report
     assert "| tensor-descriptor-smoke | smoke | tensor-smoke | combined | unknown | 2 |" in report
+    assert "| 4096 | 16x16x16 | dag/tensor_tile | 3,1,2,1 |" in report
+    assert "count=0,code=0,task=0, count=1,code=7,task=3 |" in report
 
 
 def test_cuda_artifact_index_sorts_numeric_sizes_before_strings(tmp_path):
