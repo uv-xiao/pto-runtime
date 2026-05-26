@@ -733,6 +733,18 @@ task->out[i] = task->a[i] * task->b[i] + task->c[i];
 """.strip(),
         ),
     ),
+    CudaPersistentTaskBodyFunction(
+        func_id=7,
+        task_body=CudaTaskBody(
+            name="square_f32",
+            context_definition=_PERSISTENT_DAG_CONTEXT_DEFINITION,
+            body="""
+const PtoCudaPersistentDagTask *task = ctx->task;
+unsigned long long i = ctx->i;
+task->out[i] = task->a[i] * task->a[i];
+""".strip(),
+        ),
+    ),
 ]
 _PERSISTENT_DAG_SOURCE = render_persistent_dag_source(_PERSISTENT_DAG_TASK_FUNCTIONS)
 
@@ -1382,6 +1394,47 @@ def _make_dag_shape(
                 ),
             ),
         )
+    if dag_shape == "unary_square":
+        task_count = 3
+        host_fanin_t = ctypes.c_uint32 * task_count
+        dependents_t = ctypes.c_uint32 * 2
+        task_t = CudaPersistentDagTask * task_count
+        return (
+            host_fanin_t(0, 1, 1),
+            dependents_t(1, 2),
+            task_t(
+                CudaPersistentDagTask(
+                    func_id=7,
+                    a=dev_a,
+                    b=0,
+                    out=dev_tmp0,
+                    n=n,
+                    dependent_begin=0,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp0,
+                    b=dev_b,
+                    out=dev_tmp1,
+                    n=n,
+                    dependent_begin=1,
+                    dependent_count=1,
+                    initial_fanin=1,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp1,
+                    b=dev_a,
+                    out=dev_out,
+                    n=n,
+                    dependent_begin=2,
+                    dependent_count=0,
+                    initial_fanin=1,
+                ),
+            ),
+        )
     if dag_shape == "bad_func_id":
         task_count = 1
         host_fanin_t = ctypes.c_uint32 * task_count
@@ -1912,6 +1965,10 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 expected_tmp1 = [_f32(host_a[i] * host_b[i] + expected_tmp0[i]) for i in range(n)]
                 expected_tmp2 = [_f32(host_a[i] * host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp1[i] + expected_tmp2[i]) for i in range(n)]
+            if config.dag_shape == "unary_square":
+                expected_tmp0 = [_f32(host_a[i] * host_a[i]) for i in range(n)]
+                expected_tmp1 = [_f32(expected_tmp0[i] + host_b[i]) for i in range(n)]
+                expected_out = [_f32(expected_tmp1[i] + host_a[i]) for i in range(n)]
             if config.dag_shape == "tensor_tile":
                 expected_tmp0 = _matmul_expected(host_a, host_b, n, config.tensor_tile)
                 expected_tmp1 = [_f32(expected_tmp0[i] + host_a[i]) for i in range(n)]
@@ -2074,6 +2131,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
         "scratch_reuse",
         "tensor_tile",
         "triad",
+        "unary_square",
     }:
         raise ValueError(f"unknown dag shape: {dag_shape}")
     if worker_blocks_per_task <= 0:
@@ -2101,6 +2159,8 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
         raise RuntimeError("tensor_tile DAG shape requires nvcc-built generated-dispatch PTX")
     if mode == "dag" and dag_shape == "triad" and ptx_source.startswith("embedded-"):
         raise RuntimeError("triad DAG shape requires nvcc-built generated-dispatch PTX")
+    if mode == "dag" and dag_shape == "unary_square" and ptx_source.startswith("embedded-"):
+        raise RuntimeError("unary_square DAG shape requires nvcc-built generated-dispatch PTX")
     ptx_buf = ctypes.create_string_buffer(ptx + b"\0")
 
     runtime, binaries = _load_persistent_runtime()
@@ -2291,6 +2351,7 @@ def main() -> None:
             "scratch_reuse",
             "tensor_tile",
             "triad",
+            "unary_square",
         ],
         default="fork_join",
     )

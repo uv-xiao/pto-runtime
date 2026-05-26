@@ -96,6 +96,8 @@ execution modes:
   two-scalar affine task bodies.
 - third tensor-argument DAG descriptor for a generated-dispatch triad task
   body.
+- unary generated-dispatch DAG descriptor for a task body that reads one
+  tensor input and leaves the second tensor pointer unused.
 - device-side scheduler diagnostics for unsupported generated-dispatch
   `func_id` values, invalid dependent task IDs, and out-of-range dependent
   spans, fan-in underflow, and initial-fan-in mismatch.
@@ -123,7 +125,8 @@ tensor/scalar descriptors, plus `persistent_dag_tensor_tile_f32` state
 objects from normal `TaskArgsBuilder` CPU tensors, and validates real
 copied-back CUDA output data. The no-torch persistent smoke path also
 validates a generated-dispatch triad descriptor with a third tensor pointer
-field.
+field and a generated-dispatch unary-square descriptor with a single tensor
+input.
 The host-schedule scene path also accepts the neutral
 `elementwise_binary_f32` adapter for non-addition task bodies that still use
 the current `(a, b, out, n)` launch ABI. It accepts `elementwise_unary_f32`
@@ -947,6 +950,26 @@ Result: `tmp/cuda-backend/persistent-triad-smoke-3a3bcdb1/` contains
 `status=pass`, `ptx_arch=compute_90`, the same dispatch IDs and tensor args,
 and `device_wall_ns=24832`. Both rows reported zero device scheduler errors.
 
+After adding a unary generated-dispatch task body, the unary-square DAG smoke
+was captured on local A100 and remote H200 with tree sync and compact report
+generation:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python \
+    .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape unary_square --task-count 3 --queue-capacity 2 \
+    --sync-remote-tree
+```
+
+Result: `tmp/cuda-backend/persistent-unary_square-smoke-cb01f013/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The A100 row returned `status=pass`,
+`ptx_arch=compute_80`, `dispatch_func_ids=[7,1,1]`, and
+`device_wall_ns=30720`; the H200 row returned `status=pass`,
+`ptx_arch=compute_90`, the same dispatch IDs, and `device_wall_ns=31136`.
+Both rows reported zero device scheduler errors.
+
 After promoting the triad DAG to a benchmark baseline, the new single-baseline
 path was checked on both GPUs:
 
@@ -1068,8 +1091,8 @@ it is not yet a full TensorMap/ringbuffer analogue.
 
 Needed:
 
-- broader generalized task argument ABI beyond the current tensor-shape and
-  scalar descriptor fields and one extra tensor pointer field;
+- broader generalized task argument ABI beyond the current unary tensor,
+  tensor-shape, scalar descriptor, and one-extra-tensor-pointer fields;
 - graph construction from normal PTO task graphs;
 - broader lifecycle validation beyond the current scratch-reuse and
   direct/queue/DAG prepared-callable repeat-run smokes;

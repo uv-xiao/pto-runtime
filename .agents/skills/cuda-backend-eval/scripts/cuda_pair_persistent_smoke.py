@@ -307,6 +307,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "scratch_reuse",
             "tensor_tile",
             "triad",
+            "unary_square",
         ),
         default="fork_join",
     )

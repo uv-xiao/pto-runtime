@@ -1069,6 +1069,29 @@ def test_cuda_pair_persistent_smoke_builds_scalar_axpy_workflow(tmp_path):
     assert "persistent-scalar_axpy-smoke-abc123/h200.json" in remote[-1]
 
 
+def test_cuda_pair_persistent_smoke_builds_unary_square_workflow(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape="unary_square",
+        task_count=3,
+        queue_capacity=2,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+
+    assert "persistent-unary_square-smoke-abc123" in str(local)
+    assert "--dag-shape" in local
+    assert "unary_square" in local
+    assert "--dag-shape unary_square" in remote[-1]
+    assert "persistent-unary_square-smoke-abc123/h200.json" in remote[-1]
+
+
 def test_cuda_pair_persistent_smoke_builds_scalar_affine_workflow(tmp_path):
     cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
     config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
@@ -1743,6 +1766,33 @@ def test_triad_dag_shape_uses_third_tensor_descriptor_field():
     assert tasks[0].out == 202
 
 
+def test_unary_square_dag_shape_uses_single_input_task_body():
+    cuda_persistent_smoke = _load_persistent_smoke_module()
+
+    host_fanin, dependents, tasks = cuda_persistent_smoke._make_dag_shape(
+        "unary_square",
+        64,
+        101,
+        102,
+        201,
+        202,
+        203,
+        204,
+        301,
+    )
+
+    assert list(host_fanin) == [0, 1, 1]
+    assert list(dependents) == [1, 2]
+    assert [task.func_id for task in tasks] == [7, 1, 1]
+    assert tasks[0].a == 101
+    assert tasks[0].b is None
+    assert tasks[0].out == 201
+    assert tasks[1].a == 201
+    assert tasks[1].b == 102
+    assert tasks[2].a == 202
+    assert tasks[2].b == 101
+
+
 def test_bad_no_root_dag_shape_has_no_initial_ready_tasks():
     cuda_persistent_smoke = _load_persistent_smoke_module()
 
@@ -1796,7 +1846,7 @@ def test_persistent_dag_compiler_path_uses_kernel_compiler(tmp_path, monkeypatch
     assert seen["platform"] == "cuda"
     assert seen["arch"] == "compute_90"
     assert seen["nvcc"] == "/usr/local/cuda/bin/nvcc"
-    assert [task["func_id"] for task in seen["task_sources"]] == [1, 2, 3, 4, 5, 6]
+    assert [task["func_id"] for task in seen["task_sources"]] == [1, 2, 3, 4, 5, 6, 7]
     assert [task["task_name"] for task in seen["task_sources"]] == [
         "add_f32",
         "mul_f32",
@@ -1804,6 +1854,7 @@ def test_persistent_dag_compiler_path_uses_kernel_compiler(tmp_path, monkeypatch
         "axpy_f32",
         "affine_f32",
         "triad_f32",
+        "square_f32",
     ]
     assert {task["body_style"] for task in seen["task_sources"]} == {"task_body"}
     assert all("PtoCudaPersistentDagTask" in task["context_definition"] for task in seen["task_sources"])

@@ -227,6 +227,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape triad
 ```
 
+Use `--dag-shape unary_square` to validate a generated-dispatch task body
+that reads only one tensor input from the persistent DAG descriptor. The
+first DAG task computes `tmp0 = a * a`, then downstream add tasks consume its
+output.
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 4096 --arch compute_80 \
+    --mode dag --queue-capacity 2 --dag-shape unary_square
+```
+
 Run the corresponding benchmark baseline directly after changing the
 two-scalar DAG descriptor or generated-dispatch benchmark wiring:
 
