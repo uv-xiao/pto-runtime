@@ -1925,27 +1925,30 @@ def main() -> None:
     parser.add_argument("--tensor-rows", type=int, default=16)
     parser.add_argument("--tensor-cols", type=int, default=16)
     parser.add_argument("--tensor-inner", type=int, default=16)
+    parser.add_argument("--output-json", type=Path, default=None)
     args = parser.parse_args()
 
-    print(
-        json.dumps(
-            run_persistent_smoke(
-                device=args.device,
-                task_count=args.task_count,
-                n=args.n,
-                arch=args.arch,
-                mode=args.mode,
-                queue_capacity=args.queue_capacity,
-                worker_blocks_per_task=args.worker_blocks_per_task,
-                dag_shape=args.dag_shape,
-                tensor_rows=args.tensor_rows,
-                tensor_cols=args.tensor_cols,
-                tensor_inner=args.tensor_inner,
-            ),
-            indent=2,
-            sort_keys=True,
-        )
+    rendered = json.dumps(
+        run_persistent_smoke(
+            device=args.device,
+            task_count=args.task_count,
+            n=args.n,
+            arch=args.arch,
+            mode=args.mode,
+            queue_capacity=args.queue_capacity,
+            worker_blocks_per_task=args.worker_blocks_per_task,
+            dag_shape=args.dag_shape,
+            tensor_rows=args.tensor_rows,
+            tensor_cols=args.tensor_cols,
+            tensor_inner=args.tensor_inner,
+        ),
+        indent=2,
+        sort_keys=True,
     )
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(rendered + "\n")
+    print(rendered)
 
 
 if __name__ == "__main__":

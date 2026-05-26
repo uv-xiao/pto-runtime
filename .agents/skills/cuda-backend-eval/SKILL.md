@@ -135,6 +135,21 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2
 ```
 
+Use `cuda_pair_persistent_smoke.py` when the same persistent DAG smoke should
+be captured on local A100 and remote H200 with Markdown/SVG evidence:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape chain --task-count 5 --queue-capacity 3 --sync-remote-tree
+```
+
+This writes `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg` under
+`tmp/cuda-backend/persistent-<shape>-smoke-<commit>/`, then refreshes
+`tmp/cuda-backend/index.md`. Use `--sync-remote-tree` when remote Git fetch is
+unreliable or the remote `origin` URL is not accessible.
+
 The generated-dispatch DAG smoke also carries device-side scheduler
 diagnostics. A normal pass returns `device_scheduler_errors` with zero counts.
 Use the synthetic invalid-dispatch shape below to validate propagation of an

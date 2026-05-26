@@ -167,6 +167,10 @@ Evidence:
 - `.agents/skills/cuda-backend-eval/scripts/cuda_pair_smoke.py` automates the
   no-torch host-schedule Worker smoke on local A100 and remote H200, then
   renders the compact smoke report and refreshes the artifact index.
+- `.agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py`
+  automates no-torch persistent-device DAG smoke captures on local A100 and
+  remote H200, including optional remote tree sync, compact report rendering,
+  and artifact-index refresh.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_artifact_index.py` indexes
   local `tmp/cuda-backend/` artifacts, including tensor-tile shapes.
 - `.agents/skills/cuda-backend-eval/SKILL.md` documents the current paired
@@ -606,6 +610,22 @@ PYTHONPATH=$PWD:$PWD/python \
 ```
 
 Result: both returned `status=pass` with zero device scheduler errors.
+
+After adding paired persistent-smoke automation, the chain DAG smoke was
+captured on local A100 and remote H200 with tree sync and compact report
+generation:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape chain --task-count 5 --queue-capacity 3 --sync-remote-tree
+```
+
+Result: `tmp/cuda-backend/persistent-chain-smoke-e1fa429b/` contains
+`a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The A100 row returned `status=pass`,
+`ptx_arch=compute_80`, `device_wall_ns=29696`; the H200 row returned
+`status=pass`, `ptx_arch=compute_90`, `device_wall_ns=33152`.
 
 The preflight and CUDA scene-test subset was also run on the remote H200
 checkout after pushing this change:
