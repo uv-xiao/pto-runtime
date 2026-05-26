@@ -239,7 +239,7 @@ Evidence:
 - `.agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py` checks
   paired smoke captures for required A100/H200 artifacts, pass status, zero
   scheduler errors, expected runtime/mode, dispatch IDs, repeat-run lifecycle
-  counts, and generated smoke report files.
+  counts, tensor-tile descriptor shape, and generated smoke report files.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_artifact_index.py` indexes
   local `tmp/cuda-backend/` artifacts, including tensor-tile shapes,
   persistent smoke modes, dispatch sequences, scheduler error counters,
@@ -797,6 +797,26 @@ contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
 `status=pass`, `ptx_arch=compute_90`, `device_wall_ns=49536`. Both rows
 reported `dispatch_func_ids=[3,1,2,1]`, tensor shape `8x4x12`, `128` tiles,
 and zero device scheduler errors.
+
+After adding tensor descriptor validation to the smoke validator, the same
+non-square tensor-tile DAG was captured with prepared-callable repeat reuse:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape tensor_tile --task-count 4 --queue-capacity 2 \
+    --n 768 --tensor-rows 8 --tensor-cols 4 --tensor-inner 12 \
+    --repeat-runs 2 --sync-remote-tree
+```
+
+Result:
+`tmp/cuda-backend/persistent-tensor_tile-8x4x12-repeat2-smoke-223425b6/`
+contains A100/H200 JSON plus Markdown/SVG reports. The paired runner then
+validated both artifacts with `expected-tensor-tile=8x4x12`,
+`repeat_runs=2`, `launch_completed_counts=[4,4]`, zero scheduler errors, and
+the generated report files. The A100 row reported
+`launch_device_wall_ns=[48128,36864]`; H200 reported
+`launch_device_wall_ns=[54944,27040]`.
 
 The preflight and CUDA scene-test subset was also run on the remote H200
 checkout after pushing this change:

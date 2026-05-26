@@ -351,6 +351,11 @@ PYTHONPATH=$PWD:$PWD/python \
     --require-report-files
 ```
 
+For tensor-tile smokes, the paired runner also passes
+`--expected-tensor-tile ROWSxCOLSxINNER` so the validator rejects artifacts
+whose recorded descriptor shape does not match the requested
+`--tensor-rows`, `--tensor-cols`, and `--tensor-inner`.
+
 The JSON payload and compact report include `resource_policy` fields for
 `scheduler_blocks`, `worker_blocks`, `worker_blocks_per_task`, `stream_id`,
 `block_dim`, and `grid_dim`. Scalar DAG payloads also include `scalar_args`
@@ -947,7 +952,8 @@ and the Markdown/SVG report files.
 
 Use `cuda_validate_smoke.py` for paired smoke artifacts. It checks required
 artifacts, pass status, zero device scheduler errors, expected runtime/mode,
-dispatch IDs, repeat-run lifecycle counts, and generated smoke report files.
+dispatch IDs, repeat-run lifecycle counts, tensor-tile descriptor shape when
+requested, and generated smoke report files.
 `cuda_pair_persistent_smoke.py` runs this validator automatically unless
 `--skip-validation` is set.
 
