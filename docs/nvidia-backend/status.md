@@ -155,6 +155,7 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - `pto_persistent_dag`;
 - `pto_persistent_dag_chain`;
 - `pto_persistent_dag_reuse`;
+- `pto_persistent_dag_scalar_axpy`;
 - `pto_persistent_dag_tensor`;
 - same-work batch rows;
 - worker-grid batch rows.
@@ -162,7 +163,8 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 The latest paired capture at commit `47ac2bb5` uses the `8x4x12` tensor
 descriptor, sizes `1024,65536,1048576`, three repeats, task counts `2,6,12`,
 and worker-grid values `32,64,128,256`. It includes the compiler-backed
-host-schedule row on both A100 and H200.
+host-schedule row on both A100 and H200. New captures after the scalar AXPY
+benchmark slice also include `pto_persistent_dag_scalar_axpy`.
 
 Evidence:
 
@@ -715,6 +717,23 @@ Result: A100 `status=pass`, `device_wall_ns=30720`,
 `status=pass`, `ptx_arch=compute_90`, `device_wall_ns=24896`, zero scheduler
 errors.
 
+After promoting the scalar AXPY DAG to a benchmark baseline, the benchmark
+report tests passed locally and the new single-baseline path was checked on
+both GPUs:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_scalar_axpy \
+    --sizes 1024 --arch compute_80
+```
+
+Result: A100 `status=pass`, `ptx_arch=compute_80`,
+`dispatch_func_ids=[4,2,1]`, `scalar_args={"scalar0":1.5}`,
+`device_scheduler_errors={"count":0,"code":0,"task_id":0}`; H200
+`status=pass`, `ptx_arch=compute_90`, `dispatch_func_ids=[4,2,1]`,
+`scalar_args={"scalar0":1.5}`, zero scheduler errors.
+
 ## Remaining Gaps
 
 ### Kernel Compiler Integration
@@ -725,7 +744,7 @@ now have first `KernelCompiler` entry points. Both paths can consume
 through the L2 Python `Worker` registration path. The normal scene-test flow
 can compile and run host-schedule CUDA vector-add, binary elementwise, scalar
 scale, and axpy callable specs and persistent-device fork/join, chain, reuse,
-and tensor-tile DAG callable specs end to end.
+scalar AXPY, and tensor-tile DAG callable specs end to end.
 
 Needed:
 

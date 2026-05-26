@@ -435,6 +435,9 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_reuse`: six-task generated-dispatch DAG with scratch
   buffer reuse after dependency completion, validating that graph lifetime
   rules can be represented by runtime descriptors.
+- `pto_persistent_dag_scalar_axpy`: generated-dispatch DAG with a `scalar0`
+  task descriptor field, validating mixed tensor/scalar persistent DAG
+  arguments in the benchmark path.
 - `pto_persistent_dag_tensor`: four-task generated-dispatch DAG with a tiled
   GEMM task followed by elementwise residual, gate, and fan-in tasks. The
   benchmark uses the default 16x16x16 descriptor unless
@@ -539,6 +542,16 @@ For tensor-DAG experiments, pass `--tensor-rows`, `--tensor-cols`, and
 `pto_persistent_dag_tensor`; other baselines keep their normal vector-add
 work. The generated Markdown report records the descriptor as
 `rows x cols x inner`.
+
+Use `--single-baseline pto_persistent_dag_scalar_axpy` for a quick benchmark
+path check of the scalar descriptor DAG on one GPU:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_scalar_axpy \
+    --sizes 1024 --arch compute_80
+```
 
 Refresh the local artifact index after adding or merging captures:
 

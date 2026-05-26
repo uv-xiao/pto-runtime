@@ -684,6 +684,8 @@ def run_persistent_sample(
             task_count = 6
         elif dag_shape == "chain":
             task_count = 5
+        elif dag_shape == "scalar_axpy":
+            task_count = 3
         elif mode == "dag":
             task_count = 3
         elif mode == "queue":
@@ -773,6 +775,15 @@ def run_single_sample(
             mode="dag",
             baseline=baseline,
             dag_shape="scratch_reuse",
+        )
+    if baseline == "pto_persistent_dag_scalar_axpy":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="scalar_axpy",
         )
     if baseline == "pto_persistent_dag_tensor":
         return run_persistent_sample(
@@ -916,6 +927,7 @@ def run_benchmark(
                     "pto_persistent_dag",
                     "pto_persistent_dag_chain",
                     "pto_persistent_dag_reuse",
+                    "pto_persistent_dag_scalar_axpy",
                     "pto_persistent_dag_tensor",
                 ):
                     sample_kwargs: dict[str, Any] = {}
@@ -1326,6 +1338,7 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
         "pto_persistent_dag": "#d62728",
         "pto_persistent_dag_chain": "#8c1d1d",
         "pto_persistent_dag_reuse": "#b23a48",
+        "pto_persistent_dag_scalar_axpy": "#c75c2d",
         "pto_persistent_dag_tensor": "#e76f51",
         "pto_persistent_device": "#9467bd",
         "pto_persistent_device_batch": "#7b52ab",
@@ -1550,6 +1563,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "  compiled binary but changing the runtime task graph.",
             "- `pto_persistent_dag_reuse` uses a six-task DAG with scratch-buffer reuse",
             "  after the reused buffer's last dependent has completed.",
+            "- `pto_persistent_dag_scalar_axpy` uses the scalar0 task descriptor",
+            "  field to validate mixed tensor/scalar persistent DAG arguments.",
             (
                 f"- `pto_persistent_dag_tensor` uses the configured {tensor_tile_shape} tiled GEMM"
                 if tensor_tile_shape is not None
@@ -1623,6 +1638,7 @@ def main() -> None:
             "pto_persistent_dag",
             "pto_persistent_dag_chain",
             "pto_persistent_dag_reuse",
+            "pto_persistent_dag_scalar_axpy",
             "pto_persistent_dag_tensor",
             "pto_host_schedule_batch",
             "pto_persistent_device_batch",

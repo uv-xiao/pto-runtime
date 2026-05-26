@@ -39,6 +39,7 @@ DAG_BASELINES = (
     "pto_persistent_dag",
     "pto_persistent_dag_chain",
     "pto_persistent_dag_reuse",
+    "pto_persistent_dag_scalar_axpy",
     "pto_persistent_dag_tensor",
 )
 
@@ -70,6 +71,7 @@ def _dag_sizes(summary: Summary, machine: str) -> list[int]:
         and (machine, "pto_persistent_dag", key[2], 3, 1) in summary
         and (machine, "pto_persistent_dag_chain", key[2], 5, 1) in summary
         and (machine, "pto_persistent_dag_reuse", key[2], 6, 1) in summary
+        and (machine, "pto_persistent_dag_scalar_axpy", key[2], 3, 1) in summary
         and (machine, "pto_persistent_dag_tensor", key[2], 4, 1) in summary
     }
     return sorted(sizes)
@@ -153,6 +155,7 @@ def render_dag_shape_table(payload: Payload) -> str:
             dag = _median(summary, (machine, "pto_persistent_dag", n, 3, 1))
             chain = _median(summary, (machine, "pto_persistent_dag_chain", n, 5, 1))
             reuse = _median(summary, (machine, "pto_persistent_dag_reuse", n, 6, 1))
+            scalar = _median(summary, (machine, "pto_persistent_dag_scalar_axpy", n, 3, 1))
             tensor = _median(summary, (machine, "pto_persistent_dag_tensor", n, 4, 1))
             rows.append(
                 [
@@ -160,10 +163,11 @@ def render_dag_shape_table(payload: Payload) -> str:
                     n,
                     _ratio(chain, dag),
                     _ratio(reuse, dag),
+                    _ratio(scalar, dag),
                     _ratio(tensor, dag),
                 ]
             )
-    return _table(["GPU", "N", "Chain/DAG", "Reuse/DAG", "Tensor/DAG"], rows)
+    return _table(["GPU", "N", "Chain/DAG", "Reuse/DAG", "Scalar AXPY/DAG", "Tensor/DAG"], rows)
 
 
 def render_summary(payload: Payload) -> str:
