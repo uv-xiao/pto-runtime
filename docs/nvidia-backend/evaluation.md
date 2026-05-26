@@ -23,6 +23,7 @@ committed:
 - `tmp/cuda-backend/a100-current-db0acd4c/`
 - `tmp/cuda-backend/h200-current-db0acd4c/`
 - `tmp/cuda-backend/combined-current-db0acd4c/`
+- `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/worker-square-smoke-4cdde399/`
 - `tmp/cuda-backend/worker-mul-smoke-output-json/`
 - `tmp/cuda-backend/tensor-descriptor-smoke-6c49c5cf/`

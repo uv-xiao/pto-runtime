@@ -91,8 +91,8 @@ execution modes:
 - five-task DAG-chain runtime graph descriptor;
 - six-task scratch-reuse DAG descriptor;
 - tensor-tile DAG descriptor with rows/cols/inner/stride metadata;
-- scalar-argument DAG descriptor for mixed tensor/scalar AXPY-style task
-  bodies.
+- scalar-argument DAG descriptors for mixed tensor/scalar AXPY-style and
+  two-scalar affine task bodies.
 - device-side scheduler diagnostics for unsupported generated-dispatch
   `func_id` values, invalid dependent task IDs, and out-of-range dependent
   spans, fan-in underflow, and initial-fan-in mismatch.
@@ -113,9 +113,10 @@ and composes the generated dispatch entry.
 `KernelCompiler` entry point, registers the prepared raw callable through the
 normal L2 `Worker`, builds `persistent_dag_fork_join_f32`,
 `persistent_dag_chain_f32`, `persistent_dag_reuse_f32`, and
-`persistent_dag_scalar_axpy_f32` mixed tensor/scalar descriptors, plus
-`persistent_dag_tensor_tile_f32` state objects from normal `TaskArgsBuilder`
-CPU tensors, and validates real copied-back CUDA output data.
+`persistent_dag_scalar_axpy_f32` and `persistent_dag_scalar_affine_f32` mixed
+tensor/scalar descriptors, plus `persistent_dag_tensor_tile_f32` state
+objects from normal `TaskArgsBuilder` CPU tensors, and validates real
+copied-back CUDA output data.
 The host-schedule scene path also accepts the neutral
 `elementwise_binary_f32` adapter for non-addition task bodies that still use
 the current `(a, b, out, n)` launch ABI. It accepts `elementwise_unary_f32`
@@ -783,6 +784,39 @@ Result: A100 `status=pass`, `ptx_arch=compute_80`,
 `ptx_source=kernel-compiler-task-body-wrapper-unary-square-compute_80`,
 `device_wall_ns=848864`.
 
+After adding a two-scalar persistent DAG descriptor, the focused local CUDA
+test set was rerun:
+
+```bash
+.venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_persistent_codegen.py \
+  tests/ut/py/test_cuda_benchmark_report.py \
+  tests/ut/py/test_cuda_scene_test.py \
+  tests/ut/py/test_cuda_backend.py -q
+```
+
+Result: `133 passed`.
+
+The two-scalar affine DAG smoke was captured on local A100 and remote H200
+with tree sync and compact report generation:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python \
+    .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape scalar_affine --task-count 3 --queue-capacity 2 \
+    --n 4096 --sync-remote-tree
+```
+
+Result: `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The A100 row returned `status=pass`,
+`ptx_arch=compute_80`, `dispatch_func_ids=[5,2,1]`,
+`scalar_args={"scalar0":1.5,"scalar1":0.5}`, `device_wall_ns=28672`;
+the H200 row returned `status=pass`, `ptx_arch=compute_90`,
+`dispatch_func_ids=[5,2,1]`, the same scalar args, and
+`device_wall_ns=35584`. Both rows reported zero device scheduler errors.
+
 ## Remaining Gaps
 
 ### Kernel Compiler Integration
@@ -793,8 +827,8 @@ now have first `KernelCompiler` entry points. Both paths can consume
 through the L2 Python `Worker` registration path. The normal scene-test flow
 can compile and run host-schedule CUDA vector-add, binary elementwise, unary
 square, scalar scale, and axpy callable specs and persistent-device
-fork/join, chain, reuse, scalar AXPY, and tensor-tile DAG callable specs end
-to end.
+fork/join, chain, reuse, scalar AXPY, scalar affine, and tensor-tile DAG
+callable specs end to end.
 
 Needed:
 
@@ -835,7 +869,7 @@ it is not yet a full TensorMap/ringbuffer analogue.
 Needed:
 
 - broader generalized task argument ABI beyond the current tensor-shape and
-  single-scalar descriptor fields;
+  scalar descriptor fields;
 - graph construction from normal PTO task graphs;
 - lifecycle validation beyond the current scratch-reuse smoke;
 - broader resource policy beyond the current single scheduler block,

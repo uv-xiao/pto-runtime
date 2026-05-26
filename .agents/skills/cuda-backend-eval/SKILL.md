@@ -181,6 +181,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape scalar_axpy
 ```
 
+Use `--dag-shape scalar_affine` to validate two scalar fields in the
+persistent DAG task descriptor. The first DAG task reads `scalar0` and
+`scalar1` and computes `out = scalar0 * a + scalar1 * b` before downstream
+generated-dispatch tasks consume its output.
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 4096 --arch compute_80 \
+    --mode dag --queue-capacity 2 --dag-shape scalar_affine
+```
+
 Use `cuda_pair_persistent_smoke.py` when the same persistent DAG smoke should
 be captured on local A100 and remote H200 with Markdown/SVG evidence:
 
@@ -201,6 +213,8 @@ The JSON payload and compact report include `resource_policy` fields for
 `block_dim`, and `grid_dim`. Scalar DAG payloads also include `scalar_args`
 so mixed tensor/scalar descriptors are visible in the Markdown and SVG
 reports.
+The current two-scalar descriptor capture is under
+`tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`.
 For `--dag-shape tensor_tile`, pass `--tensor-rows`, `--tensor-cols`, and
 `--tensor-inner`; the artifact directory includes the descriptor shape, such
 as `persistent-tensor_tile-8x4x12-smoke-<commit>/`.
