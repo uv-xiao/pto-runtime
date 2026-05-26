@@ -512,16 +512,22 @@ class _CudaPersistentDagSceneBuffers:
             "persistent_dag_scalar_affine_f32",
             "persistent_dag_scalar_axpy_f32",
             "persistent_dag_tensor_tile_f32",
+            "persistent_dag_triad_f32",
         }
         if arg_builder not in persistent_builders:
             raise NotImplementedError(f"Unsupported CUDA persistent scene-test arg_builder: {arg_builder}")
-        if len(self.output_names) != 3:
-            raise ValueError(f"CUDA {arg_builder} scene tests require three tensor args")
+        expected_arg_count = 4 if arg_builder == "persistent_dag_triad_f32" else 3
+        if len(self.output_names) != expected_arg_count:
+            raise ValueError(f"CUDA {arg_builder} scene tests require {expected_arg_count} tensor args")
         missing = [name for name in self.output_names if name not in self.tensor_buffers.ptrs]
         if missing:
             raise ValueError(f"CUDA persistent DAG args reference unknown tensors: {', '.join(missing)}")
 
-        a_name, b_name, out_name = self.output_names
+        if arg_builder == "persistent_dag_triad_f32":
+            a_name, b_name, c_name, out_name = self.output_names
+        else:
+            a_name, b_name, out_name = self.output_names
+            c_name = None
         n = int(self.cuda_spec.get("n", getattr(self.test_args, a_name).numel()))
         queue_capacity = int(self.cuda_spec.get("queue_capacity", 2))
         if queue_capacity <= 0:
@@ -753,6 +759,45 @@ class _CudaPersistentDagSceneBuffers:
                     initial_fanin=0,
                     scalar0=scalar0,
                     scalar1=scalar1,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=self.tensor_buffers.ptrs[a_name],
+                    b=self.tensor_buffers.ptrs[b_name],
+                    out=self.dev_tmp1,
+                    n=n,
+                    dependent_begin=1,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=self.dev_tmp0,
+                    b=self.dev_tmp1,
+                    out=self.tensor_buffers.ptrs[out_name],
+                    n=n,
+                    dependent_begin=2,
+                    dependent_count=0,
+                    initial_fanin=2,
+                ),
+            )
+            self.host_fanin = (ctypes.c_uint32 * 3)(0, 0, 2)
+        elif arg_builder == "persistent_dag_triad_f32":
+            assert c_name is not None
+            dependents_t = ctypes.c_uint32 * 2
+            self.host_dependents = dependents_t(2, 2)
+            task_t = CudaPersistentDagTask * 3
+            self.host_tasks = task_t(
+                CudaPersistentDagTask(
+                    func_id=6,
+                    a=self.tensor_buffers.ptrs[a_name],
+                    b=self.tensor_buffers.ptrs[b_name],
+                    c=self.tensor_buffers.ptrs[c_name],
+                    out=self.dev_tmp0,
+                    n=n,
+                    dependent_begin=0,
+                    dependent_count=1,
+                    initial_fanin=0,
                 ),
                 CudaPersistentDagTask(
                     func_id=2,

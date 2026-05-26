@@ -603,7 +603,22 @@ was rerun locally:
   tests/ut/py/test_cuda_benchmark_report.py -q
 ```
 
-Result: `162 passed`.
+Result: `165 passed`.
+
+After adding the third-tensor persistent DAG scene-test arg builder, the new
+ctypes-backed real-data scene test was checked on remote H200 without requiring
+`torch`:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && \
+   CUDA_HOME=/usr/local/cuda PTO_ISA_ROOT=/data/shibizhao/pto-cu/build/pto-isa \
+   PATH=/usr/local/cuda/bin:$PATH PYTHONPATH=$PWD:$PWD/python \
+   .venv/bin/python -m pytest \
+     tests/ut/py/test_cuda_scene_test.py::test_scene_test_runs_cuda_persistent_device_triad_with_ctypes_data -q'
+```
+
+Result: `1 passed`.
 
 After adding shared CUDA preflight skip reporting, the local A100-focused test
 set was rerun:
@@ -978,7 +993,7 @@ can compile and run host-schedule CUDA vector-add, binary elementwise, unary
 square, scalar scale, axpy, two-scalar affine, and three-input triad callable
 specs and persistent-device
 fork/join, chain, reuse, scalar AXPY, scalar affine, and tensor-tile DAG
-callable specs end to end.
+callable specs, plus third-tensor persistent triad callable specs, end to end.
 
 Needed:
 
