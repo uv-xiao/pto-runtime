@@ -272,6 +272,22 @@ def test_render_persistent_dag_source_includes_third_tensor_descriptor():
     assert "task->c[i]" in source
 
 
+def test_render_persistent_dag_source_includes_fourth_tensor_descriptor():
+    source = render_persistent_dag_source(
+        [
+            CudaPersistentTaskFunction(
+                func_id=8,
+                name="quad_f32",
+                body="task->out[i] = task->a[i] * task->b[i] + task->c[i] * task->d[i];",
+            )
+        ]
+    )
+
+    assert "const float *c;" in source
+    assert "const float *d;" in source
+    assert "task->d[i]" in source
+
+
 def test_render_persistent_dag_source_records_device_scheduler_errors():
     source = render_persistent_dag_source(
         [

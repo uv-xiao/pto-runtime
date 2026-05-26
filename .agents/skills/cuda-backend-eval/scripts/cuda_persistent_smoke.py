@@ -745,6 +745,18 @@ task->out[i] = task->a[i] * task->a[i];
 """.strip(),
         ),
     ),
+    CudaPersistentTaskBodyFunction(
+        func_id=8,
+        task_body=CudaTaskBody(
+            name="quad_f32",
+            context_definition=_PERSISTENT_DAG_CONTEXT_DEFINITION,
+            body="""
+const PtoCudaPersistentDagTask *task = ctx->task;
+unsigned long long i = ctx->i;
+task->out[i] = task->a[i] * task->b[i] + task->c[i] * task->d[i];
+""".strip(),
+        ),
+    ),
 ]
 _PERSISTENT_DAG_SOURCE = render_persistent_dag_source(_PERSISTENT_DAG_TASK_FUNCTIONS)
 
@@ -841,6 +853,7 @@ class CudaPersistentDagTask(ctypes.Structure):
         ("b_batch_stride", ctypes.c_uint64),
         ("out_batch_stride", ctypes.c_uint64),
         ("c", ctypes.c_void_p),
+        ("d", ctypes.c_void_p),
     ]
 
 
@@ -1435,6 +1448,49 @@ def _make_dag_shape(
                 ),
             ),
         )
+    if dag_shape == "quad":
+        task_count = 3
+        host_fanin_t = ctypes.c_uint32 * task_count
+        dependents_t = ctypes.c_uint32 * 2
+        task_t = CudaPersistentDagTask * task_count
+        return (
+            host_fanin_t(0, 0, 2),
+            dependents_t(2, 2),
+            task_t(
+                CudaPersistentDagTask(
+                    func_id=8,
+                    a=dev_a,
+                    b=dev_b,
+                    c=dev_tmp0,
+                    d=dev_tmp3,
+                    out=dev_tmp1,
+                    n=n,
+                    dependent_begin=0,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp2,
+                    n=n,
+                    dependent_begin=1,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp1,
+                    b=dev_tmp2,
+                    out=dev_out,
+                    n=n,
+                    dependent_begin=2,
+                    dependent_count=0,
+                    initial_fanin=2,
+                ),
+            ),
+        )
     if dag_shape == "bad_func_id":
         task_count = 1
         host_fanin_t = ctypes.c_uint32 * task_count
@@ -1757,13 +1813,16 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
     else:
         host_a = array_a_t(*[float(i) for i in range(a_len)])
         host_b = array_b_t(*[float(2 * i) for i in range(b_len)])
-    if config.dag_shape == "triad":
+    if config.dag_shape in {"triad", "quad"}:
         host_tmp0 = array_t(*[float(3 * i) for i in range(output_len)])
     else:
         host_tmp0 = array_t()
     host_tmp1 = array_t()
     host_tmp2 = array_t()
-    host_tmp3 = array_t()
+    if config.dag_shape == "quad":
+        host_tmp3 = array_t(*[float(4 * i) for i in range(output_len)])
+    else:
+        host_tmp3 = array_t()
     host_out = array_t()
     a_nbytes = ctypes.sizeof(host_a)
     b_nbytes = ctypes.sizeof(host_b)
@@ -1864,13 +1923,16 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 (dev_counters, ctypes.byref(launch_counters), ctypes.sizeof(launch_counters), "counters"),
                 (dev_tmp1, ctypes.byref(zero_output), output_nbytes, "tmp1"),
                 (dev_tmp2, ctypes.byref(zero_output), output_nbytes, "tmp2"),
-                (dev_tmp3, ctypes.byref(zero_output), output_nbytes, "tmp3"),
                 (dev_out, ctypes.byref(zero_output), output_nbytes, "out"),
             ]
-            if config.dag_shape == "triad":
+            if config.dag_shape in {"triad", "quad"}:
                 reset_copies.append((dev_tmp0, ctypes.byref(host_tmp0), output_nbytes, "tmp0/c"))
             else:
                 reset_copies.append((dev_tmp0, ctypes.byref(zero_output), output_nbytes, "tmp0"))
+            if config.dag_shape == "quad":
+                reset_copies.append((dev_tmp3, ctypes.byref(host_tmp3), output_nbytes, "tmp3/d"))
+            else:
+                reset_copies.append((dev_tmp3, ctypes.byref(zero_output), output_nbytes, "tmp3"))
             for dst, src, size, label in reset_copies:
                 if runtime.copy_to_device_ctx(ctx, dst, src, size) != 0:
                     raise RuntimeError(f"copy_to_device dag {label} failed")
@@ -1965,6 +2027,14 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 expected_tmp1 = [_f32(host_a[i] * host_b[i] + expected_tmp0[i]) for i in range(n)]
                 expected_tmp2 = [_f32(host_a[i] * host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp1[i] + expected_tmp2[i]) for i in range(n)]
+            if config.dag_shape == "quad":
+                expected_tmp0 = [_f32(3 * i) for i in range(n)]
+                expected_tmp3 = [_f32(4 * i) for i in range(n)]
+                expected_tmp1 = [
+                    _f32(_f32(host_a[i] * host_b[i]) + _f32(expected_tmp0[i] * expected_tmp3[i])) for i in range(n)
+                ]
+                expected_tmp2 = [_f32(host_a[i] * host_b[i]) for i in range(n)]
+                expected_out = [_f32(expected_tmp1[i] + expected_tmp2[i]) for i in range(n)]
             if config.dag_shape == "unary_square":
                 expected_tmp0 = [_f32(host_a[i] * host_a[i]) for i in range(n)]
                 expected_tmp1 = [_f32(expected_tmp0[i] + host_b[i]) for i in range(n)]
@@ -1979,11 +2049,11 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             if list(host_tmp1) != expected_tmp1:
                 raise RuntimeError(f"dag tmp1 mismatch on launch {launch_idx}")
             if (
-                config.dag_shape in {"chain", "scratch_reuse", "tensor_tile", "triad"}
+                config.dag_shape in {"chain", "scratch_reuse", "tensor_tile", "triad", "quad"}
                 and list(host_tmp2) != expected_tmp2
             ):
                 raise RuntimeError(f"dag tmp2 mismatch on launch {launch_idx}")
-            if config.dag_shape in {"chain", "scratch_reuse"} and list(host_tmp3) != expected_tmp3:
+            if config.dag_shape in {"chain", "scratch_reuse", "quad"} and list(host_tmp3) != expected_tmp3:
                 raise RuntimeError(f"dag tmp3 mismatch on launch {launch_idx}")
             if list(host_out) != expected_out:
                 raise RuntimeError(f"dag output mismatch on launch {launch_idx}")
@@ -2050,6 +2120,8 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             result["scalar_args"] = {"scalar0": 1.5, "scalar1": 0.5}
         if config.dag_shape == "triad":
             result["tensor_args"] = {"c": "tmp0"}
+        if config.dag_shape == "quad":
+            result["tensor_args"] = {"c": "tmp0", "d": "tmp3"}
         return result
     finally:
         for ptr in allocated:
@@ -2126,6 +2198,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
         "bad_no_root",
         "chain",
         "fork_join",
+        "quad",
         "scalar_affine",
         "scalar_axpy",
         "scratch_reuse",
@@ -2159,6 +2232,8 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913
         raise RuntimeError("tensor_tile DAG shape requires nvcc-built generated-dispatch PTX")
     if mode == "dag" and dag_shape == "triad" and ptx_source.startswith("embedded-"):
         raise RuntimeError("triad DAG shape requires nvcc-built generated-dispatch PTX")
+    if mode == "dag" and dag_shape == "quad" and ptx_source.startswith("embedded-"):
+        raise RuntimeError("quad DAG shape requires nvcc-built generated-dispatch PTX")
     if mode == "dag" and dag_shape == "unary_square" and ptx_source.startswith("embedded-"):
         raise RuntimeError("unary_square DAG shape requires nvcc-built generated-dispatch PTX")
     ptx_buf = ctypes.create_string_buffer(ptx + b"\0")
@@ -2346,6 +2421,7 @@ def main() -> None:
             "bad_no_root",
             "chain",
             "fork_join",
+            "quad",
             "scalar_affine",
             "scalar_axpy",
             "scratch_reuse",

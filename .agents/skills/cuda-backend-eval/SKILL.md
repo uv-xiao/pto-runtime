@@ -227,6 +227,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape triad
 ```
 
+Use `--dag-shape quad` to validate third and fourth tensor pointer fields in
+the persistent DAG task descriptor. The first DAG task reads `c` from `tmp0`
+and `d` from `tmp3`, computes `out = a * b + c * d`, then a downstream add
+task combines it with an independent `a * b` branch.
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 4096 --arch compute_80 \
+    --mode dag --queue-capacity 2 --dag-shape quad
+```
+
 Use `--dag-shape unary_square` to validate a generated-dispatch task body
 that reads only one tensor input from the persistent DAG descriptor. The
 first DAG task computes `tmp0 = a * a`, then downstream add tasks consume its
@@ -539,7 +551,8 @@ path can build
 `arg_builder: persistent_dag_scalar_axpy_f32`,
 `arg_builder: persistent_dag_scalar_affine_f32`,
 `arg_builder: persistent_dag_tensor_tile_f32`,
-`arg_builder: persistent_dag_triad_f32`, and
+`arg_builder: persistent_dag_triad_f32`,
+`arg_builder: persistent_dag_quad_f32`, and
 `arg_builder: persistent_dag_unary_square_f32` adapters through the L2
 `Worker`.
 For real host-schedule smoke coverage, pass a context definition plus
@@ -578,6 +591,9 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_triad`: generated-dispatch DAG with a `c` tensor task
   descriptor field, validating three-input persistent DAG arguments in the
   benchmark path.
+- `pto_persistent_dag_quad`: generated-dispatch DAG with `c` and `d` tensor
+  task descriptor fields, validating four-input persistent DAG arguments in
+  the benchmark path.
 - `pto_persistent_dag_unary_square`: generated-dispatch DAG with a one-input
   square task body, validating unary persistent DAG arguments in the
   benchmark path.
@@ -703,6 +719,16 @@ check of the third-tensor descriptor DAG on one GPU:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --single-baseline pto_persistent_dag_triad \
+    --sizes 4096 --arch compute_80
+```
+
+Use `--single-baseline pto_persistent_dag_quad` for a quick benchmark path
+check of the fourth-tensor descriptor DAG on one GPU:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_quad \
     --sizes 4096 --arch compute_80
 ```
 

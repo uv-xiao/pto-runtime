@@ -88,6 +88,7 @@ struct PtoCudaPersistentDagTask {
     uint64_t b_batch_stride;
     uint64_t out_batch_stride;
     const float *c;
+    const float *d;
 };
 
 struct PtoCudaPersistentDagState {

@@ -96,6 +96,8 @@ execution modes:
   two-scalar affine task bodies.
 - third tensor-argument DAG descriptor for a generated-dispatch triad task
   body.
+- fourth tensor-argument DAG descriptor for a generated-dispatch quad task
+  body.
 - unary generated-dispatch DAG descriptor for a task body that reads one
   tensor input and leaves the second tensor pointer unused.
 - device-side scheduler diagnostics for unsupported generated-dispatch
@@ -122,12 +124,14 @@ normal L2 `Worker`, builds `persistent_dag_fork_join_f32`,
 `persistent_dag_chain_f32`, `persistent_dag_reuse_f32`, and
 `persistent_dag_scalar_axpy_f32` and `persistent_dag_scalar_affine_f32` mixed
 tensor/scalar descriptors, `persistent_dag_tensor_tile_f32` state objects,
-`persistent_dag_triad_f32` third-tensor descriptors, and
+`persistent_dag_triad_f32` third-tensor descriptors,
+`persistent_dag_quad_f32` fourth-tensor descriptors, and
 `persistent_dag_unary_square_f32` unary descriptors from normal
 `TaskArgsBuilder` CPU tensors, and validates real copied-back CUDA output
 data. The no-torch persistent smoke path also validates a generated-dispatch
-triad descriptor with a third tensor pointer field and a generated-dispatch
-unary-square descriptor with a single tensor input.
+triad descriptor with a third tensor pointer field, a quad descriptor with
+third and fourth tensor pointer fields, and a generated-dispatch unary-square
+descriptor with a single tensor input.
 The host-schedule scene path also accepts the neutral
 `elementwise_binary_f32` adapter for non-addition task bodies that still use
 the current `(a, b, out, n)` launch ABI. It accepts `elementwise_unary_f32`
@@ -1101,12 +1105,61 @@ specs and persistent-device
 fork/join, chain, reuse, scalar AXPY, scalar affine, and tensor-tile DAG
 callable specs, plus third-tensor persistent triad and unary-square callable
 specs, end to end.
+The fourth-tensor persistent quad callable spec also runs end to end through
+ctypes-backed real data.
 
 Needed:
 
 - broader CUDA scene-test argument builders beyond the current binary
   elementwise, unary square, scalar scale, axpy, affine, triad, and persistent
   DAG tracer bullets.
+
+### Fourth-Tensor Persistent DAG Verification
+
+After adding the fourth tensor pointer to the persistent DAG descriptor, the
+new quad DAG shape was verified with both Python coverage and real CUDA data.
+The quad graph uses generated-dispatch `func_id` sequence `[8, 2, 1]`; the
+first task computes `a * b + c * d`, and the final task adds an independent
+`a * b` branch.
+
+Focused local tests:
+
+```bash
+.venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py \
+  tests/ut/py/test_cuda_persistent_codegen.py \
+  tests/ut/py/test_cuda_benchmark_report.py \
+  -q -m "not requires_hardware"
+
+.venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+  -q -k quad_with_ctypes --platform cuda
+
+.venv/bin/python -m pytest tests/ut/py/test_cuda_backend.py \
+  -q -k dispatch_dag_quad --platform cuda
+```
+
+Results: `148` non-hardware tests passed, the CUDA ctypes scene test passed,
+and the CUDA standalone smoke test passed on the local A100.
+
+The same standalone smoke was run on the remote H200 with a tree sync:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 4096 --arch compute_90 \
+    --mode dag --queue-capacity 2 --dag-shape quad \
+    --output-json tmp/cuda-backend/persistent-quad-smoke-working/h200.json
+```
+
+Result artifacts:
+
+- `tmp/cuda-backend/persistent-quad-smoke-working/a100.json`
+- `tmp/cuda-backend/persistent-quad-smoke-working/h200.json`
+- `tmp/cuda-backend/persistent-quad-smoke-working/cuda-smoke-report.md`
+- `tmp/cuda-backend/persistent-quad-smoke-working/cuda-smoke-report.svg`
+
+Both A100 and H200 runs reported zero scheduler errors and tensor arguments
+`c=tmp0,d=tmp3`.
 
 ### Target Role Cleanup
 
@@ -1141,7 +1194,7 @@ it is not yet a full TensorMap/ringbuffer analogue.
 Needed:
 
 - broader generalized task argument ABI beyond the current unary tensor,
-  tensor-shape, scalar descriptor, and one-extra-tensor-pointer fields;
+  tensor-shape, scalar descriptor, and two-extra-tensor-pointer fields;
 - graph construction from normal PTO task graphs;
 - broader lifecycle validation beyond the current scratch-reuse and
   direct/queue/DAG prepared-callable repeat-run smokes;
