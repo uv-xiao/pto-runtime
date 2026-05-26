@@ -31,6 +31,7 @@ _HOST_SCHEDULE_CACHE_RELATIVE_PATH = Path("build") / "cache" / "cuda" / "onboard
 _PERSISTENT_CACHE_RELATIVE_PATH = Path("build") / "cache" / "cuda" / "onboard" / "persistent_device"
 _CUDA_HOST_OP_VECTOR_ADD_F32 = 1
 _CUDA_HOST_OP_VECTOR_SCALE_F32 = 2
+_CUDA_HOST_OP_VECTOR_UNARY_F32 = 4
 _CUDA_PERSISTENT_OP_DAG_F32_RING = 1003
 
 
@@ -142,6 +143,20 @@ class CudaVectorScaleArgs(ctypes.Structure):
         ("a", ctypes.c_void_p),
         ("out", ctypes.c_void_p),
         ("alpha", ctypes.c_float),
+        ("n", ctypes.c_uint64),
+    ]
+
+    def buffer_ptr(self) -> int:
+        return ctypes.addressof(self)
+
+    def buffer_size(self) -> int:
+        return ctypes.sizeof(self)
+
+
+class CudaVectorUnaryArgs(ctypes.Structure):
+    _fields_ = [
+        ("a", ctypes.c_void_p),
+        ("out", ctypes.c_void_p),
         ("n", ctypes.c_uint64),
     ]
 

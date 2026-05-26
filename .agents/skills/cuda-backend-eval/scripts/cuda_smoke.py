@@ -30,6 +30,7 @@ from simpler_setup.cuda_callable_compiler import (
     CudaVectorAddArgs,
     CudaVectorAxpyArgs,
     CudaVectorScaleArgs,
+    CudaVectorUnaryArgs,
     prepare_cuda_host_schedule_callable,
 )
 from simpler_setup.kernel_compiler import KernelCompiler
@@ -204,6 +205,8 @@ def _worker_task_body(op: str) -> str:
         expression = "ctx->a[i] * ctx->b[i]"
     elif op == "scale":
         expression = "ctx->a[i] * ctx->alpha"
+    elif op == "square":
+        expression = "ctx->a[i] * ctx->a[i]"
     elif op == "axpy":
         expression = "ctx->alpha * ctx->a[i] + ctx->b[i]"
     else:
@@ -223,6 +226,8 @@ def _worker_expected_output(op: str, n: int) -> list[float]:
         return [float(i * (2 * i)) for i in range(n)]
     if op == "scale":
         return [float(i * 1.5) for i in range(n)]
+    if op == "square":
+        return [float(i * i) for i in range(n)]
     if op == "axpy":
         return [float(1.5 * i + (2 * i)) for i in range(n)]
     raise ValueError(f"unknown worker smoke op: {op}")
@@ -235,6 +240,14 @@ struct PtoTaskContext {
     const float *a;
     float *out;
     float alpha;
+    unsigned long long n;
+};
+""".strip()
+    if op == "square":
+        return """
+struct PtoTaskContext {
+    const float *a;
+    float *out;
     unsigned long long n;
 };
 """.strip()
@@ -266,6 +279,12 @@ def _worker_host_parameters(op: str) -> tuple[str, ...]:
             "float alpha",
             "unsigned long long n",
         )
+    if op == "square":
+        return (
+            "const float *a",
+            "float *out",
+            "unsigned long long n",
+        )
     if op == "axpy":
         return (
             "const float *a",
@@ -285,6 +304,8 @@ def _worker_host_parameters(op: str) -> tuple[str, ...]:
 def _worker_host_context_initializer(op: str) -> str:
     if op == "scale":
         return "a, out, alpha, n"
+    if op == "square":
+        return "a, out, n"
     if op == "axpy":
         return "a, b, out, alpha, n"
     return "a, b, out, n"
@@ -295,6 +316,8 @@ def _worker_host_op(op: str) -> int:
         return 2
     if op == "axpy":
         return 3
+    if op == "square":
+        return 4
     return 1
 
 
@@ -418,7 +441,7 @@ def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool
         nbytes = ctypes.sizeof(host_a)
 
         dev_a = worker.malloc(nbytes)
-        dev_b = worker.malloc(nbytes) if op != "scale" else None
+        dev_b = worker.malloc(nbytes) if op not in {"scale", "square"} else None
         dev_out = worker.malloc(nbytes)
         try:
             worker.copy_to(dev_a, ctypes.addressof(host_a), nbytes)
@@ -427,6 +450,8 @@ def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool
 
             if op == "scale":
                 args = CudaVectorScaleArgs(a=dev_a, out=dev_out, alpha=1.5, n=n)
+            elif op == "square":
+                args = CudaVectorUnaryArgs(a=dev_a, out=dev_out, n=n)
             elif op == "axpy":
                 args = CudaVectorAxpyArgs(a=dev_a, b=dev_b, out=dev_out, alpha=1.5, n=n)
             else:
@@ -477,7 +502,7 @@ def main() -> None:
     parser.add_argument("--runner", choices=("direct_c_api", "worker"), default="direct_c_api")
     parser.add_argument(
         "--op",
-        choices=("add", "mul", "scale", "axpy"),
+        choices=("add", "mul", "scale", "square", "axpy"),
         default="add",
         help="Worker task body operation",
     )

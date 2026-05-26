@@ -164,7 +164,7 @@ public:
             return -1;
         }
         if (header->op != PTO_CUDA_HOST_OP_VECTOR_ADD_F32 && header->op != PTO_CUDA_HOST_OP_VECTOR_SCALE_F32 &&
-            header->op != PTO_CUDA_HOST_OP_VECTOR_AXPY_F32 &&
+            header->op != PTO_CUDA_HOST_OP_VECTOR_AXPY_F32 && header->op != PTO_CUDA_HOST_OP_VECTOR_UNARY_F32 &&
             header->op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_TASKS &&
             header->op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_GRID &&
             header->op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_QUEUE &&
@@ -236,7 +236,7 @@ public:
         }
         PreparedCallable &prepared = it->second;
         if (prepared.op != PTO_CUDA_HOST_OP_VECTOR_ADD_F32 && prepared.op != PTO_CUDA_HOST_OP_VECTOR_SCALE_F32 &&
-            prepared.op != PTO_CUDA_HOST_OP_VECTOR_AXPY_F32 &&
+            prepared.op != PTO_CUDA_HOST_OP_VECTOR_AXPY_F32 && prepared.op != PTO_CUDA_HOST_OP_VECTOR_UNARY_F32 &&
             prepared.op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_TASKS &&
             prepared.op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_GRID &&
             prepared.op != PTO_CUDA_PERSISTENT_OP_VECTOR_ADD_F32_QUEUE &&
@@ -303,6 +303,19 @@ public:
             kernel_args[1] = &out;
             kernel_args[2] = &alpha;
             kernel_args[3] = &n;
+        } else if (prepared.op == PTO_CUDA_HOST_OP_VECTOR_UNARY_F32) {
+            auto *typed_args = static_cast<const PtoCudaVectorUnaryArgs *>(args);
+            if (typed_args->a == nullptr || typed_args->out == nullptr || typed_args->n == 0) {
+                cudaEventDestroy(start);
+                cudaEventDestroy(stop);
+                return -1;
+            }
+            a = typed_args->a;
+            out = typed_args->out;
+            n = typed_args->n;
+            kernel_args[0] = &a;
+            kernel_args[1] = &out;
+            kernel_args[2] = &n;
         } else if (prepared.op == PTO_CUDA_HOST_OP_VECTOR_AXPY_F32) {
             auto *typed_args = static_cast<const PtoCudaVectorAxpyArgs *>(args);
             if (typed_args->a == nullptr || typed_args->b == nullptr || typed_args->out == nullptr ||

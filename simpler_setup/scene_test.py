@@ -386,24 +386,34 @@ def _build_cuda_host_schedule_args(
         CudaVectorAddArgs,
         CudaVectorAxpyArgs,
         CudaVectorScaleArgs,
+        CudaVectorUnaryArgs,
     )
 
     arg_builder = cuda_spec.get("arg_builder", "vector_add_f32")
     if arg_builder not in {
         "vector_add_f32",
         "elementwise_binary_f32",
+        "elementwise_unary_f32",
         "elementwise_scale_f32",
         "elementwise_axpy_f32",
     }:
         raise NotImplementedError(f"Unsupported CUDA scene-test arg_builder: {arg_builder}")
 
     tensor_names = [spec.name for spec in test_args.specs if isinstance(spec, Tensor)]
-    names = list(cuda_spec.get("args", tensor_names[:3]))
-    expected_arg_count = 4 if arg_builder == "elementwise_axpy_f32" else 3
+    default_arg_count = 2 if arg_builder == "elementwise_unary_f32" else 3
+    names = list(cuda_spec.get("args", tensor_names[:default_arg_count]))
+    if arg_builder == "elementwise_axpy_f32":
+        expected_arg_count = 4
+    elif arg_builder == "elementwise_unary_f32":
+        expected_arg_count = 2
+    else:
+        expected_arg_count = 3
     if len(names) != expected_arg_count:
         raise ValueError(f"CUDA {arg_builder} scene tests require exactly {expected_arg_count} args")
     if arg_builder == "elementwise_scale_f32":
         missing = [name for name in names[:2] if name not in device_buffers.ptrs]
+    elif arg_builder == "elementwise_unary_f32":
+        missing = [name for name in names if name not in device_buffers.ptrs]
     elif arg_builder == "elementwise_axpy_f32":
         missing = [name for name in names[:3] if name not in device_buffers.ptrs]
     else:
@@ -419,6 +429,12 @@ def _build_cuda_host_schedule_args(
             a=device_buffers.ptrs[names[0]],
             out=device_buffers.ptrs[names[1]],
             alpha=float(alpha_value),
+            n=n,
+        )
+    if arg_builder == "elementwise_unary_f32":
+        return CudaVectorUnaryArgs(
+            a=device_buffers.ptrs[names[0]],
+            out=device_buffers.ptrs[names[1]],
             n=n,
         )
     if arg_builder == "elementwise_axpy_f32":

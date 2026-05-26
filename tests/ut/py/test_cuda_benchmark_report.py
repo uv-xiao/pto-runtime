@@ -962,6 +962,16 @@ def test_cuda_worker_smoke_generates_scale_task_body():
     assert "ctx->b[i]" not in body
 
 
+def test_cuda_worker_smoke_generates_square_task_body():
+    cuda_smoke = _load_smoke_module()
+
+    body = cuda_smoke._worker_task_body("square")
+
+    assert "ctx->out[i] = ctx->a[i] * ctx->a[i];" in body
+    assert "ctx->b[i]" not in body
+    assert "ctx->alpha" not in body
+
+
 def test_cuda_worker_smoke_generates_axpy_task_body():
     cuda_smoke = _load_smoke_module()
 
@@ -1073,6 +1083,57 @@ def test_cuda_smoke_main_accepts_scale_output_json(tmp_path, monkeypatch, capsys
     assert printed == written
     assert written["op"] == "scale"
     assert written["mode"] == "worker/scale"
+
+
+def test_cuda_smoke_main_accepts_square_output_json(tmp_path, monkeypatch, capsys):
+    cuda_smoke = _load_smoke_module()
+    output = tmp_path / "square-smoke.json"
+
+    monkeypatch.setattr(
+        cuda_smoke,
+        "run_worker_smoke",
+        lambda device, n, block_dim, arch, build, op: {
+            "status": "pass",
+            "runner": "worker",
+            "runtime": "host_schedule",
+            "mode": f"worker/{op}",
+            "op": op,
+            "device": device,
+            "n": n,
+            "block_dim": block_dim,
+            "ptx_arch": arch,
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "cuda_smoke.py",
+            "--runner",
+            "worker",
+            "--op",
+            "square",
+            "--device",
+            "1",
+            "--n",
+            "64",
+            "--block-dim",
+            "32",
+            "--arch",
+            "compute_90",
+            "--no-build",
+            "--output-json",
+            str(output),
+        ],
+    )
+
+    cuda_smoke.main()
+
+    printed = json.loads(capsys.readouterr().out)
+    written = json.loads(output.read_text())
+    assert printed == written
+    assert written["op"] == "square"
+    assert written["mode"] == "worker/square"
 
 
 def test_cuda_smoke_main_accepts_axpy_output_json(tmp_path, monkeypatch, capsys):

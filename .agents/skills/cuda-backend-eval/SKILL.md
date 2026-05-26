@@ -73,6 +73,16 @@ PYTHONPATH=$PWD:$PWD/python \
     --output-json tmp/cuda-backend/worker-scale-smoke/a100.json
 ```
 
+Use `--op square` to validate the unary host-schedule ABI `(a, out, n)`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_smoke.py \
+    --runner worker --op square --device 0 --n 1024 --block-dim 256 \
+    --arch compute_80 \
+    --output-json tmp/cuda-backend/worker-square-smoke/a100.json
+```
+
 Use `--op axpy` to validate the mixed tensor/scalar host-schedule ABI
 `(a, b, out, alpha, n)`:
 
@@ -394,9 +404,9 @@ manifest blob, and L2 `Worker.run(...)` can launch raw CUDA argument structs
 that expose `buffer_ptr()` / `buffer_size()`. The normal `SceneTestCase` L2
 path can now build `CALLABLE["cuda"]` host-schedule specs and run the current
 `arg_builder: vector_add_f32`, `arg_builder: elementwise_binary_f32`,
-`arg_builder: elementwise_scale_f32`, and
-`arg_builder: elementwise_axpy_f32` adapters from CPU `TaskArgsBuilder`
-tensors and scalars through real CUDA device buffers.
+`arg_builder: elementwise_unary_f32`, `arg_builder: elementwise_scale_f32`,
+and `arg_builder: elementwise_axpy_f32` adapters from CPU
+`TaskArgsBuilder` tensors and scalars through real CUDA device buffers.
 Use the neutral `elementwise_binary_f32` name when the compiled task body is
 not addition but still uses the current `(a, b, out, n)` launch ABI. The same
 path can build

@@ -21,6 +21,7 @@ from simpler_setup.cuda_callable_compiler import (
     CudaPersistentCallableArtifact,
     CudaVectorAxpyArgs,
     CudaVectorScaleArgs,
+    CudaVectorUnaryArgs,
     PreparedCudaCallable,
 )
 from simpler_setup.cuda_preflight import cuda_skip_reason
@@ -66,6 +67,13 @@ if (i < ctx->n) {
 }
 """.lstrip()
 
+_VECTOR_SQUARE_BODY = """
+unsigned long long i = blockIdx.x * blockDim.x + threadIdx.x;
+if (i < ctx->n) {
+    ctx->out[i] = ctx->a[i] * ctx->a[i];
+}
+""".lstrip()
+
 _VECTOR_ADD_CONTEXT = """
 struct PtoTaskContext {
     const float *a;
@@ -80,6 +88,14 @@ struct PtoTaskContext {
     const float *a;
     float *out;
     float alpha;
+    unsigned long long n;
+};
+""".strip()
+
+_VECTOR_UNARY_CONTEXT = """
+struct PtoTaskContext {
+    const float *a;
+    float *out;
     unsigned long long n;
 };
 """.strip()
@@ -105,6 +121,12 @@ _VECTOR_SCALE_HOST_PARAMS = (
     "const float *a",
     "float *out",
     "float alpha",
+    "unsigned long long n",
+)
+
+_VECTOR_UNARY_HOST_PARAMS = (
+    "const float *a",
+    "float *out",
     "unsigned long long n",
 )
 
@@ -253,6 +275,25 @@ def _cuda_elementwise_scale_spec(source, *, task_name, arch="compute_80", grid_d
             "signature": [ArgDirection.IN, ArgDirection.OUT],
             "arg_builder": "elementwise_scale_f32",
             "args": ["a", "out", "alpha"],
+        }
+    }
+
+
+def _cuda_elementwise_unary_spec(source, *, task_name, arch="compute_80", grid_dim=4, block_dim=256):
+    return {
+        "cuda": {
+            "source": str(source),
+            "task_name": task_name,
+            "arch": arch,
+            "context_definition": _VECTOR_UNARY_CONTEXT,
+            "host_parameters": _VECTOR_UNARY_HOST_PARAMS,
+            "host_context_initializer": "a, out, n",
+            "grid_dim": grid_dim,
+            "block_dim": block_dim,
+            "op": 4,
+            "signature": [ArgDirection.IN, ArgDirection.OUT],
+            "arg_builder": "elementwise_unary_f32",
+            "args": ["a", "out"],
         }
     }
 
@@ -534,6 +575,24 @@ def test_scene_test_builds_cuda_elementwise_scale_args():
     assert args.n == 17
 
 
+def test_scene_test_builds_cuda_elementwise_unary_args():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(17)),
+        Tensor("out", _FakeTensor(17)),
+    )
+    cuda_spec = {
+        "arg_builder": "elementwise_unary_f32",
+        "args": ["a", "out"],
+    }
+
+    args = _build_cuda_host_schedule_args(test_args, cast(Any, _FakeCudaBuffers()), cuda_spec)
+
+    assert isinstance(args, CudaVectorUnaryArgs)
+    assert args.a == 101
+    assert args.out == 303
+    assert args.n == 17
+
+
 def test_scene_test_builds_cuda_elementwise_axpy_args():
     test_args = TaskArgsBuilder(
         Tensor("a", _FakeTensor(17)),
@@ -707,6 +766,44 @@ def test_scene_test_runs_cuda_host_schedule_elementwise_binary_with_real_data(tm
     try:
         callable_obj = scene.build_callable("cuda")
         scene._run_and_validate_l2(worker, callable_obj, CudaVectorMulScene.CASES[0])
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_host_schedule_elementwise_unary_with_real_data(tmp_path):
+    torch = pytest.importorskip("torch")
+
+    source = tmp_path / "vector_square.pto.cu"
+    source.write_text(_VECTOR_SQUARE_BODY)
+
+    @scene_test(level=2, runtime="host_schedule")
+    class CudaVectorSquareScene(SceneTestCase):
+        CALLABLE = _cuda_elementwise_unary_spec(source, task_name="vector_square")
+        CASES = [
+            {
+                "name": "n1024",
+                "platforms": ["cuda"],
+                "params": {"n": 1024},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            n = params["n"]
+            return TaskArgsBuilder(
+                Tensor("a", torch.arange(n, dtype=torch.float32) + 1.0),
+                Tensor("out", torch.zeros(n, dtype=torch.float32)),
+            )
+
+        def compute_golden(self, args, params):
+            args.out[:] = args.a * args.a
+
+    scene = CudaVectorSquareScene()
+    worker = CudaVectorSquareScene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(worker, callable_obj, CudaVectorSquareScene.CASES[0])
     finally:
         worker.close()
 
