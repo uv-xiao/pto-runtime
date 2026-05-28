@@ -313,6 +313,13 @@ them, while omitted task edges are inferred from tensor flow. It is a
 descriptor-level stepping stone toward PTO graph lowering, not yet automatic
 construction from normal PTO task graphs.
 
+Graph task descriptors can also carry the tensor-tile metadata fields used by
+the fixed tile adapters: `rows`, `cols`, `inner`, `lda`, `ldb`, `ldc`,
+`a_batch_stride`, `b_batch_stride`, and `out_batch_stride`. This lets an
+explicit graph descriptor run the same scalar tiled-GEMM first task as
+`persistent_dag_tensor_tile_f32`, then combine it with residual, gate, and
+fan-in elementwise tasks without switching to a separate fixed adapter.
+
 ## Static NVCC Linking Feasibility
 
 The stable path is feasible with ordinary `nvcc`, but it changes what "runtime

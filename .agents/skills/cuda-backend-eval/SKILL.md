@@ -763,6 +763,10 @@ Use `persistent_dag_graph_f32` when a test should pass an explicit runtime
 graph descriptor with per-task `func_id`, `a`/`b`/`c`/`d`/`out`,
 `dependents`, optional `initial_fanin`, `tensor_args`, and `scalar_args`
 fields instead of selecting one of the fixed tracer-bullet DAG adapters.
+Graph tasks may also pass tensor-tile descriptor fields: `rows`, `cols`,
+`inner`, `lda`, `ldb`, `ldc`, `a_batch_stride`, `b_batch_stride`, and
+`out_batch_stride`. Use this when the explicit graph descriptor should run a
+scalar tiled-GEMM task before downstream residual, gate, and fan-in tasks.
 If every graph task omits `dependents`, the SceneTestCase CUDA adapter infers
 task edges from tensor flow: earlier `out` names become producers for later
 `a`/`b`/`c`/`d` or `tensor_args` reads. Use this form when testing the first
@@ -772,6 +776,14 @@ Graph tasks whose `out` names are not existing input/output tensors are
 allocated as temporary buffers automatically, so tests only need an explicit
 `temporaries` map when a temporary needs a size different from the output
 tensor size.
+Run the no-torch graph tensor-tile ctypes scene on A100 or H200 with:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k graph_tensor_tile_with_ctypes_data --platform cuda
+```
+
 For real host-schedule smoke coverage, pass a context definition plus
 `host_parameters`/`host_context_initializer` so the generated `__global__`
 wrapper matches the current vector-add launch ABI and can be loaded by

@@ -1310,7 +1310,7 @@ class _CudaPersistentDagSceneBuffers:
         tensor_args_t = ctypes_module.c_void_p * 4
         scalar_args_t = ctypes_module.c_float * 4
         tensor_arg_ptrs = [self._graph_ptr(ptrs, name) for name in tensor_args]
-        return task_type(
+        task = task_type(
             func_id=int(task_spec["func_id"]),
             a=self._graph_ptr(ptrs, task_spec.get("a")),
             b=self._graph_ptr(ptrs, task_spec.get("b")),
@@ -1328,6 +1328,20 @@ class _CudaPersistentDagSceneBuffers:
             tensor_arg_count=len(tensor_arg_ptrs),
             scalar_arg_count=len(scalar_args),
         )
+        for field in (
+            "rows",
+            "cols",
+            "inner",
+            "lda",
+            "ldb",
+            "ldc",
+            "a_batch_stride",
+            "b_batch_stride",
+            "out_batch_stride",
+        ):
+            if field in task_spec:
+                setattr(task, field, int(task_spec[field]))
+        return task
 
     @staticmethod
     def _graph_ptr(ptrs: dict[str, int], name) -> int:

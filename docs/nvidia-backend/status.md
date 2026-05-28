@@ -1514,6 +1514,41 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
 Result: `1 passed, 47 deselected`. The command printed the known PTO-ISA SSH
 refresh warning before passing.
 
+The graph adapter now also forwards tensor-tile descriptor fields from each
+graph task: rows, columns, inner dimension, leading dimensions, and per-tile
+strides. This lets an explicit `persistent_dag_graph_f32` descriptor run the
+same scalar tiled-GEMM first task as `persistent_dag_tensor_tile_f32`, then
+feed residual, gate, and fan-in elementwise tasks. The focused red/green test
+first failed with `rows == 0`, then passed after descriptor-field lowering.
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py -q -k graph_tensor_tile_args \
+  --platform cuda
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py -q -k 'graph_tensor_tile' \
+  --platform cuda
+```
+
+Result: the second command reported `2 passed, 52 deselected` on the local
+A100 path, covering both the struct descriptor and a real-data ctypes scene.
+The full local CUDA scene-test file was also rerun after this adapter and
+reported `54 passed`. The same no-torch real-data scene was run on the remote
+H200:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && \
+   CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH \
+   PYTHONPATH=$PWD:$PWD/python \
+   .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+     -q -rs -k graph_tensor_tile_with_ctypes_data --platform cuda'
+```
+
+Result: `1 passed, 53 deselected`. The command printed the known PTO-ISA SSH
+refresh warning before passing.
+
 The persistent scalar-scale scene-test adapter was then added to cover the
 single-tensor plus scalar descriptor shape on the persistent-device runtime.
 It compiles a generated-dispatch `func_id=11` task body, runs it before the

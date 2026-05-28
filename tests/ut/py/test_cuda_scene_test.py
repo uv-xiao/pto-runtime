@@ -616,6 +616,42 @@ def _cuda_persistent_tensor_tile_spec(matmul_source, add_source, mul_source, *, 
     }
 
 
+def _cuda_persistent_graph_tensor_tile_spec(
+    matmul_source,
+    add_source,
+    mul_source,
+    *,
+    arch="compute_80",
+    block_dim=256,
+):
+    spec = _cuda_persistent_tensor_tile_spec(matmul_source, add_source, mul_source, arch=arch, block_dim=block_dim)
+    spec["cuda"]["arg_builder"] = "persistent_dag_graph_f32"
+    spec["cuda"]["temporaries"] = {"tmp0": "out", "tmp1": "out", "tmp2": "out"}
+    spec["cuda"]["graph"] = {
+        "tasks": [
+            {
+                "func_id": 3,
+                "a": "a",
+                "b": "b",
+                "out": "tmp0",
+                "rows": 16,
+                "cols": 16,
+                "inner": 16,
+                "lda": 16,
+                "ldb": 16,
+                "ldc": 16,
+                "a_batch_stride": 256,
+                "b_batch_stride": 256,
+                "out_batch_stride": 256,
+            },
+            {"func_id": 1, "a": "tmp0", "b": "a", "out": "tmp1"},
+            {"func_id": 2, "a": "tmp0", "b": "b", "out": "tmp2"},
+            {"func_id": 1, "a": "tmp1", "b": "tmp2", "out": "out"},
+        ]
+    }
+    return spec
+
+
 def _cuda_persistent_tensor_core_tile_spec(
     wmma_source,
     add_source,
@@ -1660,6 +1696,63 @@ def test_scene_test_infers_cuda_persistent_graph_edges_independent_of_task_order
         (9, 0, 1),
         (2, 1, 1),
     ]
+
+
+def test_scene_test_builds_cuda_persistent_graph_tensor_tile_args():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(256)),
+        Tensor("b", _FakeTensor(256)),
+        Tensor("out", _FakeTensor(256)),
+    )
+    cuda_spec = {
+        "arg_builder": "persistent_dag_graph_f32",
+        "args": ["a", "b", "out"],
+        "queue_capacity": 2,
+        "temporaries": {"tmp0": "out", "tmp1": "out", "tmp2": "out"},
+        "graph": {
+            "tasks": [
+                {
+                    "func_id": 3,
+                    "a": "a",
+                    "b": "b",
+                    "out": "tmp0",
+                    "rows": 16,
+                    "cols": 16,
+                    "inner": 16,
+                    "lda": 16,
+                    "ldb": 16,
+                    "ldc": 16,
+                    "a_batch_stride": 256,
+                    "b_batch_stride": 256,
+                    "out_batch_stride": 256,
+                },
+                {"func_id": 1, "a": "tmp0", "b": "a", "out": "tmp1"},
+                {"func_id": 2, "a": "tmp0", "b": "b", "out": "tmp2"},
+                {"func_id": 1, "a": "tmp1", "b": "tmp2", "out": "out"},
+            ]
+        },
+    }
+    buffers = _CudaPersistentDagSceneBuffers(_FakeWorker(), test_args, cuda_spec)
+
+    assert len(buffers.host_tasks) == 4
+    assert list(buffers.host_fanin) == [0, 1, 1, 2]
+    assert list(buffers.host_dependents) == [1, 2, 3, 3]
+    assert [(task.func_id, task.dependent_begin, task.dependent_count) for task in buffers.host_tasks] == [
+        (3, 0, 2),
+        (1, 2, 1),
+        (2, 3, 1),
+        (1, 4, 0),
+    ]
+    assert buffers.host_tasks[0].rows == 16
+    assert buffers.host_tasks[0].cols == 16
+    assert buffers.host_tasks[0].inner == 16
+    assert buffers.host_tasks[0].lda == 16
+    assert buffers.host_tasks[0].ldb == 16
+    assert buffers.host_tasks[0].ldc == 16
+    assert buffers.host_tasks[0].a_batch_stride == 256
+    assert buffers.host_tasks[0].b_batch_stride == 256
+    assert buffers.host_tasks[0].out_batch_stride == 256
+    assert buffers.host_tasks[3].out == buffers.tensor_buffers.ptrs["out"]
 
 
 def test_scene_test_auto_allocates_cuda_persistent_graph_temporaries():
@@ -3028,6 +3121,72 @@ def test_scene_test_runs_cuda_persistent_device_tensor_tile_with_real_data(tmp_p
     try:
         callable_obj = scene.build_callable("cuda")
         scene._run_and_validate_l2(worker, callable_obj, CudaPersistentTensorTileScene.CASES[0])
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_persistent_device_graph_tensor_tile_with_ctypes_data(tmp_path):
+    matmul_source = tmp_path / "matmul.pto.cu"
+    add_source = tmp_path / "add.pto.cu"
+    mul_source = tmp_path / "mul.pto.cu"
+    matmul_source.write_text(_PERSISTENT_MATMUL_TILE_BODY)
+    add_source.write_text(_PERSISTENT_ADD_BODY)
+    mul_source.write_text(_PERSISTENT_MUL_BODY)
+
+    @scene_test(level=2, runtime="persistent_device")
+    class CudaPersistentGraphTensorTileCtypesScene(SceneTestCase):
+        CALLABLE = _cuda_persistent_graph_tensor_tile_spec(matmul_source, add_source, mul_source)
+        CASES = [
+            {
+                "name": "tile16",
+                "platforms": ["cuda"],
+                "params": {"rows": 16, "cols": 16, "inner": 16},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            rows = params["rows"]
+            cols = params["cols"]
+            inner = params["inner"]
+            args = TaskArgsBuilder(
+                Tensor("a", _CtypesFloatTensor(float((i % 5) + 1) for i in range(rows * inner))),
+                Tensor("b", _CtypesFloatTensor(float((i % 3) + 1) for i in range(inner * cols))),
+                Tensor("out", _CtypesFloatTensor(0.0 for _ in range(rows * cols))),
+            )
+            self.last_args = args
+            return args
+
+        def compute_golden(self, args, params):
+            raise AssertionError("ctypes scene uses explicit post-run validation")
+
+    scene = CudaPersistentGraphTensorTileCtypesScene()
+    worker = CudaPersistentGraphTensorTileCtypesScene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(
+            worker,
+            callable_obj,
+            CudaPersistentGraphTensorTileCtypesScene.CASES[0],
+            skip_golden=True,
+        )
+        params = CudaPersistentGraphTensorTileCtypesScene.CASES[0]["params"]
+        rows = params["rows"]
+        cols = params["cols"]
+        inner = params["inner"]
+        a_values = scene.last_args.a.to_list()
+        b_values = scene.last_args.b.to_list()
+        actual = scene.last_args.out.to_list()
+        matmul = []
+        for row in range(rows):
+            for col in range(cols):
+                acc = 0.0
+                for k in range(inner):
+                    acc += a_values[row * inner + k] * b_values[k * cols + col]
+                matmul.append(acc)
+        expected = [matmul[i] + a_values[i] + matmul[i] * b_values[i] for i in range(rows * cols)]
+        assert actual == pytest.approx(expected)
     finally:
         worker.close()
 
