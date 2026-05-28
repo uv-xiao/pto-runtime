@@ -58,6 +58,7 @@ BENCHMARK_TENSOR_BASELINES = (
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_tensor_core",
     "cublas_sgemm",
+    "cublas_sgemm_graph",
 )
 
 
@@ -336,12 +337,14 @@ def render_benchmark_tensor_throughput_table(payload: Payload) -> str:
         graph_tensor_key = (machine, "pto_persistent_dag_graph_tensor", n, shape)
         tensor_core_key = (machine, "pto_persistent_dag_tensor_core", n, shape)
         cublas_key = (machine, "cublas_sgemm", n, shape)
+        cublas_graph_key = (machine, "cublas_sgemm_graph", n, shape)
         if scalar_key not in medians:
             continue
         scalar = medians[scalar_key]
         graph_tensor = medians.get(graph_tensor_key)
         tensor_core = medians.get(tensor_core_key)
         cublas = medians.get(cublas_key)
+        cublas_graph = medians.get(cublas_graph_key)
         rows.append(
             [
                 _machine_label(machine),
@@ -351,12 +354,15 @@ def render_benchmark_tensor_throughput_table(payload: Payload) -> str:
                 _format_number(graph_tensor) if graph_tensor is not None else "-",
                 _format_number(tensor_core) if tensor_core is not None else "-",
                 _format_number(cublas) if cublas is not None else "-",
+                _format_number(cublas_graph) if cublas_graph is not None else "-",
                 _format_gflops(_tensor_gflops(n, shape, scalar)),
                 _format_gflops(_tensor_gflops(n, shape, graph_tensor)),
                 _format_gflops(_tensor_gflops(n, shape, tensor_core)),
                 _format_gflops(_tensor_gflops(n, shape, cublas)),
+                _format_gflops(_tensor_gflops(n, shape, cublas_graph)),
                 _ratio(tensor_core, scalar) if tensor_core is not None else "-",
                 _ratio(cublas, scalar) if cublas is not None else "-",
+                _ratio(cublas_graph, scalar) if cublas_graph is not None else "-",
             ]
         )
     return _table(
@@ -368,12 +374,15 @@ def render_benchmark_tensor_throughput_table(payload: Payload) -> str:
             "Graph ns",
             "Tensor-core ns",
             "cuBLAS ns",
+            "cuBLAS graph ns",
             "Scalar GF/s",
             "Graph GF/s",
             "Tensor-core GF/s",
             "cuBLAS GF/s",
+            "cuBLAS graph GF/s",
             "Tensor-core/scalar",
             "cuBLAS/scalar",
+            "cuBLAS graph/scalar",
         ],
         rows,
     )

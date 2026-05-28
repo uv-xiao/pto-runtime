@@ -50,6 +50,7 @@ BASELINE_ROWS: tuple[str, ...] = (
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_tensor_core",
     "cublas_sgemm",
+    "cublas_sgemm_graph",
 )
 BATCH_ROWS: tuple[str, ...] = (
     "pto_host_schedule_batch",
@@ -82,6 +83,7 @@ TENSOR_TILE_BASELINES: tuple[str, ...] = (
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_tensor_core",
     "cublas_sgemm",
+    "cublas_sgemm_graph",
 )
 
 
@@ -161,7 +163,7 @@ def _benchmark_args(
     output_dir: Path,
     config: PairedBenchmarkConfig,
 ) -> list[str]:
-    return [
+    args = [
         "--device",
         str(device),
         "--sizes",
@@ -171,10 +173,6 @@ def _benchmark_args(
         "--arch",
         arch,
         "--include-persistent",
-        "--batch-tasks",
-        _csv(config.batch_tasks),
-        "--worker-blocks-per-task",
-        _csv(config.worker_blocks_per_task),
         "--tensor-rows",
         str(config.tensor_rows),
         "--tensor-cols",
@@ -186,6 +184,11 @@ def _benchmark_args(
         "--output-dir",
         str(output_dir),
     ]
+    if config.batch_tasks:
+        args.extend(["--batch-tasks", _csv(config.batch_tasks)])
+        if config.worker_blocks_per_task:
+            args.extend(["--worker-blocks-per-task", _csv(config.worker_blocks_per_task)])
+    return args
 
 
 def build_local_benchmark_command(config: PairedBenchmarkConfig, commit: str) -> list[str]:

@@ -1172,6 +1172,7 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_tensor" in args.require_baseline
     assert "pto_persistent_dag_tensor_core" in args.require_baseline
     assert "cublas_sgemm" in args.require_baseline
+    assert "cublas_sgemm_graph" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4=9,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in args.require_dispatch
@@ -1179,7 +1180,8 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_tensor_core=10,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_tensor=16x16x16" in args.require_tensor_tile
     assert "cublas_sgemm=16x16x16" in args.require_tensor_tile
-    assert args.expected_result_count == 882
+    assert "cublas_sgemm_graph=16x16x16" in args.require_tensor_tile
+    assert args.expected_result_count == 900
 
 
 def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
@@ -1191,7 +1193,7 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert args.require_machine == ["hina", "dasys-h200x8"]
     assert args.require_size == ["1024"]
     assert args.expected_repeats == 1
-    assert args.expected_result_count == 64
+    assert args.expected_result_count == 66
     assert args.require_report_files is True
     assert args.require_command_examples is True
     assert args.require_zero_scheduler_errors is True
@@ -1203,6 +1205,7 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_graph_scratch_reuse" in args.require_baseline
     assert "pto_persistent_dag_graph_diamond" in args.require_baseline
     assert "pto_persistent_dag_graph_tensor" in args.require_baseline
+    assert "cublas_sgemm_graph" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4=9,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in args.require_dispatch
@@ -1210,7 +1213,8 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_tensor_core=10,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_tensor=16x16x16" in args.require_tensor_tile
     assert "cublas_sgemm=16x16x16" in args.require_tensor_tile
-    assert args.expected_result_count == 64
+    assert "cublas_sgemm_graph=16x16x16" in args.require_tensor_tile
+    assert args.expected_result_count == 66
 
 
 def _tensor_sweep_payload():
@@ -1844,7 +1848,7 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert ".agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py" in validate
     assert str(tmp_path / "cuda-backend" / "combined-current-abc123" / "cuda-benchmark.json") in validate
     assert "--expected-result-count" in validate
-    assert "882" in validate
+    assert "900" in validate
     assert "--require-baseline" in validate
     assert "pto_host_schedule_generic_args" in validate
     assert "pto_persistent_dag_graph_generic_args4" in validate
@@ -1854,6 +1858,7 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert "pto_persistent_dag_graph_tensor" in validate
     assert "pto_persistent_dag_tensor_core" in validate
     assert "cublas_sgemm" in validate
+    assert "cublas_sgemm_graph" in validate
     assert "--require-dispatch" in validate
     assert "pto_persistent_dag_graph_generic_args4=9,2,1" in validate
     assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in validate
@@ -1867,6 +1872,7 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert "pto_persistent_dag_graph_tensor=16x16x16" in validate
     assert "pto_persistent_dag_tensor_core=16x16x16" in validate
     assert "cublas_sgemm=16x16x16" in validate
+    assert "cublas_sgemm_graph=16x16x16" in validate
     assert "--require-command-examples" in validate
     assert "--require-source-papers" in validate
     assert "--require-zero-scheduler-errors" in validate
@@ -1892,7 +1898,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "--expected-repeats" in validate
     assert "2" in validate
     assert "--expected-result-count" in validate
-    assert "264" in validate
+    assert "272" in validate
     assert "--require-baseline" in validate
     baselines = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-baseline"]
     assert "pto_host_schedule_generic_args" in baselines
@@ -1901,6 +1907,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_scratch_reuse" in baselines
     assert "pto_persistent_dag_graph_diamond" in baselines
     assert "pto_persistent_dag_graph_tensor" in baselines
+    assert "cublas_sgemm_graph" in baselines
     assert "pto_host_schedule_batch" in baselines
     assert "pto_persistent_device_grid_batch" in baselines
     dispatch = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-dispatch"]
@@ -1912,6 +1919,29 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     tensor_tiles = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-tensor-tile"]
     assert "pto_persistent_dag_tensor=16x16x16" in tensor_tiles
     assert "cublas_sgemm=16x16x16" in tensor_tiles
+    assert "cublas_sgemm_graph=16x16x16" in tensor_tiles
+
+
+def test_cuda_pair_benchmark_omits_empty_batch_sweeps(tmp_path):
+    cuda_pair_benchmark = _load_pair_benchmark_module()
+    config = cuda_pair_benchmark.PairedBenchmarkConfig(
+        output_root=tmp_path / "cuda-backend",
+        sizes=(1024,),
+        repeats=1,
+        batch_tasks=(),
+        worker_blocks_per_task=(),
+        local_python=".venv/bin/python",
+    )
+
+    local = cuda_pair_benchmark.build_local_benchmark_command(config, "abc123")
+    validate = cuda_pair_benchmark.build_validate_command(config, "abc123")
+
+    assert "--batch-tasks" not in local
+    assert "--worker-blocks-per-task" not in local
+    assert "pto_host_schedule_batch" not in validate
+    assert "pto_persistent_device_grid_batch" not in validate
+    assert "--expected-result-count" in validate
+    assert "58" in validate
 
 
 def test_cuda_pair_benchmark_merge_command_records_sanitized_examples(tmp_path):
@@ -4807,6 +4837,14 @@ def test_cuda_current_summary_renders_benchmark_tensor_throughput_table():
                 "status": "pass",
             },
             {
+                "machine": "hina",
+                "baseline": "cublas_sgemm_graph",
+                "n": 512,
+                "device_wall_ns": 6144,
+                "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 2},
+                "status": "pass",
+            },
+            {
                 "machine": "dasys-h200x8",
                 "baseline": "pto_persistent_dag_tensor",
                 "n": 512,
@@ -4830,21 +4868,37 @@ def test_cuda_current_summary_renders_benchmark_tensor_throughput_table():
                 "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 2},
                 "status": "pass",
             },
+            {
+                "machine": "dasys-h200x8",
+                "baseline": "cublas_sgemm_graph",
+                "n": 512,
+                "device_wall_ns": 3072,
+                "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 2},
+                "status": "pass",
+            },
         ]
     }
 
     table = cuda_current_summary.render_benchmark_tensor_throughput_table(payload)
 
     assert (
-        "| GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | cuBLAS ns | Scalar GF/s | "
-        "Graph GF/s | Tensor-core GF/s | cuBLAS GF/s | Tensor-core/scalar | cuBLAS/scalar |"
+        "| GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | cuBLAS ns | cuBLAS graph ns | "
+        "Scalar GF/s | Graph GF/s | Tensor-core GF/s | cuBLAS GF/s | cuBLAS graph GF/s | "
+        "Tensor-core/scalar | cuBLAS/scalar | cuBLAS graph/scalar |"
     ) in table
     assert (
-        "| --- | - | ----- | --------- | -------- | -------------- | --------- | ----------- | "
-        "---------- | ---------------- | ----------- | ------------------ | ------------- |"
+        "| --- | - | ----- | --------- | -------- | -------------- | --------- | --------------- | ----------- | "
+        "---------- | ---------------- | ----------- | ----------------- | ------------------ | ------------- | "
+        "------------------- |"
     ) in table
-    assert "| A100 | 512 | 16x16x16 | 2048 | 4096 | 1024 | 8192 | 8.00 | 4.00 | 16.00 | 2.00 | 0.50x | 4.00x |" in table
-    assert "| H200 | 512 | 16x16x16 | 1024 | - | 2048 | 4096 | 16.00 | - | 8.00 | 4.00 | 2.00x | 4.00x |" in table
+    assert (
+        "| A100 | 512 | 16x16x16 | 2048 | 4096 | 1024 | 8192 | 6144 | 8.00 | 4.00 | 16.00 | 2.00 | "
+        "2.67 | 0.50x | 4.00x | 3.00x |" in table
+    )
+    assert (
+        "| H200 | 512 | 16x16x16 | 1024 | - | 2048 | 4096 | 3072 | 16.00 | - | 8.00 | 4.00 | "
+        "5.33 | 2.00x | 4.00x | 3.00x |" in table
+    )
 
 
 def test_summarize_results_groups_by_machine_and_baseline():
@@ -5110,6 +5164,14 @@ def test_render_report_includes_tensor_throughput_rows():
                 "device_wall_ns": 2048,
                 "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 2},
             },
+            {
+                "machine": "a100-local",
+                "baseline": "cublas_sgemm_graph",
+                "n": 512,
+                "task_count": 1,
+                "device_wall_ns": 1536,
+                "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 2},
+            },
         ],
     }
 
@@ -5119,9 +5181,11 @@ def test_render_report_includes_tensor_throughput_rows():
     assert "## Tensor Throughput Rows" in report
     assert "| a100-local | pto_persistent_dag_tensor_core | 512 | 16x16x16 | 1024 | 16.00 |" in report
     assert "| a100-local | cublas_sgemm | 512 | 16x16x16 | 2048 | 8.00 |" in report
+    assert "| a100-local | cublas_sgemm_graph | 512 | 16x16x16 | 1536 | 10.67 |" in report
     assert "![Tensor throughput chart](cuda-benchmark-throughput.svg)" in report
     assert "Tensor throughput by baseline" in svg
     assert "16.00 GF/s" in svg
+    assert "cublas_sgemm_graph" in svg
 
 
 def test_write_report_writes_tensor_throughput_svg(tmp_path):
@@ -5418,6 +5482,39 @@ def test_render_report_describes_cublas_sgemm_rows():
     assert "`cublas_sgemm` measures cuBLAS SGEMM" in report
     assert "16x16x16" in report
     assert "cublas_sgemm" in svg
+
+
+def test_render_report_describes_cublas_sgemm_graph_rows():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "cublas-graph-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+            "tensor_tile": {"rows": 16, "cols": 16, "inner": 16},
+        },
+        "results": [
+            {"machine": "a100-local", "baseline": "pto_host_schedule", "n": 256, "device_wall_ns": 1000},
+            {
+                "machine": "a100-local",
+                "baseline": "cublas_sgemm_graph",
+                "n": 256,
+                "task_count": 1,
+                "batch_count": 1,
+                "library": "cublas",
+                "launch_mode": "cuda_graph",
+                "device_wall_ns": 1800,
+            },
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+    svg = cuda_benchmark.render_svg(cuda_benchmark.summarize_results(payload))
+
+    assert "| a100-local | cublas_sgemm_graph | 256 | 1 | 1 | 1 | 1800 | 1800 | 1.80x |" in report
+    assert "`cublas_sgemm_graph` measures cuBLAS SGEMM captured into a CUDA Graph" in report
+    assert "16x16x16" in report
+    assert "cublas_sgemm_graph" in svg
 
 
 def test_render_report_describes_dag_scalar_axpy_rows():
@@ -6261,8 +6358,9 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "pto_persistent_dag_graph_tensor",
         "pto_persistent_dag_tensor_core",
         "cublas_sgemm",
+        "cublas_sgemm_graph",
     ]
-    assert len(payload["results"]) == 28
+    assert len(payload["results"]) == 29
 
 
 def test_run_single_sample_dispatches_cublas_sgemm(monkeypatch):
@@ -6293,6 +6391,36 @@ def test_run_single_sample_dispatches_cublas_sgemm(monkeypatch):
 
     assert seen == {"device": 3, "n": 256, "tensor_tile": tensor_tile}
     assert result["baseline"] == "cublas_sgemm"
+
+
+def test_run_single_sample_dispatches_cublas_sgemm_graph(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = {}
+
+    def fake_run_cublas_sgemm_graph_sample(device, n, tensor_tile):
+        seen.update({"device": device, "n": n, "tensor_tile": tensor_tile})
+        return {
+            "baseline": "cublas_sgemm_graph",
+            "n": n,
+            "task_count": 1,
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    tensor_tile = {"rows": 16, "cols": 16, "inner": 16}
+    monkeypatch.setattr(cuda_benchmark, "run_cublas_sgemm_graph_sample", fake_run_cublas_sgemm_graph_sample)
+
+    result = cuda_benchmark.run_single_sample(
+        baseline="cublas_sgemm_graph",
+        device=3,
+        n=256,
+        block_dim=128,
+        arch="compute_80",
+        tensor_tile=tensor_tile,
+    )
+
+    assert seen == {"device": 3, "n": 256, "tensor_tile": tensor_tile}
+    assert result["baseline"] == "cublas_sgemm_graph"
 
 
 def test_run_single_sample_dispatches_scalar_axpy_dag(monkeypatch):
@@ -7349,6 +7477,7 @@ def test_run_benchmark_passes_tensor_descriptor_to_tensor_dag(monkeypatch):
         "pto_persistent_dag_graph_tensor",
         "pto_persistent_dag_tensor_core",
         "cublas_sgemm",
+        "cublas_sgemm_graph",
     }
     tensor_calls = [item for item in seen if item[0] in tensor_baselines]
     non_tensor_calls = [item for item in seen if item[0] not in tensor_baselines]
@@ -7358,6 +7487,7 @@ def test_run_benchmark_passes_tensor_descriptor_to_tensor_dag(monkeypatch):
         ("pto_persistent_dag_graph_tensor", tensor_tile),
         ("pto_persistent_dag_tensor_core", tensor_tile),
         ("cublas_sgemm", tensor_tile),
+        ("cublas_sgemm_graph", tensor_tile),
     ]
     assert all(call[1] is None for call in non_tensor_calls)
 
@@ -7424,12 +7554,13 @@ def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
         ("pto_persistent_dag_graph_tensor", 1),
         ("pto_persistent_dag_tensor_core", 1),
         ("cublas_sgemm", 1),
+        ("cublas_sgemm_graph", 1),
         ("pto_host_schedule_batch", 6),
         ("pto_persistent_device_batch", 6),
         ("pto_persistent_queue_batch", 6),
     ]
     assert payload["metadata"]["batch_tasks"] == 6
-    assert len(payload["results"]) == 31
+    assert len(payload["results"]) == 32
 
 
 def test_run_benchmark_can_include_worker_grid_batch_mode(monkeypatch):

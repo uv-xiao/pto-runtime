@@ -365,12 +365,26 @@ cuBLAS rows with recorded tensor tile descriptors.
 The first cuBLAS library-backed tensor baseline adds `cublas_sgemm` to the
 same compact selected-baseline report shape. It uses CUDA Runtime API events
 around a warm cuBLAS `cublasSgemmStridedBatched` call over the configured
-`16x16x16` descriptor. In the paired A100/H200 capture under
+`16x16x16` descriptor. The matching `cublas_sgemm_graph` row captures that
+same warmed descriptor into a CUDA Graph, instantiates it outside the measured
+interval, warms graph replay once, and times `cudaGraphLaunch` with CUDA
+events. In the paired A100/H200 capture under
 `tmp/cuda-backend/combined-cublas-current-343924df/`, the row measured
 `48128 ns` device time on A100 and `58623 ns` on H200. The matched
 `pto_persistent_dag_tensor_core` rows in that report measured `33792 ns` and
 `32960 ns`. This row is a CUDA library launch/compute comparison point, not a
 PTO runtime path.
+
+The first cuBLAS CUDA Graph paired capture is under
+`tmp/cuda-backend/cublas-graph-compact-working/combined-current-5168f150/`.
+It uses `N=1024`, one repeat, no batch rows, and the default `16x16x16`
+descriptor. The paired runner synced the working tree to `bizhaoh200`,
+captured A100 and H200 reports, merged `58` rows, and validated report files,
+command examples, source-paper provenance, tensor descriptor metadata, PTO
+dispatch sequences, and zero scheduler errors. The A100 rows measured
+`cublas_sgemm=48128 ns` and `cublas_sgemm_graph=10239 ns`; H200 measured
+`9119 ns` and `8543 ns`. The graph row is a launch-path comparison point
+around cuBLAS graph replay, not a tuned GEMM throughput claim.
 
 The tensor shape sweep script now accepts `--baselines` and `--sizes`, so one
 paired A100/H200 sweep can compare scalar tensor DAG, the explicit graph
@@ -2301,9 +2315,9 @@ Result:
 A100 reported `device_wall_ns=43008` and `host_wall_ns=58143`; H200 reported
 `device_wall_ns=33664` and `host_wall_ns=43163`.
 
-After promoting `pto_persistent_dag_graph_scratch_reuse` to a benchmark
-baseline, the paired-current validator now expects `882` full paired samples
-or `64` compact paired samples.
+After promoting the cuBLAS CUDA Graph baseline to the selected benchmark
+matrix, the paired-current validator now expects `900` full paired samples or
+`66` compact paired samples.
 
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph

@@ -25,6 +25,7 @@ import tempfile
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +65,7 @@ TENSOR_THROUGHPUT_BASELINES = {
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_tensor_core",
     "cublas_sgemm",
+    "cublas_sgemm_graph",
 }
 
 _FALLBACK_SLOW_VECTOR_ADD_PTX = rb"""
@@ -462,6 +464,9 @@ class RuntimeCublas:
         self.cuda.cudaFree.argtypes = [ctypes.c_void_p]
         self.cuda.cudaMemcpy.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
         self.cuda.cudaDeviceSynchronize.argtypes = []
+        self.cuda.cudaStreamCreate.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
+        self.cuda.cudaStreamDestroy.argtypes = [ctypes.c_void_p]
+        self.cuda.cudaStreamSynchronize.argtypes = [ctypes.c_void_p]
         self.cuda.cudaEventCreate.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
         self.cuda.cudaEventRecord.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         self.cuda.cudaEventSynchronize.argtypes = [ctypes.c_void_p]
@@ -471,10 +476,37 @@ class RuntimeCublas:
             ctypes.c_void_p,
         ]
         self.cuda.cudaEventDestroy.argtypes = [ctypes.c_void_p]
+        self.cuda.cudaStreamBeginCapture.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self.cuda.cudaStreamEndCapture.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        try:
+            self._cuda_graph_instantiate_with_flags = self.cuda.cudaGraphInstantiateWithFlags
+            self._cuda_graph_instantiate_with_flags.argtypes = [
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.c_void_p,
+                ctypes.c_ulonglong,
+            ]
+        except AttributeError:
+            self._cuda_graph_instantiate_with_flags = None
+            self.cuda.cudaGraphInstantiate.argtypes = [
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.c_char_p,
+                ctypes.c_size_t,
+            ]
+        self.cuda.cudaGraphLaunch.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        self.cuda.cudaGraphExecDestroy.argtypes = [ctypes.c_void_p]
+        self.cuda.cudaGraphDestroy.argtypes = [ctypes.c_void_p]
 
         self.cublas.cublasCreate_v2.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
         self.cublas.cublasDestroy_v2.argtypes = [ctypes.c_void_p]
         self.cublas.cublasSetMathMode.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self.cublas.cublasSetStream_v2.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        try:
+            self._cublas_set_workspace = self.cublas.cublasSetWorkspace_v2
+            self._cublas_set_workspace.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t]
+        except AttributeError:
+            self._cublas_set_workspace = None
         try:
             self._sgemm_strided_batched = self.cublas.cublasSgemmStridedBatched_v2
         except AttributeError:
@@ -500,6 +532,76 @@ class RuntimeCublas:
             ctypes.c_int,
         ]
 
+    def _instantiate_graph(self, graph: ctypes.c_void_p) -> ctypes.c_void_p:
+        graph_exec = ctypes.c_void_p()
+        if self._cuda_graph_instantiate_with_flags is not None:
+            _check_cuda(
+                self._cuda_graph_instantiate_with_flags(ctypes.byref(graph_exec), graph, 0),
+                "cudaGraphInstantiateWithFlags",
+            )
+            return graph_exec
+        error_node = ctypes.c_void_p()
+        log_buffer = ctypes.create_string_buffer(4096)
+        _check_cuda(
+            self.cuda.cudaGraphInstantiate(
+                ctypes.byref(graph_exec),
+                graph,
+                ctypes.byref(error_node),
+                log_buffer,
+                ctypes.sizeof(log_buffer),
+            ),
+            "cudaGraphInstantiate",
+        )
+        return graph_exec
+
+    def _prepare_graph_launch(
+        self,
+        launch: Callable[[], None],
+    ) -> tuple[ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]:
+        stream = ctypes.c_void_p()
+        graph = ctypes.c_void_p()
+        workspace = ctypes.c_void_p()
+        _check_cuda(self.cuda.cudaStreamCreate(ctypes.byref(stream)), "cudaStreamCreate")
+        _check_cublas(self.cublas.cublasSetStream_v2(self.handle, stream), "cublasSetStream")
+        if self._cublas_set_workspace is not None:
+            workspace_nbytes = 4 * 1024 * 1024
+            _check_cuda(
+                self.cuda.cudaMalloc(ctypes.byref(workspace), workspace_nbytes),
+                "cudaMalloc(cublas_workspace)",
+            )
+            _check_cublas(
+                self._cublas_set_workspace(self.handle, workspace, workspace_nbytes),
+                "cublasSetWorkspace",
+            )
+        launch()
+        _check_cuda(self.cuda.cudaStreamSynchronize(stream), "cudaStreamSynchronize(warmup)")
+        _check_cuda(self.cuda.cudaStreamBeginCapture(stream, 0), "cudaStreamBeginCapture")
+        launch()
+        _check_cuda(self.cuda.cudaStreamEndCapture(stream, ctypes.byref(graph)), "cudaStreamEndCapture")
+        graph_exec = self._instantiate_graph(graph)
+        _check_cuda(self.cuda.cudaGraphLaunch(graph_exec, stream), "cudaGraphLaunch(warmup)")
+        _check_cuda(self.cuda.cudaStreamSynchronize(stream), "cudaStreamSynchronize(graph_warmup)")
+        return stream, graph, graph_exec, workspace
+
+    def _cleanup_graph_launch(
+        self,
+        *,
+        stream: ctypes.c_void_p,
+        graph: ctypes.c_void_p,
+        graph_exec: ctypes.c_void_p,
+        workspace: ctypes.c_void_p,
+    ) -> None:
+        if graph_exec:
+            self.cuda.cudaGraphExecDestroy(graph_exec)
+        if graph:
+            self.cuda.cudaGraphDestroy(graph)
+        if self.handle and stream:
+            self.cublas.cublasSetStream_v2(self.handle, None)
+        if stream:
+            self.cuda.cudaStreamDestroy(stream)
+        if workspace:
+            self.cuda.cudaFree(workspace)
+
     def _init(self, device: int) -> None:
         _check_cuda(self.cuda.cudaSetDevice(device), "cudaSetDevice")
         _check_cublas(self.cublas.cublasCreate_v2(ctypes.byref(self.handle)), "cublasCreate")
@@ -524,7 +626,7 @@ class RuntimeCublas:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
 
-    def run_sgemm(self, n: int, tensor_tile: dict[str, int] | None) -> dict[str, Any]:
+    def run_sgemm(self, n: int, tensor_tile: dict[str, int] | None, *, use_graph: bool = False) -> dict[str, Any]:
         tile = tensor_tile or {"rows": 16, "cols": 16, "inner": 16}
         rows = int(tile["rows"])
         cols = int(tile["cols"])
@@ -546,6 +648,10 @@ class RuntimeCublas:
         dev_a = ctypes.c_void_p()
         dev_b = ctypes.c_void_p()
         dev_c = ctypes.c_void_p()
+        stream = ctypes.c_void_p()
+        graph = ctypes.c_void_p()
+        graph_exec = ctypes.c_void_p()
+        workspace = ctypes.c_void_p()
         a_nbytes = ctypes.sizeof(host_a)
         b_nbytes = ctypes.sizeof(host_b)
         c_nbytes = ctypes.sizeof(host_c)
@@ -583,12 +689,21 @@ class RuntimeCublas:
                     "cublasSgemmStridedBatched",
                 )
 
-            launch()
-            _check_cuda(self.cuda.cudaDeviceSynchronize(), "cudaDeviceSynchronize(warmup)")
+            if use_graph:
+                stream, graph, graph_exec, workspace = self._prepare_graph_launch(launch)
+                event_stream = stream
+            else:
+                launch()
+                _check_cuda(self.cuda.cudaDeviceSynchronize(), "cudaDeviceSynchronize(warmup)")
+                event_stream = None
+
             host_start = time.time_ns()
-            _check_cuda(self.cuda.cudaEventRecord(self.start_event, None), "cudaEventRecord(start)")
-            launch()
-            _check_cuda(self.cuda.cudaEventRecord(self.stop_event, None), "cudaEventRecord(stop)")
+            _check_cuda(self.cuda.cudaEventRecord(self.start_event, event_stream), "cudaEventRecord(start)")
+            if use_graph:
+                _check_cuda(self.cuda.cudaGraphLaunch(graph_exec, stream), "cudaGraphLaunch")
+            else:
+                launch()
+            _check_cuda(self.cuda.cudaEventRecord(self.stop_event, event_stream), "cudaEventRecord(stop)")
             _check_cuda(self.cuda.cudaEventSynchronize(self.stop_event), "cudaEventSynchronize(stop)")
             host_wall_ns = time.time_ns() - host_start
 
@@ -599,6 +714,7 @@ class RuntimeCublas:
             )
             _check_cuda(self.cuda.cudaMemcpy(ctypes.cast(host_c, ctypes.c_void_p), dev_c, c_nbytes, 2), "cudaMemcpy(c)")
         finally:
+            self._cleanup_graph_launch(stream=stream, graph=graph, graph_exec=graph_exec, workspace=workspace)
             self.cuda.cudaFree(dev_a)
             self.cuda.cudaFree(dev_b)
             self.cuda.cudaFree(dev_c)
@@ -618,8 +734,10 @@ class RuntimeCublas:
         if max_abs_diff > 1.0e-2:
             raise RuntimeError(f"cuBLAS SGEMM output mismatch: max_abs_diff={max_abs_diff}")
 
+        baseline = "cublas_sgemm_graph" if use_graph else "cublas_sgemm"
+        launch_mode = "cuda_graph" if use_graph else "cuda_runtime"
         return {
-            "baseline": "cublas_sgemm",
+            "baseline": baseline,
             "n": effective_n,
             "task_count": 1,
             "block_dim": 0,
@@ -628,6 +746,7 @@ class RuntimeCublas:
             "status": "pass",
             "library": "cublas",
             "operation": "sgemm_strided_batched",
+            "launch_mode": launch_mode,
             "math_mode": "tf32_tensor_op",
             "batch_count": batch_count,
             "tensor_tile": {"rows": rows, "cols": cols, "inner": inner},
@@ -638,6 +757,11 @@ class RuntimeCublas:
 def run_cublas_sgemm_sample(device: int, n: int, tensor_tile: dict[str, int] | None = None) -> dict[str, Any]:
     with RuntimeCublas(device=device) as runner:
         return runner.run_sgemm(n=n, tensor_tile=tensor_tile)
+
+
+def run_cublas_sgemm_graph_sample(device: int, n: int, tensor_tile: dict[str, int] | None = None) -> dict[str, Any]:
+    with RuntimeCublas(device=device) as runner:
+        return runner.run_sgemm(n=n, tensor_tile=tensor_tile, use_graph=True)
 
 
 def run_pto_sample(device: int, n: int, block_dim: int, arch: str) -> dict[str, Any]:
@@ -1623,6 +1747,8 @@ def run_single_sample(  # noqa: PLR0912
         )
     if baseline == "cublas_sgemm":
         return run_cublas_sgemm_sample(device=device, n=n, tensor_tile=tensor_tile)
+    if baseline == "cublas_sgemm_graph":
+        return run_cublas_sgemm_graph_sample(device=device, n=n, tensor_tile=tensor_tile)
     if baseline == "pto_persistent_device_batch":
         return run_persistent_sample(
             device=device,
@@ -1802,6 +1928,7 @@ def run_benchmark(
                     "pto_persistent_dag_graph_tensor",
                     "pto_persistent_dag_tensor_core",
                     "cublas_sgemm",
+                    "cublas_sgemm_graph",
                 ):
                     sample_kwargs: dict[str, Any] = {}
                     if (
@@ -1811,6 +1938,7 @@ def run_benchmark(
                             "pto_persistent_dag_graph_tensor",
                             "pto_persistent_dag_tensor_core",
                             "cublas_sgemm",
+                            "cublas_sgemm_graph",
                         }
                         and tensor_tile is not None
                     ):
@@ -2375,6 +2503,7 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
         "pto_persistent_dag_graph_tensor": "#c7522a",
         "pto_persistent_dag_tensor_core": "#d1495b",
         "cublas_sgemm": "#006d77",
+        "cublas_sgemm_graph": "#118ab2",
         "pto_persistent_device": "#9467bd",
         "pto_persistent_device_batch": "#7b52ab",
         "pto_persistent_device_grid_batch": "#5f3b9d",
@@ -2509,6 +2638,7 @@ def render_tensor_throughput_svg(payload: dict[str, Any]) -> str:
         "pto_persistent_dag_graph_tensor": "#c7522a",
         "pto_persistent_dag_tensor_core": "#d1495b",
         "cublas_sgemm": "#006d77",
+        "cublas_sgemm_graph": "#118ab2",
     }
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
@@ -2789,6 +2919,13 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 else "- `cublas_sgemm` measures cuBLAS SGEMM over a default 16x16x16"
             ),
             "  strided-batched descriptor using CUDA Runtime API events and a warm handle.",
+            (
+                f"- `cublas_sgemm_graph` measures cuBLAS SGEMM captured into a CUDA Graph over a configured "
+                f"{tensor_tile_shape}"
+                if tensor_tile_shape is not None
+                else "- `cublas_sgemm_graph` measures cuBLAS SGEMM captured into a CUDA Graph over a default 16x16x16"
+            ),
+            "  descriptor, then times graph replay after graph instantiation and warmup.",
             "- `pto_stream_serial` measures two independent PTO launches issued",
             "  sequentially on the host-schedule stream pool.",
             "- `pto_stream_parallel` measures two independent PTO launches issued",
@@ -2901,6 +3038,7 @@ def main() -> None:
             "pto_persistent_dag_graph_tensor",
             "pto_persistent_dag_tensor_core",
             "cublas_sgemm",
+            "cublas_sgemm_graph",
             "pto_host_schedule_batch",
             "pto_persistent_device_batch",
             "pto_persistent_device_grid_batch",
@@ -2993,6 +3131,7 @@ def main() -> None:
                             "pto_persistent_dag_graph_tensor",
                             "pto_persistent_dag_tensor_core",
                             "cublas_sgemm",
+                            "cublas_sgemm_graph",
                         }
                         else None
                     ),

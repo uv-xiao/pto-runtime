@@ -21,6 +21,7 @@ from typing import Any
 PAIRED_CURRENT_MACHINES = ("hina", "dasys-h200x8")
 PAIRED_CURRENT_BASELINES = (
     "cublas_sgemm",
+    "cublas_sgemm_graph",
     "direct_driver",
     "direct_driver_graph",
     "pto_host_schedule",
@@ -56,7 +57,7 @@ PAIRED_CURRENT_BASELINES = (
 PAIRED_CURRENT_SIZES = (1024, 65536, 1048576)
 COMPACT_CURRENT_SIZES = (1024,)
 COMPACT_CURRENT_EXPECTED_REPEATS = 1
-COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 64
+COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 66
 REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 REPORT_FILES = (
     "cuda-benchmark.md",
@@ -90,6 +91,7 @@ PAIRED_CURRENT_TENSOR_TILES = {
     "pto_persistent_dag_graph_tensor": "16x16x16",
     "pto_persistent_dag_tensor_core": "16x16x16",
     "cublas_sgemm": "16x16x16",
+    "cublas_sgemm_graph": "16x16x16",
 }
 
 
@@ -400,7 +402,7 @@ def _apply_preset(args: argparse.Namespace) -> None:
     if args.expected_repeats is None:
         args.expected_repeats = COMPACT_CURRENT_EXPECTED_REPEATS if args.preset == "compact-current" else 3
     if args.expected_result_count is None:
-        args.expected_result_count = COMPACT_CURRENT_EXPECTED_RESULT_COUNT if args.preset == "compact-current" else 882
+        args.expected_result_count = COMPACT_CURRENT_EXPECTED_RESULT_COUNT if args.preset == "compact-current" else 900
     if not args.require_dispatch:
         args.require_dispatch = [f"{baseline}={dispatch}" for baseline, dispatch in PAIRED_CURRENT_DISPATCH.items()]
     if not args.require_tensor_tile:

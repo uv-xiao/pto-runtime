@@ -12,9 +12,10 @@ The latest full paired A100/H200 benchmark capture was taken at commit
 `61cf96cd`, and the latest compact current-head paired gate uses artifact
 label `dbb01406`. Supplemental tensor-shape and tensor-core captures were
 taken at commits `c0ada3ad` and `0879aa9e`. The first cuBLAS library baseline
-capture uses the `343924df` artifact label. The first multi-baseline tensor
-shape sweep used the `6f9a0b78` artifact label, and the latest multi-size
-tensor baseline sweep uses `e79edba2`:
+capture uses the `343924df` artifact label, and the first cuBLAS CUDA Graph
+baseline capture is under `cublas-graph-compact-working`. The first
+multi-baseline tensor shape sweep used the `6f9a0b78` artifact label, and the
+latest multi-size tensor baseline sweep uses `e79edba2`:
 
 - [Current capture](evaluation-current.md) summarizes the latest
   `8x4x12` tensor-descriptor sweep, selected baselines, host-schedule unary
@@ -48,6 +49,9 @@ tensor baseline sweep uses `e79edba2`:
 - [Current capture](evaluation-current.md) records the first
   `cublas_sgemm` library-backed tensor baseline row in the same compact
   selected-baseline report shape.
+- [Current capture](evaluation-current.md) records the first
+  `cublas_sgemm_graph` row, which captures the same warmed cuBLAS descriptor
+  into a CUDA Graph and times graph replay on A100 and H200.
 - [Historical captures](evaluation-history.md) preserve the previous
   accumulated benchmark notes, including earlier graph, stream, task-count,
   worker-grid, DAG-chain, scratch-reuse, and tensor-tile captures.
@@ -76,6 +80,9 @@ committed:
 - `tmp/cuda-backend/a100-current-dbb01406/`
 - `tmp/cuda-backend/h200-current-dbb01406/`
 - `tmp/cuda-backend/combined-current-dbb01406/`
+- `tmp/cuda-backend/cublas-graph-compact-working/a100-current-5168f150/`
+- `tmp/cuda-backend/cublas-graph-compact-working/h200-current-5168f150/`
+- `tmp/cuda-backend/cublas-graph-compact-working/combined-current-5168f150/`
 - `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/persistent-scalar_scale-smoke-e9c9f5f2/`
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/`
@@ -202,6 +209,9 @@ does not get copied into the current-evaluation tables.
 - `cublas_sgemm`: CUDA Runtime API plus cuBLAS
   `cublasSgemmStridedBatched` over the configured tensor descriptor. This is
   the first library-backed CUDA tensor baseline in the selected report.
+- `cublas_sgemm_graph`: CUDA Runtime API plus cuBLAS captured into a CUDA
+  Graph after handle warmup, with graph instantiation outside the measured
+  interval and `cudaGraphLaunch` timed by CUDA events.
 - `*_batch`: same-work rows comparing repeated host launches with one
   persistent launch over the same descriptor count.
 - `pto_persistent_device_grid_batch`: direct persistent-device batch row with

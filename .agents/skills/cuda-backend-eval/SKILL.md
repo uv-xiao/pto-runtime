@@ -1076,6 +1076,10 @@ same vector-add PTX kernel through two launch paths:
   as the first library-backed tensor baseline for the same report shape as the
   PTO persistent tensor rows; it measures a warm cuBLAS handle and CUDA Runtime
   events, not PTO runtime overhead.
+- `cublas_sgemm_graph`: CUDA Runtime API plus cuBLAS captured into a CUDA
+  Graph. It uses the same tensor descriptor as `cublas_sgemm`, instantiates
+  the graph outside the measured interval, warms graph replay once, then times
+  `cudaGraphLaunch` with CUDA events.
 - `pto_host_schedule_batch`, `pto_persistent_device_batch`,
   `pto_persistent_device_grid_batch`, and `pto_persistent_queue_batch`:
   same-work batch rows enabled by `--batch-tasks N`. Pass a
@@ -1184,10 +1188,10 @@ The script writes:
 
 For tensor-DAG and tensor-library experiments, pass `--tensor-rows`,
 `--tensor-cols`, and `--tensor-inner` to the benchmark script. These flags
-affect `pto_persistent_dag_tensor`, `pto_persistent_dag_tensor_core`, and
-`pto_persistent_dag_graph_tensor`, and `cublas_sgemm`; other baselines keep
-their normal vector-add work. The generated Markdown report records the
-descriptor as `rows x cols x inner`.
+affect `pto_persistent_dag_tensor`, `pto_persistent_dag_tensor_core`,
+`pto_persistent_dag_graph_tensor`, `cublas_sgemm`, and
+`cublas_sgemm_graph`; other baselines keep their normal vector-add work. The
+generated Markdown report records the descriptor as `rows x cols x inner`.
 
 Use `--single-baseline pto_persistent_dag_graph_tensor` for a quick
 benchmark path check of the explicit graph tensor-tile DAG on one GPU:
@@ -1461,6 +1465,17 @@ PYTHONPATH=$PWD:$PWD/python \
     --tensor-rows 16 --tensor-cols 16 --tensor-inner 16
 ```
 
+Use `--single-baseline cublas_sgemm_graph` for the matching CUDA Graph replay
+baseline around a warmed cuBLAS descriptor:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline cublas_sgemm_graph \
+    --sizes 256 --arch compute_80 \
+    --tensor-rows 16 --tensor-cols 16 --tensor-inner 16
+```
+
 Refresh the local artifact index after adding or merging captures:
 
 ```bash
@@ -1549,7 +1564,7 @@ PYTHONPATH=$PWD:$PWD/python \
 The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the host-schedule generic-args baseline, graph
 generic-args4 baseline, graph-chain baseline, graph-scratch-reuse baseline,
-size `1024`, one repeat, `64` combined samples, and the Markdown/SVG report
+size `1024`, one repeat, `66` combined samples, and the Markdown/SVG report
 files.
 The current compact gate artifact with graph-scratch-reuse benchmark coverage
 is under `tmp/cuda-backend/combined-current-dbb01406/`.

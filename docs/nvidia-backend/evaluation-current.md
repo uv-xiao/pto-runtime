@@ -89,6 +89,12 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/combined-current-dbb01406/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-dbb01406/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/combined-current-dbb01406/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/cublas-graph-compact-working/a100-current-5168f150/cuda-benchmark.json`
+- `tmp/cuda-backend/cublas-graph-compact-working/h200-current-5168f150/cuda-benchmark.json`
+- `tmp/cuda-backend/cublas-graph-compact-working/combined-current-5168f150/cuda-benchmark.json`
+- `tmp/cuda-backend/cublas-graph-compact-working/combined-current-5168f150/cuda-benchmark.md`
+- `tmp/cuda-backend/cublas-graph-compact-working/combined-current-5168f150/cuda-benchmark.svg`
+- `tmp/cuda-backend/cublas-graph-compact-working/combined-current-5168f150/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.json`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.svg`
@@ -305,6 +311,46 @@ This capture makes the explicit graph-descriptor scratch-reuse shape visible
 in the same benchmark/report/validator path as the selected graph,
 graph-generic, chain, diamond, and tensor graph rows. It is still a compact
 one-size gate, not a replacement for the full three-size paired capture.
+
+## cuBLAS CUDA Graph Baseline Row
+
+The compact paired run under
+`tmp/cuda-backend/cublas-graph-compact-working/combined-current-5168f150/`
+adds `cublas_sgemm_graph` to the selected one-task benchmark rows. It uses
+`N=1024`, one repeat, no batch rows, and the default `16x16x16` tensor
+descriptor. The paired runner synced the working tree to `bizhaoh200`,
+captured local A100 and remote H200 reports, merged `58` rows, and validated
+source-paper provenance, sanitized command examples, report files, tensor
+descriptor metadata, expected PTO dispatch sequences, and zero scheduler
+errors.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/cublas-graph-compact-working/combined-current-5168f150/cuda-benchmark.json \
+    --require-size 1024 --expected-repeats 1 --expected-result-count 58 \
+    --require-baseline cublas_sgemm --require-baseline cublas_sgemm_graph \
+    --require-tensor-tile cublas_sgemm=16x16x16 \
+    --require-tensor-tile cublas_sgemm_graph=16x16x16 \
+    --require-report-files --require-command-examples \
+    --require-zero-scheduler-errors --require-source-papers
+```
+
+Selected tensor rows from that capture:
+
+| GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | cuBLAS ns | cuBLAS graph ns | Scalar GF/s | Graph GF/s | Tensor-core GF/s | cuBLAS GF/s | cuBLAS graph GF/s | Tensor-core/scalar | cuBLAS/scalar | cuBLAS graph/scalar |
+| --- | - | ----- | --------- | -------- | -------------- | --------- | --------------- | ----------- | ---------- | ---------------- | ----------- | ----------------- | ------------------ | ------------- | ------------------- |
+| A100 | 1024 | 16x16x16 | 43008 | 41984 | 38912 | 48128 | 10239 | 0.76 | 0.78 | 0.84 | 0.68 | 3.20 | 0.90x | 1.12x | 0.24x |
+| H200 | 1024 | 16x16x16 | 45920 | 47584 | 30944 | 9119 | 8543 | 0.71 | 0.69 | 1.06 | 3.59 | 3.84 | 0.67x | 0.20x | 0.19x |
+
+The graph row uses the same cuBLAS SGEMM descriptor and maximum absolute
+error as the plain cuBLAS row, but captures the warmed call sequence into a
+CUDA Graph and excludes graph instantiation from the measured interval. At
+this small descriptor size, the graph replay row mostly measures CUDA Graph
+launch overhead around a library call; it is a launch-path comparison point,
+not a tuned GEMM throughput claim.
 
 ## Supplemental Scalar-Scale Benchmark
 
