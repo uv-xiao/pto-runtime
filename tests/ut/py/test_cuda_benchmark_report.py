@@ -1272,6 +1272,10 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert ".agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py" in local
     assert "--arch" in local
     assert "compute_80" in local
+    assert "--tensor-rows" in local
+    assert "16" in local
+    assert "--tensor-cols" in local
+    assert "--tensor-inner" in local
     assert "a100-current-abc123" in local
     assert str(tmp_path / "cuda-backend" / "a100-current-abc123") in local
 
@@ -1285,6 +1289,9 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert "git checkout -B design/nvidia-backend FETCH_HEAD >/dev/null" in remote_shell
     assert "CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH PYTHONPATH=$PWD:$PWD/python" in remote_shell
     assert "--arch compute_90" in remote_shell
+    assert "--tensor-rows 16" in remote_shell
+    assert "--tensor-cols 16" in remote_shell
+    assert "--tensor-inner 16" in remote_shell
     assert "h200-current-abc123" in remote_shell
 
     assert scp == [
@@ -5188,6 +5195,31 @@ def test_run_persistent_sample_defaults_tensor_core_tile_to_four_tasks(monkeypat
     assert seen["tensor_cols"] == 16
     assert seen["tensor_inner"] == 16
     assert result["baseline"] == "pto_persistent_dag_tensor_core"
+
+
+def test_run_persistent_sample_rejects_incompatible_tensor_core_tile(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+
+    def fake_run_persistent_smoke(**kwargs):
+        raise AssertionError("incompatible tensor-core tile should fail before launch")
+
+    monkeypatch.setattr(cuda_benchmark, "run_persistent_smoke", fake_run_persistent_smoke)
+
+    try:
+        cuda_benchmark.run_persistent_sample(
+            device=3,
+            n=1024,
+            arch="compute_80",
+            mode="dag",
+            baseline="pto_persistent_dag_tensor_core",
+            dag_shape="tensor_core_tile",
+            tensor_tile={"rows": 8, "cols": 4, "inner": 12},
+        )
+    except ValueError as exc:
+        assert "tensor_core" in str(exc)
+        assert "--tensor-rows 16" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for incompatible tensor-core tile")
 
 
 def test_run_single_sample_dispatches_tensor_core_dag(monkeypatch):

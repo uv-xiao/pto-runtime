@@ -1190,6 +1190,8 @@ def run_persistent_sample(
     dag_shape: str = "fork_join",
     tensor_tile: dict[str, int] | None = None,
 ) -> dict[str, Any]:
+    if dag_shape == "tensor_core_tile":
+        _validate_tensor_core_tile(tensor_tile or {"rows": 16, "cols": 16, "inner": 16})
     if task_count is None:
         if dag_shape in {"tensor_tile", "tensor_core_tile"}:
             task_count = 4
@@ -2384,6 +2386,13 @@ def _parse_tensor_tile(rows: int, cols: int, inner: int) -> dict[str, int]:
     if rows <= 0 or cols <= 0 or inner <= 0:
         raise ValueError("tensor rows, cols, and inner must be positive")
     return {"rows": rows, "cols": cols, "inner": inner}
+
+
+def _validate_tensor_core_tile(tensor_tile: dict[str, int]) -> None:
+    if tensor_tile["rows"] != 16 or tensor_tile["cols"] != 16 or tensor_tile["inner"] % 8 != 0:
+        raise ValueError(
+            "pto_persistent_dag_tensor_core requires --tensor-rows 16 --tensor-cols 16 and tensor-inner divisible by 8"
+        )
 
 
 def _parse_command_examples(values: list[str] | None) -> dict[str, str]:

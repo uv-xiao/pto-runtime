@@ -66,9 +66,9 @@ class PairedBenchmarkConfig:
     remote_arch: str = "compute_90"
     batch_tasks: tuple[int, ...] = (2, 6, 12)
     worker_blocks_per_task: tuple[int, ...] = (32, 64, 128, 256)
-    tensor_rows: int = 8
-    tensor_cols: int = 4
-    tensor_inner: int = 12
+    tensor_rows: int = 16
+    tensor_cols: int = 16
+    tensor_inner: int = 16
     local_python: str = sys.executable
     remote_python: str = ".venv/bin/python"
     ssh_connect_timeout: int = 8
@@ -388,9 +388,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--remote-arch", default="compute_90")
     parser.add_argument("--batch-tasks", type=_parse_int_tuple, default=(2, 6, 12))
     parser.add_argument("--worker-blocks-per-task", type=_parse_int_tuple, default=(32, 64, 128, 256))
-    parser.add_argument("--tensor-rows", type=int, default=8)
-    parser.add_argument("--tensor-cols", type=int, default=4)
-    parser.add_argument("--tensor-inner", type=int, default=12)
+    parser.add_argument("--tensor-rows", type=int, default=16)
+    parser.add_argument("--tensor-cols", type=int, default=16)
+    parser.add_argument("--tensor-inner", type=int, default=16)
     parser.add_argument("--local-python", default=sys.executable)
     parser.add_argument("--remote-python", default=".venv/bin/python")
     parser.add_argument("--ssh-connect-timeout", type=int, default=8)
