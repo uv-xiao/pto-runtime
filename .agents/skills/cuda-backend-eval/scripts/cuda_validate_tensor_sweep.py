@@ -221,7 +221,7 @@ def _validate_command_examples(payload: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _validate_source_papers(payload: dict[str, Any]) -> list[str]:
+def _validate_source_papers(payload: dict[str, Any], *, source_root: Path) -> list[str]:
     metadata = payload.get("metadata")
     paper_setup = (
         metadata.get("paper_setup")
@@ -260,6 +260,9 @@ def _validate_source_papers(payload: dict[str, Any]) -> list[str]:
             errors.append(
                 f"metadata.source_papers {paper_id} path must stay under tmp/sources/"
             )
+            continue
+        if not (source_root / path).is_file():
+            errors.append(f"missing metadata.source_papers {paper_id} file {path}")
     return errors
 
 
@@ -277,6 +280,7 @@ def validate_tensor_sweep(
     require_report_files: bool = False,
     require_command_examples: bool = False,
     require_source_papers: bool = False,
+    source_root: Path | None = None,
 ) -> list[str]:
     rows = _results(payload)
     errors: list[str] = []
@@ -308,7 +312,7 @@ def validate_tensor_sweep(
         errors.extend(_validate_command_examples(payload))
 
     if require_source_papers:
-        errors.extend(_validate_source_papers(payload))
+        errors.extend(_validate_source_papers(payload, source_root=source_root or Path.cwd()))
 
     return errors
 

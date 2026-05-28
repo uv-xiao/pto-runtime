@@ -275,7 +275,8 @@ baselines, sizes, shape, three repeats, report files, and PTO dispatch
 sequences before the numbers were copied into docs. New tensor-sweep captures
 can also require sanitized local/remote command examples and source-paper
 metadata before publishing with `--require-command-examples` and
-`--require-source-papers`.
+`--require-source-papers`; the source-paper gate verifies the referenced
+files exist under `tmp/sources/`.
 
 A current-HEAD one-repeat compact tensor sweep at commit `a5fd4bfd` validated
 that gate against real local A100 and remote H200 data. The artifact under

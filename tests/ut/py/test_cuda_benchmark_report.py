@@ -929,13 +929,17 @@ def test_cuda_tensor_sweep_validator_requires_sanitized_command_examples():
     )
 
 
-def test_cuda_tensor_sweep_validator_requires_source_papers():
+def test_cuda_tensor_sweep_validator_requires_source_papers(tmp_path):
     cuda_validate_tensor_sweep = _load_tensor_sweep_validator_module()
     payload = _tensor_sweep_payload()
+    source_root = tmp_path / "repo"
+    source_dir = source_root / "tmp" / "sources"
+    source_dir.mkdir(parents=True)
 
     errors = cuda_validate_tensor_sweep.validate_tensor_sweep(
         payload,
         require_source_papers=True,
+        source_root=source_root,
     )
 
     assert "missing metadata.paper_setup" in errors
@@ -959,6 +963,7 @@ def test_cuda_tensor_sweep_validator_requires_source_papers():
     errors = cuda_validate_tensor_sweep.validate_tensor_sweep(
         payload,
         require_source_papers=True,
+        source_root=source_root,
     )
 
     assert (
@@ -970,10 +975,29 @@ def test_cuda_tensor_sweep_validator_requires_source_papers():
         "tmp/sources/arxiv-2605.03190-vdcores.txt"
     )
 
+    errors = cuda_validate_tensor_sweep.validate_tensor_sweep(
+        payload,
+        require_source_papers=True,
+        source_root=source_root,
+    )
+
+    assert (
+        "missing metadata.source_papers arXiv:2605.03190 file "
+        "tmp/sources/arxiv-2605.03190-vdcores.txt"
+    ) in errors
+    assert (
+        "missing metadata.source_papers arXiv:2512.22219v1 file "
+        "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt"
+    ) in errors
+
+    (source_dir / "arxiv-2605.03190-vdcores.txt").write_text("vdcores\n")
+    (source_dir / "arxiv-2512.22219v1-mirage-persistent-kernel.txt").write_text("mpk\n")
+
     assert (
         cuda_validate_tensor_sweep.validate_tensor_sweep(
             payload,
             require_source_papers=True,
+            source_root=source_root,
         )
         == []
     )

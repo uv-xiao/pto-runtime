@@ -958,7 +958,9 @@ repeat rows plus a median summary table with normalized GFLOP/s; the SVG
 files plot median device time and median GFLOP/s per GPU/N/shape/baseline
 with sample counts. The JSON metadata also records sanitized local and remote
 sample command examples so the selected baseline/shape/size setup can be
-reconstructed without rerunning the sweep.
+reconstructed without rerunning the sweep. Publish-time source-paper
+validation checks that the referenced VDCores and MPK notes exist under
+`tmp/sources/`.
 
 Regenerate reports from an existing tensor-sweep JSON without rerunning the
 A100/H200 measurements:
