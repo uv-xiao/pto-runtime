@@ -965,6 +965,23 @@ PYTHONPATH=$PWD:$PWD/python \
     --preset compact-tensor-baselines
 ```
 
+Validate a size sweep by spelling out the required sizes and result count:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_validate_tensor_sweep.py \
+    tmp/cuda-backend/tensor-shape-sweep-<commit>/cuda-tensor-shape-sweep.json \
+    --require-artifact a100 --require-artifact h200 \
+    --require-baseline pto_persistent_dag_tensor \
+    --require-baseline pto_persistent_dag_tensor_core \
+    --require-baseline cublas_sgemm \
+    --require-size 256 --require-size 4096 --require-size 65536 \
+    --require-shape 16x16x16 --expected-repeats 3 \
+    --expected-result-count 54 --require-report-files \
+    --require-dispatch pto_persistent_dag_tensor=3,1,2,1 \
+    --require-dispatch pto_persistent_dag_tensor_core=10,1,2,1
+```
+
 Use `--single-baseline pto_persistent_dag_tensor_core` for a quick benchmark
 path check of the WMMA tensor-core generated-dispatch DAG:
 

@@ -253,20 +253,19 @@ PTO runtime path.
 
 The tensor shape sweep script now accepts `--baselines` and `--sizes`, so one
 paired A100/H200 sweep can compare scalar tensor DAG, WMMA tensor-core DAG,
-and cuBLAS SGEMM rows across descriptor shapes and problem sizes. The compact
-comparison report at commit `47d857e1` uses `16x16x16` and `16x16x64`
-descriptors with `N=256` and three repeats. The artifact under
-`tmp/cuda-backend/tensor-shape-sweep-47d857e1/` writes raw rows, VDCores/MPK
-provenance metadata, per-baseline workload descriptions, a median summary
-table, and a median-device-time SVG chart with sample counts.
-Median device times are: A100 `16x16x16` scalar/tensor-core/cuBLAS
-`47104/47104/73728 ns`, A100 `16x16x64` `51200/50176/74752 ns`, H200
-`16x16x16` `31328/26848/51456 ns`, and H200 `16x16x64`
-`41088/34144/55711 ns`.
-`cuda_validate_tensor_sweep.py --preset compact-tensor-baselines` now checks
-that this artifact has the expected A100/H200 rows, baselines, shapes, three
-repeats, report files, and PTO dispatch sequences before the numbers are
-copied into docs.
+and cuBLAS SGEMM rows across descriptor shapes and problem sizes. The current
+size-sweep report at commit `e79edba2` uses a `16x16x16` descriptor with
+`N=256`, `4096`, and `65536`, three repeats, and the artifact under
+`tmp/cuda-backend/tensor-shape-sweep-e79edba2/`. It writes raw rows,
+VDCores/MPK provenance metadata, per-baseline workload descriptions, a median
+summary table, and a median-device-time SVG chart with sample counts. Median
+device times are: A100 scalar/tensor-core/cuBLAS at `N=256`
+`47104/47104/43007 ns`, `N=4096` `79872/71680/36864 ns`, and `N=65536`
+`587616/470368/38911 ns`; H200 at `N=256` `30560/28160/50496 ns`, `N=4096`
+`88576/49888/37055 ns`, and `N=65536` `1032896/390368/36127 ns`.
+`cuda_validate_tensor_sweep.py` checked the expected A100/H200 rows,
+baselines, sizes, shape, three repeats, report files, and PTO dispatch
+sequences before the numbers were copied into docs.
 
 Evidence:
 

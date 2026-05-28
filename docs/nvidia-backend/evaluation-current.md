@@ -161,31 +161,33 @@ work, so the result should not be read as tensor-core throughput.
 
 ## Supplemental Tensor Baseline Sweep
 
-The current multi-baseline tensor shape sweep was captured at commit
-`47d857e1` under `tmp/cuda-backend/tensor-shape-sweep-47d857e1/`. It runs
-three repeats for two WMMA-compatible descriptors and compares the scalar
-tensor DAG, `pto_persistent_dag_tensor_core`, and `cublas_sgemm` in one
-Markdown/SVG report. The Markdown keeps raw repeat rows plus medians, while
-the refreshed report also records VDCores/MPK source-paper provenance and
-per-baseline workload descriptions. The SVG plots median device time with
-sample counts. The summary helper includes the problem size so future
-throughput-oriented sweeps can compare multiple `N` values without collapsing
-rows. Each current row uses `N=256`; the table below reports median device
-time across the three samples.
+The current multi-baseline tensor size sweep was captured at commit
+`e79edba2` under `tmp/cuda-backend/tensor-shape-sweep-e79edba2/`. It runs
+three repeats for a WMMA-compatible `16x16x16` descriptor at `N=256`, `4096`,
+and `65536`, comparing the scalar tensor DAG,
+`pto_persistent_dag_tensor_core`, and `cublas_sgemm` in one Markdown/SVG
+report. The Markdown keeps raw repeat rows plus medians, records VDCores/MPK
+source-paper provenance and per-baseline workload descriptions, and the SVG
+plots median device time with sample counts. The table below reports median
+device time across the three samples.
 
 | GPU | N | Shape | Scalar tensor ns | Tensor-core ns | cuBLAS ns | Tensor-core/scalar | cuBLAS/scalar |
 | --- | - | ----- | ---------------- | -------------- | --------- | ------------------ | ------------- |
-| A100 | 256 | 16x16x16 | 47104 | 47104 | 73728 | 1.00x | 1.57x |
-| A100 | 256 | 16x16x64 | 51200 | 50176 | 74752 | 0.98x | 1.46x |
-| H200 | 256 | 16x16x16 | 31328 | 26848 | 51456 | 0.86x | 1.64x |
-| H200 | 256 | 16x16x64 | 41088 | 34144 | 55711 | 0.83x | 1.36x |
+| A100 | 256 | 16x16x16 | 47104 | 47104 | 43007 | 1.00x | 0.91x |
+| A100 | 4096 | 16x16x16 | 79872 | 71680 | 36864 | 0.90x | 0.46x |
+| A100 | 65536 | 16x16x16 | 587616 | 470368 | 38911 | 0.80x | 0.07x |
+| H200 | 256 | 16x16x16 | 30560 | 28160 | 50496 | 0.92x | 1.65x |
+| H200 | 4096 | 16x16x16 | 88576 | 49888 | 37055 | 0.56x | 0.42x |
+| H200 | 65536 | 16x16x16 | 1032896 | 390368 | 36127 | 0.38x | 0.03x |
 
 The tensor-core rows use dispatch `10,1,2,1`, while the scalar tensor rows use
 `3,1,2,1`. cuBLAS rows have no PTO dispatch sequence because they run through
-CUDA Runtime API plus cuBLAS directly. At this small descriptor size, the
-PTO persistent rows are competitive with or faster than the cuBLAS baseline,
-but this remains a compact launch/scheduler comparison rather than a tuned
-GEMM throughput result.
+CUDA Runtime API plus cuBLAS directly. The tensor-core PTO row improves over
+the scalar tensor DAG as the number of tiles grows, especially on H200, while
+the cuBLAS path stays much lower for large `N` because it uses the tuned
+library implementation rather than one generated persistent scheduler task per
+tile. This remains a compact descriptor/scheduler comparison rather than a
+tuned GEMM throughput result.
 
 ## Tensor-Core Callable Smoke
 
