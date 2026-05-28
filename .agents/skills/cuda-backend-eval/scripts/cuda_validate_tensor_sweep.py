@@ -25,6 +25,13 @@ COMPACT_TENSOR_BASELINE_BASELINES = (
     "cublas_sgemm",
 )
 COMPACT_TENSOR_BASELINE_SHAPES = ("16x16x16", "16x16x64")
+COMPACT_TENSOR_BASELINE_REPEATS = 3
+COMPACT_TENSOR_BASELINE_RESULT_COUNT = (
+    len(COMPACT_TENSOR_BASELINE_ARTIFACTS)
+    * len(COMPACT_TENSOR_BASELINE_BASELINES)
+    * len(COMPACT_TENSOR_BASELINE_SHAPES)
+    * COMPACT_TENSOR_BASELINE_REPEATS
+)
 COMPACT_TENSOR_BASELINE_DISPATCH = {
     "pto_persistent_dag_tensor": "3,1,2,1",
     "pto_persistent_dag_tensor_core": "10,1,2,1",
@@ -218,9 +225,9 @@ def _apply_preset(args: argparse.Namespace) -> None:
     if not args.require_shape:
         args.require_shape = list(COMPACT_TENSOR_BASELINE_SHAPES)
     if args.expected_repeats is None:
-        args.expected_repeats = 1
+        args.expected_repeats = COMPACT_TENSOR_BASELINE_REPEATS
     if args.expected_result_count is None:
-        args.expected_result_count = 12
+        args.expected_result_count = COMPACT_TENSOR_BASELINE_RESULT_COUNT
     if not args.require_dispatch:
         args.require_dispatch = [
             f"{baseline}={dispatch}" for baseline, dispatch in COMPACT_TENSOR_BASELINE_DISPATCH.items()

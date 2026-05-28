@@ -161,24 +161,26 @@ work, so the result should not be read as tensor-core throughput.
 
 ## Supplemental Tensor Baseline Sweep
 
-The first multi-baseline tensor shape sweep was captured at commit `6f9a0b78`
-under `tmp/cuda-backend/tensor-shape-sweep-6f9a0b78/`. It runs one repeat for
-two WMMA-compatible descriptors and compares the scalar tensor DAG,
-`pto_persistent_dag_tensor_core`, and `cublas_sgemm` in one Markdown/SVG
-report. Each row uses `N=256`.
+The current multi-baseline tensor shape sweep was captured at commit
+`c4ee08eb` under `tmp/cuda-backend/tensor-shape-sweep-c4ee08eb/`. It runs
+three repeats for two WMMA-compatible descriptors and compares the scalar
+tensor DAG, `pto_persistent_dag_tensor_core`, and `cublas_sgemm` in one
+Markdown/SVG report. Each row uses `N=256`; the table below reports median
+device time across the three samples.
 
 | GPU | Shape | Scalar tensor ns | Tensor-core ns | cuBLAS ns |
 | --- | ----- | ---------------- | -------------- | --------- |
-| A100 | 16x16x16 | 35840 | 36864 | 48128 |
-| A100 | 16x16x64 | 40960 | 39936 | 49152 |
-| H200 | 16x16x16 | 36128 | 33280 | 57983 |
-| H200 | 16x16x64 | 45984 | 40096 | 54976 |
+| A100 | 16x16x16 | 37888 | 35840 | 43007 |
+| A100 | 16x16x64 | 40960 | 38912 | 46080 |
+| H200 | 16x16x16 | 30784 | 33056 | 56960 |
+| H200 | 16x16x64 | 45664 | 34176 | 52639 |
 
 The tensor-core rows use dispatch `10,1,2,1`, while the scalar tensor rows use
 `3,1,2,1`. cuBLAS rows have no PTO dispatch sequence because they run through
-CUDA Runtime API plus cuBLAS directly. This report is still a compact
-microbenchmark with one repeat; it is useful for keeping the selected tensor
-baseline comparison visible, not for throughput tuning.
+CUDA Runtime API plus cuBLAS directly. At this small descriptor size, the
+PTO persistent rows are competitive with or faster than the cuBLAS baseline,
+but this remains a compact launch/scheduler comparison rather than a tuned
+GEMM throughput result.
 
 ## Tensor-Core Callable Smoke
 
@@ -280,7 +282,8 @@ Tensor shape sweep:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_tensor_shape_sweep.py \
-    --shapes 8x4x12,16x16x64,32x16x64 --n 4096 --repeats 2 \
+    --baselines pto_persistent_dag_tensor,pto_persistent_dag_tensor_core,cublas_sgemm \
+    --shapes 16x16x16,16x16x64 --n 256 --repeats 3 \
     --sync-remote-tree
 ```
 

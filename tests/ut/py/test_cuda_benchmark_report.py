@@ -882,6 +882,8 @@ def test_cuda_tensor_sweep_validator_compact_preset_keeps_dispatch_commas():
     cuda_validate_tensor_sweep._apply_preset(args)
     required_dispatch = cuda_validate_tensor_sweep._parse_required_dispatch(args.require_dispatch)
 
+    assert args.expected_repeats == 3
+    assert args.expected_result_count == 36
     assert required_dispatch == {
         "pto_persistent_dag_tensor": "3,1,2,1",
         "pto_persistent_dag_tensor_core": "10,1,2,1",

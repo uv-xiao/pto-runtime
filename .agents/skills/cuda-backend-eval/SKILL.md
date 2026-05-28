@@ -933,7 +933,7 @@ current WMMA task:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_tensor_shape_sweep.py \
     --baselines pto_persistent_dag_tensor,pto_persistent_dag_tensor_core,cublas_sgemm \
-    --shapes 16x16x16,16x16x64 --n 256 --repeats 1 \
+    --shapes 16x16x16,16x16x64 --n 256 --repeats 3 \
     --sync-remote-tree
 ```
 
