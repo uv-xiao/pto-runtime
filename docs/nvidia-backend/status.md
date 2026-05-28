@@ -2069,6 +2069,53 @@ device times `[21088,19808]`, total `device_wall_ns=40896`, and
 graph-descriptor repeat-run path to generic indexed tensor/scalar descriptor
 slots.
 
+The persistent generic-argument generated-dispatch body now also consumes all
+four bounded descriptor slots when they are present. The `generic_args4` smoke
+maps `tensor_args[0]=tmp0`, `tensor_args[1]=tmp3`, `tensor_args[2]=a`, and
+`tensor_args[3]=b`, with scalar slots `[1.5, 0.25, 0.125, 0.0625]`.
+Focused TDD checks first failed because the paired runner omitted the
+`generic_args4` dispatch expectation and the scene-test task body ignored
+slots 2 and 3. After the fix, local A100 checks passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'persistent_generic_args_four_slots or \
+      persistent_device_generic_args_four_slots or generic_args4_workflow' \
+  --platform cuda
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 1024 --arch compute_80 \
+    --mode dag --queue-capacity 2 --dag-shape generic_args4 \
+    --output-json \
+      tmp/cuda-backend/persistent-generic_args4-smoke-working/a100.json
+```
+
+The paired A100/H200 repeat-run smoke was then captured with:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape generic_args4 --task-count 3 --queue-capacity 2 \
+    --repeat-runs 2 --sync-remote-tree
+```
+
+Result:
+`tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/` contains
+`a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The validator required `runtime=persistent_device`,
+`mode=dag`, `dag_shape=generic_args4`, `repeat_runs=2`,
+`launch_completed_counts=[3,3]`, `dispatch_func_ids=[9,2,1]`, zero scheduler
+errors, resource policy `scheduler_blocks=1`, `worker_blocks=3`,
+`block_dim=256`, `grid_dim=4`, and generated report files. A100 reported
+per-launch device times `[33792,23552]`, total `device_wall_ns=57344`, and
+`host_wall_ns=81101`. H200 reported per-launch device times `[24192,17888]`,
+total `device_wall_ns=42080`, and `host_wall_ns=59414`. The same
+`persistent_dag_generic_args_f32` four-slot scene-test path passed on H200
+with `1 passed, 59 deselected` after the known PTO-ISA SSH refresh warning.
+
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph
 adapter no longer requires topological task order. A focused unit test first

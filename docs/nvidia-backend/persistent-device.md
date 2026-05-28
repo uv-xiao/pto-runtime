@@ -294,8 +294,9 @@ The descriptor now also carries bounded generic argument slots:
 `tensor_args[4]`, `scalar_args[4]`, `tensor_arg_count`, and
 `scalar_arg_count`. The current `generic_args` smoke and
 `persistent_dag_generic_args_f32` SceneTestCase adapter use those slots to pass
-two auxiliary tensors and two scalars to a generated-dispatch task body
-without adding more fixed `c`/`d`-style fields. This is still an explicit
+the original two auxiliary tensors/scalars and a four-slot variant to a
+generated-dispatch task body without adding more fixed `c`/`d`-style fields.
+This is still an explicit
 descriptor adapter rather than full PTO graph lowering, but it sets the ABI
 direction for persistent tasks whose arity differs from the early hand-coded
 vector cases. The `persistent_dag_graph_f32` adapter can now lower an

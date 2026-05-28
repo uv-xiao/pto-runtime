@@ -357,6 +357,10 @@ if (task->tensor_arg_count < 2U || task->scalar_arg_count < 2U) {
 task->out[i] = task->scalar_args[0] * task->a[i] +
                task->tensor_args[0][i] +
                task->scalar_args[1] * task->tensor_args[1][i];
+if (task->tensor_arg_count >= 4U && task->scalar_arg_count >= 4U) {
+  task->out[i] += task->scalar_args[2] * task->tensor_args[2][i] +
+                  task->scalar_args[3] * task->tensor_args[3][i];
+}
 """.strip()
 
 _PERSISTENT_SQUARE_BODY = """
@@ -1006,6 +1010,22 @@ def _cuda_persistent_generic_args_spec(generic_source, add_source, mul_source, *
             "scalar_args": [1.5, 0.25],
         }
     }
+
+
+def _cuda_persistent_generic_args4_spec(generic_source, add_source, mul_source, *, arch="compute_80", block_dim=256):
+    spec = _cuda_persistent_generic_args_spec(generic_source, add_source, mul_source, arch=arch, block_dim=block_dim)
+    spec["cuda"]["signature"] = [
+        ArgDirection.IN,
+        ArgDirection.IN,
+        ArgDirection.IN,
+        ArgDirection.IN,
+        ArgDirection.IN,
+        ArgDirection.IN,
+        ArgDirection.OUT,
+    ]
+    spec["cuda"]["tensor_args"] = ["c", "d", "e", "f"]
+    spec["cuda"]["scalar_args"] = [1.5, 0.25, 0.125, 0.0625]
+    return spec
 
 
 def _cuda_persistent_graph_generic_args_spec(
@@ -1716,6 +1736,44 @@ def test_scene_test_builds_cuda_persistent_generic_args():
     assert buffers.host_tasks[2].a == buffers.host_tasks[0].out
     assert buffers.host_tasks[2].b == buffers.host_tasks[1].out
     assert buffers.host_tasks[2].out == buffers.tensor_buffers.ptrs["out"]
+
+
+def test_scene_test_builds_cuda_persistent_generic_args_four_slots():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(17)),
+        Tensor("b", _FakeTensor(17)),
+        Tensor("c", _FakeTensor(17)),
+        Tensor("d", _FakeTensor(17)),
+        Tensor("e", _FakeTensor(17)),
+        Tensor("f", _FakeTensor(17)),
+        Tensor("out", _FakeTensor(17)),
+    )
+    cuda_spec = {
+        "arg_builder": "persistent_dag_generic_args_f32",
+        "args": ["a", "b", "c", "d", "out"],
+        "queue_capacity": 2,
+        "tensor_args": ["c", "d", "e", "f"],
+        "scalar_args": [1.5, 0.25, 0.125, 0.0625],
+    }
+    buffers = _CudaPersistentDagSceneBuffers(_FakeWorker(), test_args, cuda_spec)
+
+    assert len(buffers.host_tasks) == 3
+    assert list(buffers.host_fanin) == [0, 0, 2]
+    assert list(buffers.host_dependents) == [2, 2]
+    assert [(task.func_id, task.dependent_begin, task.dependent_count) for task in buffers.host_tasks] == [
+        (9, 0, 1),
+        (2, 1, 1),
+        (1, 2, 0),
+    ]
+    assert list(buffers.host_tasks[0].tensor_args) == [
+        buffers.tensor_buffers.ptrs["c"],
+        buffers.tensor_buffers.ptrs["d"],
+        buffers.tensor_buffers.ptrs["e"],
+        buffers.tensor_buffers.ptrs["f"],
+    ]
+    assert list(buffers.host_tasks[0].scalar_args) == pytest.approx([1.5, 0.25, 0.125, 0.0625])
+    assert buffers.host_tasks[0].tensor_arg_count == 4
+    assert buffers.host_tasks[0].scalar_arg_count == 4
 
 
 def test_scene_test_builds_cuda_persistent_graph_args():
@@ -2976,6 +3034,76 @@ def test_scene_test_runs_cuda_persistent_device_generic_args_with_ctypes_data(tm
         actual = args.out.to_list()
         expected = [
             1.5 * a_values[idx] + c_values[idx] + 0.25 * d_values[idx] + a_values[idx] * b_values[idx]
+            for idx in range(len(actual))
+        ]
+        assert actual == pytest.approx(expected)
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_persistent_device_generic_args_four_slots_with_ctypes_data(tmp_path):
+    generic_source = tmp_path / "generic_args4.pto.cu"
+    add_source = tmp_path / "add.pto.cu"
+    mul_source = tmp_path / "mul.pto.cu"
+    generic_source.write_text(_PERSISTENT_GENERIC_ARGS_BODY)
+    add_source.write_text(_PERSISTENT_ADD_BODY)
+    mul_source.write_text(_PERSISTENT_MUL_BODY)
+
+    @scene_test(level=2, runtime="persistent_device")
+    class CudaPersistentGenericArgs4CtypesScene(SceneTestCase):
+        CALLABLE = _cuda_persistent_generic_args4_spec(generic_source, add_source, mul_source)
+        CASES = [
+            {
+                "name": "n1024",
+                "platforms": ["cuda"],
+                "params": {"n": 1024},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            n = params["n"]
+            args = TaskArgsBuilder(
+                Tensor("a", _CtypesFloatTensor(float(i + 1) for i in range(n))),
+                Tensor("b", _CtypesFloatTensor(float(i) * 0.5 for i in range(n))),
+                Tensor("c", _CtypesFloatTensor(float(i) * 0.25 for i in range(n))),
+                Tensor("d", _CtypesFloatTensor(float(i) * 0.125 for i in range(n))),
+                Tensor("e", _CtypesFloatTensor(float(i) * 0.0625 for i in range(n))),
+                Tensor("f", _CtypesFloatTensor(float(i) * 0.03125 for i in range(n))),
+                Tensor("out", _CtypesFloatTensor(0.0 for _ in range(n))),
+            )
+            self.last_args = args
+            return args
+
+        def compute_golden(self, args, params):
+            raise AssertionError("ctypes scene uses explicit post-run validation")
+
+    scene = CudaPersistentGenericArgs4CtypesScene()
+    worker = CudaPersistentGenericArgs4CtypesScene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(
+            worker,
+            callable_obj,
+            CudaPersistentGenericArgs4CtypesScene.CASES[0],
+            skip_golden=True,
+        )
+        args = scene.last_args
+        a_values = args.a.to_list()
+        b_values = args.b.to_list()
+        c_values = args.c.to_list()
+        d_values = args.d.to_list()
+        e_values = args.e.to_list()
+        f_values = args.f.to_list()
+        actual = args.out.to_list()
+        expected = [
+            1.5 * a_values[idx]
+            + c_values[idx]
+            + 0.25 * d_values[idx]
+            + 0.125 * e_values[idx]
+            + 0.0625 * f_values[idx]
+            + a_values[idx] * b_values[idx]
             for idx in range(len(actual))
         ]
         assert actual == pytest.approx(expected)

@@ -81,6 +81,10 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/h200.json`
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/cuda-smoke-report.svg`
+- `tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/a100.json`
+- `tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/h200.json`
+- `tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/cuda-smoke-report.md`
+- `tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/cuda-smoke-report.svg`
 - `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/a100.json`
 - `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/h200.json`
 - `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/cuda-smoke-report.md`

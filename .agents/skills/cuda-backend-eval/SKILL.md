@@ -310,6 +310,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape generic_args
 ```
 
+Use `--dag-shape generic_args4` when the persistent DAG generated-dispatch
+task body should consume all four bounded generic tensor/scalar descriptor
+slots. The current shape maps `tensor_args[2]` to `a`, `tensor_args[3]` to
+`b`, and records those slots in the smoke report:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 4096 --arch compute_80 \
+    --mode dag --queue-capacity 2 --dag-shape generic_args4
+```
+
 Use `--dag-shape graph_descriptor` to validate the same generated-dispatch
 task bodies through an explicit runtime graph descriptor. This mirrors the
 `persistent_dag_graph_f32` SceneTestCase adapter: each task supplies its
@@ -464,6 +476,8 @@ The current generic-argument descriptor capture is under
 `tmp/cuda-backend/persistent-generic_args-smoke-7c99f607/`.
 The current generic-argument repeat-run lifecycle capture is under
 `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/`.
+The current four-slot generic-argument repeat-run capture is under
+`tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/`.
 Use `--dag-shape graph_descriptor_reordered --repeat-runs 2` to validate that
 graph-descriptor dependencies are inferred from tensor flow across the whole
 descriptor, even when the final consumer task appears before its producers.

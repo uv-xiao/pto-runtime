@@ -2669,6 +2669,32 @@ def test_cuda_pair_persistent_smoke_builds_generic_args_workflow(tmp_path):
     assert "9,2,1" in validate
 
 
+def test_cuda_pair_persistent_smoke_accepts_generic_args4_workflow(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape="generic_args4",
+        task_count=3,
+        queue_capacity=2,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+    validate = cuda_pair_persistent_smoke.build_validate_command(config, "abc123")
+
+    assert "persistent-generic_args4-smoke-abc123" in str(local)
+    assert "--dag-shape" in local
+    assert "generic_args4" in local
+    assert "--dag-shape generic_args4" in remote[-1]
+    assert "persistent-generic_args4-smoke-abc123/h200.json" in remote[-1]
+    assert "--expected-dispatch" in validate
+    assert "9,2,1" in validate
+
+
 def test_cuda_pair_persistent_smoke_accepts_graph_descriptor_repeat_runs(tmp_path):
     cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
 

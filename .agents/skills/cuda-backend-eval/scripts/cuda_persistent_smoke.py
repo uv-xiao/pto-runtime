@@ -784,6 +784,10 @@ if (task->tensor_arg_count < 2U || task->scalar_arg_count < 2U) {
 task->out[i] = task->scalar_args[0] * task->a[i] +
                task->tensor_args[0][i] +
                task->scalar_args[1] * task->tensor_args[1][i];
+if (task->tensor_arg_count >= 4U && task->scalar_arg_count >= 4U) {
+  task->out[i] += task->scalar_args[2] * task->tensor_args[2][i] +
+                  task->scalar_args[3] * task->tensor_args[3][i];
+}
 """.strip(),
         ),
     ),
@@ -1739,13 +1743,23 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
-    if dag_shape in {"generic_args", "graph_descriptor"}:
+    if dag_shape in {"generic_args", "generic_args4", "graph_descriptor"}:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
         dependents_t = ctypes.c_uint32 * 2
         task_t = CudaPersistentDagTask * task_count
         tensor_args_t = ctypes.c_void_p * 4
         scalar_args_t = ctypes.c_float * 4
+        if dag_shape == "generic_args4":
+            tensor_args = tensor_args_t(dev_tmp0, dev_tmp3, dev_a, dev_b)
+            scalar_args = scalar_args_t(1.5, 0.25, 0.125, 0.0625)
+            tensor_arg_count = 4
+            scalar_arg_count = 4
+        else:
+            tensor_args = tensor_args_t(dev_tmp0, dev_tmp3, 0, 0)
+            scalar_args = scalar_args_t(1.5, 0.25, 0.0, 0.0)
+            tensor_arg_count = 2
+            scalar_arg_count = 2
         return (
             host_fanin_t(0, 0, 2),
             dependents_t(2, 2),
@@ -1759,10 +1773,10 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                     dependent_begin=0,
                     dependent_count=1,
                     initial_fanin=0,
-                    tensor_args=tensor_args_t(dev_tmp0, dev_tmp3, 0, 0),
-                    scalar_args=scalar_args_t(1.5, 0.25, 0.0, 0.0),
-                    tensor_arg_count=2,
-                    scalar_arg_count=2,
+                    tensor_args=tensor_args,
+                    scalar_args=scalar_args,
+                    tensor_arg_count=tensor_arg_count,
+                    scalar_arg_count=scalar_arg_count,
                 ),
                 CudaPersistentDagTask(
                     func_id=2,
@@ -2141,6 +2155,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         host_b = array_b_t(*[float(2 * i) for i in range(b_len)])
     graph_arg_shapes = {
         "generic_args",
+        "generic_args4",
         "graph_descriptor",
         "graph_descriptor_diamond",
         "graph_descriptor_reordered",
@@ -2383,6 +2398,10 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     _f32(_f32(1.5 * host_a[i]) + _f32(expected_tmp0[i] + _f32(0.25 * expected_tmp3[i])))
                     for i in range(n)
                 ]
+                if config.dag_shape == "generic_args4":
+                    expected_tmp1 = [
+                        _f32(expected_tmp1[i] + _f32(0.125 * host_a[i]) + _f32(0.0625 * host_b[i])) for i in range(n)
+                    ]
                 expected_tmp2 = [_f32(host_a[i] * host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp1[i] + expected_tmp2[i]) for i in range(n)]
                 if config.dag_shape == "graph_descriptor_diamond":
@@ -2415,6 +2434,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     "triad",
                     "quad",
                     "generic_args",
+                    "generic_args4",
                     "graph_descriptor",
                     "graph_descriptor_diamond",
                     "graph_descriptor_reordered",
@@ -2498,13 +2518,18 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             result["tensor_args"] = {"c": "tmp0"}
         if config.dag_shape == "quad":
             result["tensor_args"] = {"c": "tmp0", "d": "tmp3"}
-        if config.dag_shape == "generic_args":
+        if config.dag_shape in {"generic_args", "generic_args4"}:
+            tensor_args = {"0": "tmp0", "1": "tmp3"}
+            scalar_args = [1.5, 0.25]
+            if config.dag_shape == "generic_args4":
+                tensor_args.update({"2": "a", "3": "b"})
+                scalar_args.extend([0.125, 0.0625])
             result["generic_args"] = {
-                "tensor_args": {"0": "tmp0", "1": "tmp3"},
-                "scalar_args": [1.5, 0.25],
+                "tensor_args": tensor_args,
+                "scalar_args": scalar_args,
             }
-            result["tensor_args"] = {"tensor_args[0]": "tmp0", "tensor_args[1]": "tmp3"}
-            result["scalar_args"] = {"scalar_args[0]": 1.5, "scalar_args[1]": 0.25}
+            result["tensor_args"] = {f"tensor_args[{idx}]": value for idx, value in tensor_args.items()}
+            result["scalar_args"] = {f"scalar_args[{idx}]": value for idx, value in enumerate(scalar_args)}
         if config.dag_shape in {
             "graph_descriptor",
             "graph_descriptor_diamond",
@@ -2597,6 +2622,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "chain",
         "fork_join",
         "generic_args",
+        "generic_args4",
         "graph_descriptor",
         "graph_descriptor_diamond",
         "graph_descriptor_reordered",
@@ -2641,7 +2667,14 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         raise RuntimeError("quad DAG shape requires nvcc-built generated-dispatch PTX")
     if (
         mode == "dag"
-        and dag_shape in {"generic_args", "graph_descriptor", "graph_descriptor_diamond", "graph_descriptor_reordered"}
+        and dag_shape
+        in {
+            "generic_args",
+            "generic_args4",
+            "graph_descriptor",
+            "graph_descriptor_diamond",
+            "graph_descriptor_reordered",
+        }
         and ptx_source.startswith("embedded-")
     ):
         raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
@@ -2836,6 +2869,7 @@ def main() -> None:
             "chain",
             "fork_join",
             "generic_args",
+            "generic_args4",
             "graph_descriptor",
             "graph_descriptor_diamond",
             "graph_descriptor_reordered",
