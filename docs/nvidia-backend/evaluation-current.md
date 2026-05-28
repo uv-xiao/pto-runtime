@@ -158,6 +158,14 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/h200.json`
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/cuda-smoke-report.svg`
+- `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_triad-repeat2-smoke-4cd73e6a/a100.json`
+- `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_triad-repeat2-smoke-4cd73e6a/h200.json`
+- `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_triad-repeat2-smoke-4cd73e6a/cuda-smoke-report.md`
+- `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_triad-repeat2-smoke-4cd73e6a/cuda-smoke-report.svg`
+- `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/a100.json`
+- `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/h200.json`
+- `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/cuda-smoke-report.md`
+- `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/cuda-smoke-report.svg`
 
 ## Latest Tagged-Inout Compact Gate
 
@@ -194,6 +202,61 @@ Tagged-inout rows:
 The report directory contains `cuda-benchmark.json`, `cuda-benchmark.md`,
 `cuda-benchmark.svg`, `cuda-benchmark-ratios.svg`,
 `cuda-benchmark-dag-deltas.svg`, and `cuda-benchmark-throughput.svg`.
+
+## Latest Tensor-Arity Graph Descriptor Smokes
+
+The paired smoke gate at artifact label `4cd73e6a` adds explicit runtime graph
+descriptor coverage for the fixed generated-dispatch triad and quad task
+descriptor fields. It uses `N=1024`, two repeat launches, queue capacity `2`,
+`block_dim=256`, and one scheduler block plus three worker blocks on both
+local A100 and remote H200.
+
+Validation commands:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_triad-repeat2-smoke-4cd73e6a/a100.json \
+    tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_triad-repeat2-smoke-4cd73e6a/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-repeat-runs 2 --expected-completed-count 3 \
+    --expected-scheduler-blocks 1 --expected-worker-blocks 3 \
+    --expected-worker-blocks-per-task 1 --expected-stream-id 0 \
+    --expected-block-dim 256 --expected-grid-dim 4 \
+    --require-report-files --expected-dag-shape graph_descriptor_triad \
+    --expected-dispatch 6,2,1 --expected-graph-fanin 0,0,2 \
+    --expected-graph-dependents 2,2
+
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/a100.json \
+    tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-repeat-runs 2 --expected-completed-count 3 \
+    --expected-scheduler-blocks 1 --expected-worker-blocks 3 \
+    --expected-worker-blocks-per-task 1 --expected-stream-id 0 \
+    --expected-block-dim 256 --expected-grid-dim 4 \
+    --require-report-files --expected-dag-shape graph_descriptor_quad \
+    --expected-dispatch 8,2,1 --expected-graph-fanin 0,0,2 \
+    --expected-graph-dependents 2,2
+```
+
+Results:
+
+| Shape | GPU | Dispatch | Tensor args | Device ns | Host ns | Status |
+| ----- | --- | -------- | ----------- | --------- | ------- | ------ |
+| `graph_descriptor_triad` | A100 | `6,2,1` | `c=tmp0` | 64512 | 95893 | pass |
+| `graph_descriptor_triad` | H200 | `6,2,1` | `c=tmp0` | 63776 | 88670 | pass |
+| `graph_descriptor_quad` | A100 | `8,2,1` | `c=tmp0,d=tmp3` | 68608 | 101095 | pass |
+| `graph_descriptor_quad` | H200 | `8,2,1` | `c=tmp0,d=tmp3` | 62496 | 87014 | pass |
+
+Both shapes validated `graph_descriptor.fanin=[0,0,2]`,
+`graph_descriptor.dependents=[2,2]`, `launch_completed_counts=[3,3]`, and
+zero device scheduler errors. The report directories contain paired JSON,
+Markdown, and SVG files under
+`tmp/cuda-backend/graph-tensor-arity-working/`.
 
 ## Previous Graph-Generic Compact Gate
 

@@ -368,6 +368,30 @@ PYTHONPATH=$PWD:$PWD/python \
     --dag-shape graph_descriptor_generic_args4
 ```
 
+Use `--dag-shape graph_descriptor_triad` and
+`--dag-shape graph_descriptor_quad` when the graph descriptor path should
+prove the fixed third and fourth tensor task descriptor fields. These reuse
+the triad/quad generated-dispatch task bodies while requiring explicit graph
+metadata in the JSON and paired validator:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_triad --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-tensor-arity-working
+
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_quad --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-tensor-arity-working
+```
+
+The paired runner validates triad dispatch `6,2,1`, quad dispatch `8,2,1`,
+graph fan-in `0,0,2`, dependents `2,2`, repeat completions, zero scheduler
+errors, tensor-argument metadata, and generated Markdown/SVG report files.
+
 Run the corresponding no-torch L2 `SceneTestCase` path after changing generic
 persistent argument lowering:
 

@@ -1508,7 +1508,7 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
-    if dag_shape == "triad":
+    if dag_shape in {"triad", "graph_descriptor_triad"}:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
         dependents_t = ctypes.c_uint32 * 2
@@ -1591,7 +1591,7 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
-    if dag_shape == "quad":
+    if dag_shape in {"quad", "graph_descriptor_quad"}:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
         dependents_t = ctypes.c_uint32 * 2
@@ -2226,7 +2226,9 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         "graph_descriptor_reordered",
         "graph_descriptor_tagged",
     }
-    if config.dag_shape in {"triad", "quad", *graph_arg_shapes}:
+    triad_shapes = {"triad", "graph_descriptor_triad"}
+    quad_shapes = {"quad", "graph_descriptor_quad"}
+    if config.dag_shape in {*triad_shapes, *quad_shapes, *graph_arg_shapes}:
         host_tmp0_seed = array_t(*[float(3 * i) for i in range(output_len)])
         host_tmp0 = array_t(*host_tmp0_seed)
     else:
@@ -2234,7 +2236,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         host_tmp0 = array_t()
     host_tmp1 = array_t()
     host_tmp2 = array_t()
-    if config.dag_shape in {"quad", *graph_arg_shapes}:
+    if config.dag_shape in {*quad_shapes, *graph_arg_shapes}:
         host_tmp3_seed = array_t(*[float(4 * i) for i in range(output_len)])
         host_tmp3 = array_t(*host_tmp3_seed)
     else:
@@ -2342,12 +2344,12 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 (dev_tmp2, ctypes.byref(zero_output), output_nbytes, "tmp2"),
                 (dev_out, ctypes.byref(zero_output), output_nbytes, "out"),
             ]
-            if config.dag_shape in {"triad", "quad", *graph_arg_shapes}:
+            if config.dag_shape in {*triad_shapes, *quad_shapes, *graph_arg_shapes}:
                 reset_tmp0 = host_tmp0_seed if host_tmp0_seed is not None else host_tmp0
                 reset_copies.append((dev_tmp0, ctypes.byref(reset_tmp0), output_nbytes, "tmp0/c"))
             else:
                 reset_copies.append((dev_tmp0, ctypes.byref(zero_output), output_nbytes, "tmp0"))
-            if config.dag_shape in {"quad", *graph_arg_shapes}:
+            if config.dag_shape in {*quad_shapes, *graph_arg_shapes}:
                 reset_tmp3 = host_tmp3_seed if host_tmp3_seed is not None else host_tmp3
                 reset_copies.append((dev_tmp3, ctypes.byref(reset_tmp3), output_nbytes, "tmp3/d"))
             else:
@@ -2457,12 +2459,12 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             if config.dag_shape in {"scalar_affine", "graph_descriptor_scalar_affine"}:
                 expected_tmp0 = [_f32(_f32(1.5 * host_a[i]) + _f32(0.5 * host_b[i])) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
-            if config.dag_shape == "triad":
+            if config.dag_shape in triad_shapes:
                 expected_tmp0 = [_f32(3 * i) for i in range(n)]
                 expected_tmp1 = [_f32(host_a[i] * host_b[i] + expected_tmp0[i]) for i in range(n)]
                 expected_tmp2 = [_f32(host_a[i] * host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp1[i] + expected_tmp2[i]) for i in range(n)]
-            if config.dag_shape == "quad":
+            if config.dag_shape in quad_shapes:
                 expected_tmp0 = [_f32(3 * i) for i in range(n)]
                 expected_tmp3 = [_f32(4 * i) for i in range(n)]
                 expected_tmp1 = [
@@ -2516,7 +2518,9 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     "tensor_core_tile",
                     "tensor_tile",
                     "triad",
+                    "graph_descriptor_triad",
                     "quad",
+                    "graph_descriptor_quad",
                     "generic_args",
                     "generic_args4",
                     "graph_descriptor",
@@ -2537,6 +2541,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     "scratch_reuse",
                     "graph_descriptor_scratch_reuse",
                     "quad",
+                    "graph_descriptor_quad",
                     *graph_arg_shapes,
                 }
                 and list(host_tmp3) != expected_tmp3
@@ -2609,9 +2614,9 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             result["scalar_args"] = {"scalar0": 2.0}
         if config.dag_shape in {"scalar_affine", "graph_descriptor_scalar_affine"}:
             result["scalar_args"] = {"scalar0": 1.5, "scalar1": 0.5}
-        if config.dag_shape == "triad":
+        if config.dag_shape in triad_shapes:
             result["tensor_args"] = {"c": "tmp0"}
-        if config.dag_shape == "quad":
+        if config.dag_shape in quad_shapes:
             result["tensor_args"] = {"c": "tmp0", "d": "tmp3"}
         if config.dag_shape in {"generic_args", "generic_args4"}:
             tensor_args = {"0": "tmp0", "1": "tmp3"}
@@ -2632,11 +2637,13 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             "graph_descriptor_chain",
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
+            "graph_descriptor_quad",
             "graph_descriptor_reordered",
             "graph_descriptor_scalar_scale",
             "graph_descriptor_scratch_reuse",
             "graph_descriptor_tagged",
             "graph_descriptor_tagged_inout",
+            "graph_descriptor_triad",
             "graph_tensor_tile",
         }:
             result["graph_descriptor"] = {
@@ -2754,6 +2761,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "graph_descriptor_chain",
         "graph_descriptor_diamond",
         "graph_descriptor_generic_args4",
+        "graph_descriptor_quad",
         "graph_descriptor_reordered",
         "graph_descriptor_scalar_affine",
         "graph_descriptor_scalar_axpy",
@@ -2761,6 +2769,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "graph_descriptor_scratch_reuse",
         "graph_descriptor_tagged",
         "graph_descriptor_tagged_inout",
+        "graph_descriptor_triad",
         "graph_tensor_tile",
         "quad",
         "scalar_affine",
@@ -2798,10 +2807,10 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         raise RuntimeError("worker_blocks_per_task > 1 requires nvcc-built persistent direct PTX")
     if mode == "dag" and _is_tensor_tile_shape(dag_shape) and ptx_source.startswith("embedded-"):
         raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
-    if mode == "dag" and dag_shape == "triad" and ptx_source.startswith("embedded-"):
-        raise RuntimeError("triad DAG shape requires nvcc-built generated-dispatch PTX")
-    if mode == "dag" and dag_shape == "quad" and ptx_source.startswith("embedded-"):
-        raise RuntimeError("quad DAG shape requires nvcc-built generated-dispatch PTX")
+    if mode == "dag" and dag_shape in {"triad", "graph_descriptor_triad"} and ptx_source.startswith("embedded-"):
+        raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
+    if mode == "dag" and dag_shape in {"quad", "graph_descriptor_quad"} and ptx_source.startswith("embedded-"):
+        raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
     if (
         mode == "dag"
         and dag_shape
@@ -3025,6 +3034,7 @@ def main() -> None:
             "graph_descriptor_chain",
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
+            "graph_descriptor_quad",
             "graph_descriptor_reordered",
             "graph_descriptor_scalar_affine",
             "graph_descriptor_scalar_axpy",
@@ -3032,6 +3042,7 @@ def main() -> None:
             "graph_descriptor_scratch_reuse",
             "graph_descriptor_tagged",
             "graph_descriptor_tagged_inout",
+            "graph_descriptor_triad",
             "graph_tensor_tile",
             "quad",
             "scalar_affine",

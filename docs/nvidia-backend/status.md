@@ -2514,6 +2514,60 @@ device times `[23936,21344]`, total `device_wall_ns=45280`, and
 passed on H200 with `2 passed, 60 deselected` after the known PTO-ISA SSH
 refresh warning.
 
+The explicit graph-descriptor path also validates fixed tensor-arity task
+descriptors for the generated-dispatch triad and quad shapes. Focused TDD
+checks first failed because the smoke runner only accepted the fixed `triad`
+and `quad` shapes, and the paired validator had no graph-descriptor dispatch
+expectations. After adding `graph_descriptor_triad` and
+`graph_descriptor_quad`, the focused local checks passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'graph_descriptor_triad or graph_descriptor_quad'
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_backend.py -q \
+  -k 'graph_descriptor_triad or graph_descriptor_quad' --platform cuda
+```
+
+Results: `4 passed, 209 deselected` for the smoke workflow tests, and
+`2 passed, 42 deselected` for the real CUDA A100 tests. The paired A100/H200
+repeat-run smokes were then captured with:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_triad --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-tensor-arity-working
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_quad --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-tensor-arity-working
+```
+
+Result:
+`tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_triad-repeat2-smoke-4cd73e6a/`
+and
+`tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/`
+contain `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The validators required `runtime=persistent_device`,
+`mode=dag`, `repeat_runs=2`, zero scheduler errors, graph fan-in `[0,0,2]`,
+dependents `[2,2]`, `scheduler_blocks=1`, `worker_blocks=3`,
+`block_dim=256`, and `grid_dim=4`. Triad validated dispatch `[6,2,1]` with
+`tensor_args={"c":"tmp0"}`. Quad validated dispatch `[8,2,1]` with
+`tensor_args={"c":"tmp0","d":"tmp3"}`.
+
+| Shape | GPU | Device ns | Host ns | Per-launch device ns |
+| ----- | --- | --------- | ------- | -------------------- |
+| `graph_descriptor_triad` | A100 | 64512 | 95893 | `[40960,23552]` |
+| `graph_descriptor_triad` | H200 | 63776 | 88670 | `[42112,21664]` |
+| `graph_descriptor_quad` | A100 | 68608 | 101095 | `[44032,24576]` |
+| `graph_descriptor_quad` | H200 | 62496 | 87014 | `[41120,21376]` |
+
 The same shape is now promoted to a benchmark baseline named
 `pto_persistent_dag_graph_generic_args4`. Focused TDD checks first failed
 because `cuda_benchmark.py`, the paired benchmark runner, and the
