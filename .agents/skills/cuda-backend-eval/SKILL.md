@@ -1644,8 +1644,9 @@ PYTHONPATH=$PWD:$PWD/python \
 The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the host-schedule generic-args baseline, graph
 generic-args4 baseline, graph-chain baseline, graph-scratch-reuse baseline,
-graph-tagged-inout baseline and task-argument tags, size `1024`, one repeat,
-`68` combined samples, and the Markdown/SVG report files.
+graph-tagged-inout baseline, graph descriptor fan-in/dependent metadata,
+task-argument tags, size `1024`, one repeat, `68` combined samples, and the
+Markdown/SVG report files.
 A historical compact gate artifact with graph-scratch-reuse benchmark coverage
 is under `tmp/cuda-backend/combined-current-dbb01406/`; validate older
 captures with explicit `--require-*` checks if the current preset has gained
@@ -1666,6 +1667,10 @@ including scalar, graph-descriptor, tensor-tile, and tensor-core rows.
 the requested tensor descriptor shape. The paired benchmark runner adds these
 requirements automatically from `--tensor-rows`, `--tensor-cols`, and
 `--tensor-inner`.
+`--require-graph-fanin` and `--require-graph-dependents` check that explicit
+runtime graph descriptor rows recorded the expected dependency shape. The
+paired benchmark runner adds these requirements automatically for known graph
+descriptor benchmark baselines.
 
 Use `cuda_validate_smoke.py` for paired smoke artifacts. It checks required
 artifacts, pass status, zero device scheduler errors, expected runtime/mode,

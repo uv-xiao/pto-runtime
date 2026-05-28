@@ -312,8 +312,9 @@ repeat, `batch_tasks=2`, `worker_blocks_per_task=4`, and default `16x16x16`
 tensor descriptor shape as the compact gate, producing `64` combined rows
 under `tmp/cuda-backend/combined-current-dbb01406/`. The validator checked
 source-paper provenance, sanitized command examples, report files, tensor
-descriptor metadata, dispatch sequences, zero scheduler errors, and the new
-graph-scratch-reuse row. The compact and paired-current presets now require
+descriptor metadata, dispatch sequences, graph descriptor fan-in/dependent
+metadata, zero scheduler errors, and the new graph-scratch-reuse row. The
+compact and paired-current presets now require
 `scratch_reuse=reused_buffer=tmp0,reuse_task=4` for that row. The captured row
 reported
 `graph_descriptor.fanin=[0,0,2,1,1,2]`,
@@ -332,7 +333,8 @@ producing `68` combined rows under
 `tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/`.
 The validator checked required baselines, dispatch sequences, tensor
 descriptor metadata, source-paper provenance, command examples, generated
-Markdown/SVG reports, graph task-argument metadata, and zero scheduler errors.
+Markdown/SVG reports, graph descriptor fan-in/dependent metadata, graph
+task-argument metadata, and zero scheduler errors.
 The tagged-inout row reported
 dispatch `[1,1,1]`, `graph_descriptor.fanin=[0,1,1]`,
 `graph_descriptor.dependents=[1,2]`, completed count `3`,
@@ -540,7 +542,8 @@ Evidence:
   checks paired benchmark captures for expected machines, selected baselines,
   sizes, repeats, sample count, generated report files, source-paper
   metadata, sanitized command examples, dispatch IDs, tensor-tile shapes, and
-  graph task-argument and scratch-reuse metadata before docs are refreshed.
+  graph descriptor, graph task-argument, and scratch-reuse metadata before
+  docs are refreshed.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py` checks
   paired smoke captures for required A100/H200 artifacts, pass status, zero
   scheduler errors, expected runtime/mode, dispatch IDs, repeat-run lifecycle

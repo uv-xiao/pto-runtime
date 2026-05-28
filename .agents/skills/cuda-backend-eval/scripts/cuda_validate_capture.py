@@ -104,6 +104,24 @@ PAIRED_CURRENT_GRAPH_TASK_ARGS = {
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,output_existing:out"
     ),
 }
+PAIRED_CURRENT_GRAPH_FANIN = {
+    "pto_persistent_dag_graph": "0,0,2",
+    "pto_persistent_dag_graph_generic_args4": "0,0,2",
+    "pto_persistent_dag_graph_chain": "0,0,2,1,1",
+    "pto_persistent_dag_graph_scratch_reuse": "0,0,2,1,1,2",
+    "pto_persistent_dag_graph_diamond": "0,0,2,2,2",
+    "pto_persistent_dag_graph_tagged_inout": "0,1,1",
+    "pto_persistent_dag_graph_tensor": "0,1,1,2",
+}
+PAIRED_CURRENT_GRAPH_DEPENDENTS = {
+    "pto_persistent_dag_graph": "2,2",
+    "pto_persistent_dag_graph_generic_args4": "2,2",
+    "pto_persistent_dag_graph_chain": "2,2,3,4",
+    "pto_persistent_dag_graph_scratch_reuse": "2,2,3,4,5,5",
+    "pto_persistent_dag_graph_diamond": "2,3,2,3,4,4",
+    "pto_persistent_dag_graph_tagged_inout": "1,2",
+    "pto_persistent_dag_graph_tensor": "1,2,3,3",
+}
 
 
 def _as_list(values: Sequence[str] | None) -> list[str]:
@@ -169,6 +187,16 @@ def _graph_task_args_text(row: dict[str, Any]) -> str:
     if not isinstance(task_args, dict):
         return "-"
     return ";".join(f"{key}={task_args[key]}" for key in sorted(task_args))
+
+
+def _graph_descriptor_text(row: dict[str, Any], field_name: str) -> str:
+    graph_descriptor = row.get("graph_descriptor")
+    if not isinstance(graph_descriptor, dict):
+        return "-"
+    values = graph_descriptor.get(field_name)
+    if not isinstance(values, list):
+        return "-"
+    return ",".join(str(value) for value in values)
 
 
 def _validate_required_machines(rows: list[dict[str, Any]], required_machines: Sequence[str]) -> list[str]:
@@ -396,6 +424,29 @@ def _validate_graph_task_args(rows: list[dict[str, Any]], required_graph_task_ar
     return errors
 
 
+def _validate_graph_descriptor(
+    rows: list[dict[str, Any]],
+    *,
+    field_name: str,
+    required_values: dict[str, str],
+) -> list[str]:
+    errors: list[str] = []
+    for row in rows:
+        baseline = row.get("baseline")
+        expected = required_values.get(str(baseline))
+        if expected is None:
+            continue
+        found = _graph_descriptor_text(row, field_name)
+        if found != expected:
+            machine = row.get("machine", "unknown")
+            n = row.get("n", "unknown")
+            errors.append(
+                f"expected graph_descriptor.{field_name} {expected} "
+                f"for machine={machine} baseline={baseline} n={n}, found {found}"
+            )
+    return errors
+
+
 def validate_capture(  # noqa: PLR0913
     payload: dict[str, Any],
     *,
@@ -412,6 +463,8 @@ def validate_capture(  # noqa: PLR0913
     required_tensor_tiles: dict[str, str] | None = None,
     required_scratch_reuse: dict[str, str] | None = None,
     required_graph_task_args: dict[str, str] | None = None,
+    required_graph_fanin: dict[str, str] | None = None,
+    required_graph_dependents: dict[str, str] | None = None,
     source_paper_root: Path | None = None,
 ) -> list[str]:
     rows = _results(payload)
@@ -447,6 +500,10 @@ def validate_capture(  # noqa: PLR0913
     errors.extend(_validate_tensor_tiles(rows, required_tensor_tiles or {}))
     errors.extend(_validate_scratch_reuse(rows, required_scratch_reuse or {}))
     errors.extend(_validate_graph_task_args(rows, required_graph_task_args or {}))
+    errors.extend(_validate_graph_descriptor(rows, field_name="fanin", required_values=required_graph_fanin or {}))
+    errors.extend(
+        _validate_graph_descriptor(rows, field_name="dependents", required_values=required_graph_dependents or {})
+    )
 
     if source_paper_root is not None:
         errors.extend(_validate_source_papers(payload, source_root=source_paper_root))
@@ -484,6 +541,14 @@ def _apply_preset(args: argparse.Namespace) -> None:
         args.require_graph_task_args = [
             f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_GRAPH_TASK_ARGS.items()
         ]
+    if not args.require_graph_fanin:
+        args.require_graph_fanin = [
+            f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_GRAPH_FANIN.items()
+        ]
+    if not args.require_graph_dependents:
+        args.require_graph_dependents = [
+            f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_GRAPH_DEPENDENTS.items()
+        ]
     args.require_report_files = True
     args.require_zero_scheduler_errors = True
     if args.preset == "compact-current":
@@ -517,6 +582,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--require-tensor-tile", action="append")
     parser.add_argument("--require-scratch-reuse", action="append")
     parser.add_argument("--require-graph-task-args", action="append")
+    parser.add_argument("--require-graph-fanin", action="append")
+    parser.add_argument("--require-graph-dependents", action="append")
     parser.add_argument("--require-source-papers", action="store_true")
     return parser.parse_args(argv)
 
@@ -536,6 +603,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.require_graph_task_args,
             flag="--require-graph-task-args",
         )
+        required_graph_fanin = _parse_required_mapping(args.require_graph_fanin, flag="--require-graph-fanin")
+        required_graph_dependents = _parse_required_mapping(
+            args.require_graph_dependents,
+            flag="--require-graph-dependents",
+        )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -554,6 +626,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         required_tensor_tiles=required_tensor_tiles,
         required_scratch_reuse=required_scratch_reuse,
         required_graph_task_args=required_graph_task_args,
+        required_graph_fanin=required_graph_fanin,
+        required_graph_dependents=required_graph_dependents,
         source_paper_root=Path.cwd() if args.require_source_papers else None,
     )
     if errors:

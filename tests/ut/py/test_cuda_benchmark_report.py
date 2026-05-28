@@ -1198,6 +1198,53 @@ def test_cuda_capture_validator_requires_dispatch_sequence():
     )
 
 
+def test_cuda_capture_validator_requires_graph_descriptor_metadata():
+    cuda_validate_capture = _load_capture_validator_module()
+    payload = _paired_capture_payload()
+    payload["results"].append(
+        {
+            "machine": "hina",
+            "baseline": "pto_persistent_dag_graph_diamond",
+            "n": 1024,
+            "repeat": 0,
+            "status": "pass",
+            "device_wall_ns": 1024,
+            "dispatch_func_ids": [9, 2, 1, 2, 1],
+            "graph_descriptor": {
+                "fanin": [0, 0, 2, 1, 2],
+                "dependents": [2, 3, 2, 4, 4],
+            },
+        }
+    )
+
+    errors = cuda_validate_capture.validate_capture(
+        payload,
+        required_graph_fanin={"pto_persistent_dag_graph_diamond": "0,0,2,2,2"},
+        required_graph_dependents={"pto_persistent_dag_graph_diamond": "2,3,2,3,4,4"},
+    )
+
+    assert (
+        "expected graph_descriptor.fanin 0,0,2,2,2 for machine=hina "
+        "baseline=pto_persistent_dag_graph_diamond n=1024, found 0,0,2,1,2"
+    ) in errors
+    assert (
+        "expected graph_descriptor.dependents 2,3,2,3,4,4 for machine=hina "
+        "baseline=pto_persistent_dag_graph_diamond n=1024, found 2,3,2,4,4"
+    ) in errors
+
+    payload["results"][-1]["graph_descriptor"]["fanin"] = [0, 0, 2, 2, 2]
+    payload["results"][-1]["graph_descriptor"]["dependents"] = [2, 3, 2, 3, 4, 4]
+
+    assert (
+        cuda_validate_capture.validate_capture(
+            payload,
+            required_graph_fanin={"pto_persistent_dag_graph_diamond": "0,0,2,2,2"},
+            required_graph_dependents={"pto_persistent_dag_graph_diamond": "2,3,2,3,4,4"},
+        )
+        == []
+    )
+
+
 def test_cuda_capture_validator_requires_tensor_tile_shape():
     cuda_validate_capture = _load_capture_validator_module()
     payload = _paired_capture_payload()
@@ -1338,6 +1385,8 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4" in args.require_scratch_reuse
     assert "pto_persistent_dag_graph_tagged_inout=1,1,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_diamond=0,0,2,2,2" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_diamond=2,3,2,3,4,4" in args.require_graph_dependents
     assert (
         "pto_persistent_dag_graph_tagged_inout="
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
@@ -1379,6 +1428,8 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4" in args.require_scratch_reuse
     assert "pto_persistent_dag_graph_tagged_inout=1,1,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_diamond=0,0,2,2,2" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_diamond=2,3,2,3,4,4" in args.require_graph_dependents
     assert (
         "pto_persistent_dag_graph_tagged_inout="
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
@@ -2137,6 +2188,8 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert "pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4" in validate
     assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in validate
     assert "pto_persistent_dag_graph_tagged_inout=1,1,1" in validate
+    assert "pto_persistent_dag_graph_diamond=0,0,2,2,2" in validate
+    assert "pto_persistent_dag_graph_diamond=2,3,2,3,4,4" in validate
     assert (
         "pto_persistent_dag_graph_tagged_inout="
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"

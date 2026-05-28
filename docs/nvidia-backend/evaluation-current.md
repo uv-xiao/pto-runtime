@@ -181,8 +181,8 @@ The combined JSON has `68` samples. The validator checked A100/H200 machine
 names, size `1024`, one repeat, selected tensor baselines, the tagged-inout
 graph baseline, source-paper provenance, sanitized command examples, generated
 Markdown/SVG reports, expected generated-dispatch sequences, tensor descriptor
-metadata, graph task-argument metadata, and zero scheduler errors for PTO
-persistent DAG rows.
+metadata, graph descriptor fan-in/dependent metadata, graph task-argument
+metadata, and zero scheduler errors for PTO persistent DAG rows.
 
 Tagged-inout rows:
 
@@ -322,8 +322,8 @@ preset shape: `N=1024`, one repeat, `batch_tasks=2`,
 The paired runner synced the local tree to `bizhaoh200`, captured local A100
 and remote H200 reports, merged `64` rows, and validated the combined JSON
 with source-paper provenance, sanitized command examples, report files, tensor
-descriptor metadata, expected dispatch sequences, and zero PTO scheduler
-errors.
+descriptor metadata, expected dispatch sequences, graph descriptor
+fan-in/dependent metadata, and zero PTO scheduler errors.
 
 Validation command:
 

@@ -95,6 +95,24 @@ EXPECTED_GRAPH_TASK_ARGS_BY_BASELINE: dict[str, str] = {
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,output_existing:out"
     ),
 }
+EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
+    "pto_persistent_dag_graph": "0,0,2",
+    "pto_persistent_dag_graph_generic_args4": "0,0,2",
+    "pto_persistent_dag_graph_chain": "0,0,2,1,1",
+    "pto_persistent_dag_graph_scratch_reuse": "0,0,2,1,1,2",
+    "pto_persistent_dag_graph_diamond": "0,0,2,2,2",
+    "pto_persistent_dag_graph_tagged_inout": "0,1,1",
+    "pto_persistent_dag_graph_tensor": "0,1,1,2",
+}
+EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE: dict[str, str] = {
+    "pto_persistent_dag_graph": "2,2",
+    "pto_persistent_dag_graph_generic_args4": "2,2",
+    "pto_persistent_dag_graph_chain": "2,2,3,4",
+    "pto_persistent_dag_graph_scratch_reuse": "2,2,3,4,5,5",
+    "pto_persistent_dag_graph_diamond": "2,3,2,3,4,4",
+    "pto_persistent_dag_graph_tagged_inout": "1,2",
+    "pto_persistent_dag_graph_tensor": "1,2,3,3",
+}
 
 
 @dataclass(frozen=True)
@@ -380,6 +398,18 @@ def build_validate_command(
         if baseline in EXPECTED_GRAPH_TASK_ARGS_BY_BASELINE
         for part in ("--require-graph-task-args", f"{baseline}={EXPECTED_GRAPH_TASK_ARGS_BY_BASELINE[baseline]}")
     ]
+    graph_fanin_args = [
+        part
+        for baseline in _selected_baselines(config)
+        if baseline in EXPECTED_GRAPH_FANIN_BY_BASELINE
+        for part in ("--require-graph-fanin", f"{baseline}={EXPECTED_GRAPH_FANIN_BY_BASELINE[baseline]}")
+    ]
+    graph_dependents_args = [
+        part
+        for baseline in _selected_baselines(config)
+        if baseline in EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE
+        for part in ("--require-graph-dependents", f"{baseline}={EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE[baseline]}")
+    ]
     return [
         "env",
         f"PYTHONPATH={Path.cwd()}:{Path.cwd() / 'python'}",
@@ -397,6 +427,8 @@ def build_validate_command(
         *tensor_tile_args,
         *scratch_reuse_args,
         *graph_task_args,
+        *graph_fanin_args,
+        *graph_dependents_args,
         "--require-report-files",
         "--require-command-examples",
         "--require-zero-scheduler-errors",
