@@ -38,7 +38,9 @@ slice. It supports:
 - PTX module loading through the CUDA Driver API;
 - prepared callable registration and unregistration;
 - vector-add launch through `run_prepared`;
-- a small non-blocking stream pool using callable `stream_id` metadata.
+- a non-blocking stream pool using callable `stream_id` metadata. The pool
+  defaults to four streams and can be sized at device init with
+  `PTO_CUDA_STREAM_POOL_SIZE` for host-schedule concurrency experiments.
 
 `KernelCompiler(platform="cuda").compile_cuda_host_schedule()` now compiles a
 user-authored CUDA task body through the shared wrapper generator and writes a
@@ -54,6 +56,8 @@ Evidence:
   device data.
 - The stream concurrency smoke validates two independent prepared callables
   on distinct streams.
+- The stream-pool sizing smoke validates a callable on `stream_id=5` with
+  `PTO_CUDA_STREAM_POOL_SIZE=6` on both local A100 and remote H200.
 - `simpler_setup.cuda_callable_compiler.prepare_cuda_host_schedule_callable()`
   builds the shared ctypes manifest for host-schedule compiler artifacts and
   preserves PTX/entry-name buffer lifetimes for `prepare_callable`.
@@ -79,6 +83,22 @@ Evidence:
   `CudaVectorAxpyArgs`, `CudaVectorAffineArgs`, and `CudaVectorTernaryArgs`
   from normal `TaskArgsBuilder` CPU tensors/scalars, and validates real
   copied-back CUDA output data.
+
+Focused stream-pool verification first failed because the fixed four-stream
+pool rejected a callable manifest with `stream_id=5`. After adding
+`PTO_CUDA_STREAM_POOL_SIZE`, the local A100 selector passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_backend.py -q \
+  -k 'stream_pool_size_env or independent_callables_on_multiple_streams' \
+  --platform cuda
+```
+
+Result: `2 passed, 37 deselected`. The same stream-pool sizing selector
+passed on remote H200 after syncing the tree and rebuilding the runtime:
+`1 passed, 38 deselected`, with the known PTO-ISA SSH refresh warning printed
+before pytest.
 
 ### Persistent-Device Runtime
 

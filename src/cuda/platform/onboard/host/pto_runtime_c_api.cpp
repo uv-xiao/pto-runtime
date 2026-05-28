@@ -19,6 +19,7 @@
 #include <cuda_runtime_api.h>
 
 #include <chrono>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -52,7 +53,21 @@ struct PreparedCallable {
     size_t shared_mem_bytes = 0;
 };
 
-constexpr uint32_t kStreamPoolSize = 4;
+constexpr uint32_t kDefaultStreamPoolSize = 4;
+constexpr uint32_t kMaxStreamPoolSize = 64;
+
+uint32_t configured_stream_pool_size() {
+    const char *value = std::getenv("PTO_CUDA_STREAM_POOL_SIZE");
+    if (value == nullptr || value[0] == '\0') {
+        return kDefaultStreamPoolSize;
+    }
+    char *end = nullptr;
+    unsigned long parsed = std::strtoul(value, &end, 10);
+    if (end == value || *end != '\0' || parsed == 0 || parsed > kMaxStreamPoolSize) {
+        return kDefaultStreamPoolSize;
+    }
+    return static_cast<uint32_t>(parsed);
+}
 
 class CudaDeviceRunner {
 public:
@@ -68,7 +83,7 @@ public:
         if (rc != cudaSuccess) {
             return -1;
         }
-        streams_.resize(kStreamPoolSize, nullptr);
+        streams_.resize(configured_stream_pool_size(), nullptr);
         for (auto &stream : streams_) {
             rc = cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
             if (rc != cudaSuccess) {

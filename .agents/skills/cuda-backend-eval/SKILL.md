@@ -34,6 +34,18 @@ The current smoke test builds `cuda/host_schedule`, compiles a PTX vector-add
 kernel with `nvcc`, allocates real CUDA device buffers, copies real data, runs
 the kernel through the runtime C API, and validates copied-back results.
 
+Set `PTO_CUDA_STREAM_POOL_SIZE=<N>` before initializing the CUDA host runtime
+when a host-schedule concurrency experiment needs callable `stream_id` values
+outside the default four-stream pool. Invalid, zero, or very large values fall
+back to the default. Validate the knob on A100/H200 with:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_backend.py \
+    -q -k 'stream_pool_size_env or independent_callables_on_multiple_streams' \
+    --platform cuda
+```
+
 For remote machines without `pytest`, run the standalone smoke:
 
 ```bash

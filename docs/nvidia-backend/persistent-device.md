@@ -104,6 +104,9 @@ Rules:
   a user-facing API requires earlier completion.
 - Size the stream pool separately from `block_dim`; `block_dim` is a kernel
   launch-policy hint, not a stream count.
+- Use `PTO_CUDA_STREAM_POOL_SIZE` to enlarge or shrink the host runtime stream
+  pool for concurrency experiments. The default is 4 streams; invalid,
+  zero, or overly large values fall back to the default.
 
 `host_schedule` can provide concurrency for independent ready tasks, but it is
 still host-dispatched. It pays host launch overhead per task and cannot match

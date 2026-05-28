@@ -1549,6 +1549,132 @@ assert result["scalar_args"] == {"scalar0": 2.0}
 
 
 @requires_cuda
+def test_cuda_host_schedule_stream_pool_size_env_allows_higher_stream_id(
+    tmp_path, monkeypatch, cuda_host_runtime_binaries
+):
+    monkeypatch.setenv("PTO_CUDA_STREAM_POOL_SIZE", "6")
+    kernel_src = tmp_path / "vector_add.cu"
+    kernel_src.write_text(
+        """
+extern "C" __global__ void pto_vector_add_f32(
+    const float *a, const float *b, float *out, unsigned long long n) {
+    unsigned long long i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        out[i] = a[i] + b[i];
+    }
+}
+""".lstrip()
+    )
+    ptx_path = tmp_path / "vector_add.ptx"
+    subprocess.run(
+        ["nvcc", "--ptx", "-std=c++17", "-arch=compute_80", str(kernel_src), "-o", str(ptx_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    ptx = ptx_path.read_bytes()
+    ptx_buf = ctypes.create_string_buffer(ptx + b"\0")
+
+    runtime = ctypes.CDLL(str(cuda_host_runtime_binaries.host_path))
+    runtime.create_device_context.restype = ctypes.c_void_p
+    runtime.destroy_device_context.argtypes = [ctypes.c_void_p]
+    runtime.simpler_init.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+    ]
+    runtime.simpler_init.restype = ctypes.c_int
+    runtime.finalize_device.argtypes = [ctypes.c_void_p]
+    runtime.finalize_device.restype = ctypes.c_int
+    runtime.device_malloc_ctx.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+    runtime.device_malloc_ctx.restype = ctypes.c_void_p
+    runtime.device_free_ctx.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    runtime.copy_to_device_ctx.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t]
+    runtime.copy_to_device_ctx.restype = ctypes.c_int
+    runtime.copy_from_device_ctx.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t]
+    runtime.copy_from_device_ctx.restype = ctypes.c_int
+    runtime.prepare_callable.argtypes = [ctypes.c_void_p, ctypes.c_int32, ctypes.c_void_p]
+    runtime.prepare_callable.restype = ctypes.c_int
+    runtime.run_prepared.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_int32,
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.POINTER(PtoRunTiming),
+    ]
+    runtime.run_prepared.restype = ctypes.c_int
+
+    ctx = runtime.create_device_context()
+    assert ctx
+    try:
+        assert runtime.simpler_init(ctx, 0, None, 0, None, 0) == 0
+        n = 4
+        array_t = ctypes.c_float * n
+        host_a = array_t(1.0, 2.0, 3.0, 4.0)
+        host_b = array_t(10.0, 20.0, 30.0, 40.0)
+        host_out = array_t()
+        nbytes = ctypes.sizeof(host_a)
+        dev_a = runtime.device_malloc_ctx(ctx, nbytes)
+        dev_b = runtime.device_malloc_ctx(ctx, nbytes)
+        dev_out = runtime.device_malloc_ctx(ctx, nbytes)
+        assert dev_a and dev_b and dev_out
+        try:
+            assert runtime.copy_to_device_ctx(ctx, dev_a, ctypes.byref(host_a), nbytes) == 0
+            assert runtime.copy_to_device_ctx(ctx, dev_b, ctypes.byref(host_b), nbytes) == 0
+            manifest = CudaHostCallableV2(
+                version=2,
+                op=1,
+                image=ctypes.cast(ptx_buf, ctypes.c_void_p),
+                image_size=len(ptx) + 1,
+                entry_name=b"pto_vector_add_f32",
+                grid_dim=1,
+                block_dim=32,
+                shared_mem_bytes=0,
+                stream_id=5,
+            )
+            assert runtime.prepare_callable(ctx, 0, ctypes.byref(manifest)) == 0
+
+            args = CudaVectorAddArgs(a=dev_a, b=dev_b, out=dev_out, n=n)
+            timing = PtoRunTiming()
+            assert (
+                runtime.run_prepared(
+                    ctx,
+                    None,
+                    0,
+                    ctypes.byref(args),
+                    32,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    None,
+                    ctypes.byref(timing),
+                )
+                == 0
+            )
+            assert runtime.copy_from_device_ctx(ctx, ctypes.byref(host_out), dev_out, nbytes) == 0
+            assert list(host_out) == [11.0, 22.0, 33.0, 44.0]
+        finally:
+            runtime.device_free_ctx(ctx, dev_a)
+            runtime.device_free_ctx(ctx, dev_b)
+            runtime.device_free_ctx(ctx, dev_out)
+    finally:
+        runtime.finalize_device(ctx)
+        runtime.destroy_device_context(ctx)
+
+
+@requires_cuda
 def test_cuda_host_schedule_runs_independent_callables_on_multiple_streams(tmp_path, cuda_host_runtime_binaries):
     kernel_src = tmp_path / "slow_vector_add.cu"
     kernel_src.write_text(
