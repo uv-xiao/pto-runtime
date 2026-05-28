@@ -1811,6 +1811,39 @@ device times `[21088,19808]`, total `device_wall_ns=40896`, and
 graph-descriptor repeat-run path to generic indexed tensor/scalar descriptor
 slots.
 
+Graph-descriptor dependency inference now builds the producer map from the
+whole descriptor before inferring omitted `dependents`, so the scene-test graph
+adapter no longer requires topological task order. A focused unit test first
+failed with `fanin=[0,0,0]` for a reordered graph where the final consumer is
+task `0`; after the inference change it passed with `fanin=[2,0,0]`,
+`dependents=[0,0]`, and dispatch sequence `[1,9,2]`. The corresponding
+no-torch ctypes scene test passed locally on A100 with `2 passed, 50
+deselected`, and passed on H200 with `1 passed, 51 deselected` after syncing
+the working tree; the H200 command printed the known PTO-ISA SSH refresh
+warning before passing.
+
+The reordered graph descriptor was also captured through the paired persistent
+smoke runner:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python \
+    .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_reordered --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree
+```
+
+Result:
+`tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The validator required `runtime=persistent_device`,
+`mode=dag`, `dag_shape=graph_descriptor_reordered`, `repeat_runs=2`,
+`launch_completed_counts=[3,3]`, `dispatch_func_ids=[1,9,2]`, zero scheduler
+errors, and generated report files. A100 reported per-launch device times
+`[39936,23552]`, total `device_wall_ns=63488`, and `host_wall_ns=91185`.
+H200 reported per-launch device times `[25632,20608]`, total
+`device_wall_ns=46240`, and `host_wall_ns=63520`.
+
 Needed:
 
 - broader CUDA scene-test argument builders beyond the current binary
@@ -1899,7 +1932,7 @@ Needed:
 - graph construction from normal PTO task graphs;
 - broader graph-lowering coverage beyond the current
   `persistent_dag_graph_f32` descriptor adapter, automatic default temporary
-  allocation, and first tensor-flow dependency-inference mode;
+  allocation, and order-independent tensor-flow dependency-inference mode;
 - broader lifecycle validation beyond the current scratch-reuse,
   graph-descriptor and generic-argument repeat-run, and direct/queue/DAG
   prepared-callable repeat-run smokes;

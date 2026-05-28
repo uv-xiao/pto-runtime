@@ -303,13 +303,15 @@ temporary buffers, and the same generic tensor/scalar slots. Graph task
 outputs that do not name existing input/output tensors are allocated as
 default-sized temporary buffers automatically, so explicit `temporaries`
 metadata is only needed for non-default sizes. When graph tasks omit
-`dependents`, the adapter infers edges from tensor flow by tracking which
-earlier task produced a tensor or temporary read later through
-`a`/`b`/`c`/`d` or `tensor_args`. This inference is per task: explicit
-`dependents` remain authoritative for tasks that provide them, while omitted
-task edges are inferred from tensor flow. It is a descriptor-level stepping
-stone toward PTO graph lowering, not yet automatic construction from normal
-PTO task graphs.
+`dependents`, the adapter infers edges from tensor flow by first mapping all
+task outputs in the descriptor and then connecting producers to tasks that
+read those tensors through `a`/`b`/`c`/`d` or `tensor_args`. This no longer
+requires topological task order; a final consumer can appear before its
+producer tasks and still receive the correct initial fan-in. This inference is
+per task: explicit `dependents` remain authoritative for tasks that provide
+them, while omitted task edges are inferred from tensor flow. It is a
+descriptor-level stepping stone toward PTO graph lowering, not yet automatic
+construction from normal PTO task graphs.
 
 ## Static NVCC Linking Feasibility
 

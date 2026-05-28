@@ -293,6 +293,35 @@ def test_persistent_smoke_builds_graph_descriptor_dag_shape():
     assert tasks[0].scalar_arg_count == 2
 
 
+def test_persistent_smoke_builds_reordered_graph_descriptor_dag_shape():
+    cuda_persistent_smoke = _load_persistent_smoke_module()
+
+    fanin, dependents, tasks = cuda_persistent_smoke._make_dag_shape(
+        "graph_descriptor_reordered",
+        17,
+        0x1000,
+        0x2000,
+        0x3000,
+        0x4000,
+        0x5000,
+        0x6000,
+        0x7000,
+    )
+
+    assert list(fanin) == [2, 0, 0]
+    assert list(dependents) == [0, 0]
+    assert [task.func_id for task in tasks] == [1, 9, 2]
+    assert [task.initial_fanin for task in tasks] == [2, 0, 0]
+    assert [task.dependent_count for task in tasks] == [0, 1, 1]
+    assert tasks[0].a == 0x4000
+    assert tasks[0].b == 0x5000
+    assert tasks[0].out == 0x7000
+    assert tasks[1].out == tasks[0].a
+    assert tasks[2].out == tasks[0].b
+    assert list(tasks[1].tensor_args)[:2] == [0x3000, 0x6000]
+    assert list(tasks[1].scalar_args)[:2] == [1.5, 0.25]
+
+
 def test_persistent_smoke_builds_scalar_scale_dag_shape():
     cuda_persistent_smoke = _load_persistent_smoke_module()
 
@@ -2352,6 +2381,43 @@ def test_cuda_pair_persistent_smoke_accepts_graph_descriptor_repeat_runs(tmp_pat
     assert "2" in validate
     assert "--expected-dispatch" in validate
     assert "9,2,1" in validate
+
+
+def test_cuda_pair_persistent_smoke_accepts_reordered_graph_descriptor(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+
+    args = cuda_pair_persistent_smoke.parse_args(
+        [
+            "--dag-shape",
+            "graph_descriptor_reordered",
+            "--repeat-runs",
+            "2",
+            "--sync-remote-tree",
+        ]
+    )
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape=args.dag_shape,
+        repeat_runs=args.repeat_runs,
+        sync_remote_tree=args.sync_remote_tree,
+        refresh_remote=not args.skip_remote_refresh and not args.sync_remote_tree,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+    validate = cuda_pair_persistent_smoke.build_validate_command(config, "abc123")
+
+    assert "persistent-graph_descriptor_reordered-repeat2-smoke-abc123" in str(local)
+    assert "graph_descriptor_reordered" in local
+    assert "--dag-shape graph_descriptor_reordered" in remote[-1]
+    assert "persistent-graph_descriptor_reordered-repeat2-smoke-abc123/h200.json" in remote[-1]
+    assert "--expected-repeat-runs" in validate
+    assert "--expected-dispatch" in validate
+    assert "1,9,2" in validate
 
 
 def test_cuda_pair_persistent_smoke_builds_scalar_affine_workflow(tmp_path):

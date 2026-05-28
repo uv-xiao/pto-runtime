@@ -64,6 +64,7 @@ committed:
 - `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/persistent-scalar_scale-smoke-e9c9f5f2/`
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/`
+- `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/`
 - `tmp/cuda-backend/worker-square-smoke-4cdde399/`
 - `tmp/cuda-backend/worker-quad-smoke-4327698e/`
 - `tmp/cuda-backend/worker-mul-smoke-output-json/`

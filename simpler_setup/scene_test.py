@@ -1254,20 +1254,21 @@ class _CudaPersistentDagSceneBuffers:
 
     @staticmethod
     def _graph_dependents_from_task_specs(task_specs: list[dict[str, Any]]) -> list[list[int]]:
-        inferred_dependents = [[] for _ in task_specs]
         producers: dict[str, int] = {}
         for task_id, task_spec in enumerate(task_specs):
-            producer_ids = {
-                producers[name]
-                for name in _CudaPersistentDagSceneBuffers._graph_task_read_names(task_spec)
-                if name in producers
-            }
-            for producer_id in sorted(producer_ids):
-                inferred_dependents[producer_id].append(task_id)
-
             out_name = task_spec.get("out")
             if out_name is not None:
                 producers[str(out_name)] = task_id
+
+        inferred_dependents = [[] for _ in task_specs]
+        for task_id, task_spec in enumerate(task_specs):
+            producer_ids = {
+                producer_id
+                for name in _CudaPersistentDagSceneBuffers._graph_task_read_names(task_spec)
+                if (producer_id := producers.get(name)) is not None and producer_id != task_id
+            }
+            for producer_id in sorted(producer_ids):
+                inferred_dependents[producer_id].append(task_id)
         return [
             list(task_spec["dependents"]) if "dependents" in task_spec else inferred_dependents[task_id]
             for task_id, task_spec in enumerate(task_specs)

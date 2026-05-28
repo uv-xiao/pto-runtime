@@ -57,6 +57,10 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/h200.json`
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/cuda-smoke-report.svg`
+- `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/a100.json`
+- `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/h200.json`
+- `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/cuda-smoke-report.md`
+- `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/cuda-smoke-report.svg`
 
 ## Current-Head Compact Paired Gate
 
@@ -190,6 +194,37 @@ PYTHONPATH=$PWD:$PWD/python \
 Both rows reported zero device scheduler errors and generated Markdown/SVG
 smoke reports. The high H200 host time is launch-side noise in this single
 capture; the per-launch CUDA event times are the useful lifecycle signal.
+
+## Supplemental Reordered Graph-Descriptor Smoke
+
+The reordered graph-descriptor persistent DAG smoke at artifact label
+`f877b7b3` validates order-independent tensor-flow dependency inference. The
+runtime task list is `[final add, generic args, multiply]`, so the final
+consumer has task id `0` but starts with fan-in `2`; both producer tasks point
+back to it through dependents `[0,0]`.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/a100.json \
+    tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-dag-shape graph_descriptor_reordered --expected-repeat-runs 2 \
+    --expected-completed-count 3 --expected-dispatch 1,9,2 \
+    --require-report-files
+```
+
+| GPU | Dispatch | Fan-in | Dependents | Launch completions | Device ns | Host ns | Status |
+| --- | -------- | ------ | ---------- | ------------------ | --------- | ------- | ------ |
+| A100 | `1,9,2` | `2,0,0` | `0,0` | `3,3` | 63488 | 91185 | pass |
+| H200 | `1,9,2` | `2,0,0` | `0,0` | `3,3` | 46240 | 63520 | pass |
+
+Both rows reported zero device scheduler errors and generated Markdown/SVG
+smoke reports. This is correctness evidence for graph lowering; the task body
+and arithmetic are the same as the generic-args graph descriptor.
 
 ## Launch Baselines
 
