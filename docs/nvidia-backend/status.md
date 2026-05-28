@@ -305,7 +305,7 @@ H200 reported
 `16992/31264/40320/30592/27520/48992/32480/34304/31872 ns`. All PTO
 persistent DAG rows reported zero device scheduler errors.
 
-The latest compact paired validation at artifact label `dbb01406` adds
+The compact paired validation at artifact label `dbb01406` adds
 `pto_persistent_dag_graph_scratch_reuse` to the selected benchmark path after
 the previous `06b8c0c6` graph-chain gate. It uses the same `N=1024`, one
 repeat, `batch_tasks=2`, `worker_blocks_per_task=4`, and default `16x16x16`
@@ -533,7 +533,8 @@ Evidence:
 - `.agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py` renders
   the compact benchmark tables, selected benchmark tensor-throughput table,
   and compact tensor-sweep median table used by
-  [evaluation-current.md](evaluation-current.md) from raw JSON artifacts.
+  [evaluation-current.md](evaluation-current.md) from raw JSON artifacts,
+  including graph scratch-reuse ratios in the DAG-shapes table.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py`
   checks paired benchmark captures for expected machines, selected baselines,
   sizes, repeats, sample count, generated report files, source-paper

@@ -1608,8 +1608,10 @@ PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
 Use `--section launch`, `--section unary-square`, `--section worker-grid`,
 `--section dag-shapes`, or `--section tensor-throughput` to refresh only one
 table. The tensor-throughput section summarizes selected benchmark tensor-DAG
-and cuBLAS rows as median GF/s from recorded tensor tile descriptors. This
-avoids hand-calculating the current-evaluation summary from raw JSON.
+and cuBLAS rows as median GF/s from recorded tensor tile descriptors. The
+DAG-shapes section includes explicit graph scratch-reuse rows when the capture
+has `pto_persistent_dag_graph_scratch_reuse`, avoiding hand-calculated
+current-evaluation ratios from raw JSON.
 
 Render the compact tensor-baseline sweep table directly from its raw sweep
 JSON:
@@ -1641,8 +1643,10 @@ selected tensor baselines, the host-schedule generic-args baseline, graph
 generic-args4 baseline, graph-chain baseline, graph-scratch-reuse baseline,
 graph-tagged-inout baseline, size `1024`, one repeat, `68` combined samples,
 and the Markdown/SVG report files.
-The current compact gate artifact with graph-scratch-reuse benchmark coverage
-is under `tmp/cuda-backend/combined-current-dbb01406/`.
+A historical compact gate artifact with graph-scratch-reuse benchmark coverage
+is under `tmp/cuda-backend/combined-current-dbb01406/`; validate older
+captures with explicit `--require-*` checks if the current preset has gained
+new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the
 selected benchmark rows can change with runner flags.
 `--require-command-examples` checks that

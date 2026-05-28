@@ -4963,6 +4963,13 @@ def test_cuda_current_summary_renders_worker_and_dag_tables():
             },
             {
                 "machine": "hina",
+                "baseline": "pto_persistent_dag_graph_scratch_reuse",
+                "n": 65536,
+                "task_count": 6,
+                "device_wall_ns": 3600,
+            },
+            {
+                "machine": "hina",
                 "baseline": "pto_persistent_dag_unary_square",
                 "n": 65536,
                 "task_count": 3,
@@ -4984,7 +4991,7 @@ def test_cuda_current_summary_renders_worker_and_dag_tables():
     assert "| A100 | 65536 | 6 | 128 | 3000 | 0.30x |" in worker_table
     assert (
         "| A100 | 65536 | 1.50x | 2.00x | 1.25x | 1.23x | 1.30x | 1.35x | 1.40x | "
-        "1.10x | 1.15x | - | - | 1.20x | 2.50x |"
+        "1.10x | 1.15x | - | 1.80x | - | 1.20x | 2.50x |"
     ) in dag_table
 
 
@@ -5029,10 +5036,10 @@ def test_cuda_current_summary_keeps_old_captures_without_scalar_affine():
     assert (
         "| GPU | N | Chain/DAG | Reuse/DAG | Scalar AXPY/DAG | Scalar Scale/DAG | Scalar Affine/DAG | "
         "Triad/DAG | Quad/DAG | Generic Args/DAG | Graph Descriptor/DAG | Graph Diamond/DAG | "
-        "Graph Tagged Inout/DAG | Unary Square/DAG | "
+        "Graph Scratch Reuse/DAG | Graph Tagged Inout/DAG | Unary Square/DAG | "
         "Tensor/DAG |"
     ) in dag_table
-    assert "| A100 | 65536 | 1.50x | 2.00x | 1.25x | - | - | - | - | - | - | - | - | - | 2.50x |" in dag_table
+    assert "| A100 | 65536 | 1.50x | 2.00x | 1.25x | - | - | - | - | - | - | - | - | - | - | 2.50x |" in dag_table
 
 
 def test_cuda_current_summary_renders_tensor_sweep_table():

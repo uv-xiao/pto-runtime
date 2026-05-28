@@ -138,7 +138,9 @@ The compact benchmark and tensor-sweep tables in
 [Current capture](evaluation-current.md) can be regenerated from raw JSON with
 `.agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py`, including
 the selected benchmark tensor-throughput table via
-`--section tensor-throughput`.
+`--section tensor-throughput` and graph scratch-reuse ratios via
+`--section dag-shapes` when the capture includes
+`pto_persistent_dag_graph_scratch_reuse`.
 New benchmark and tensor-sweep Markdown reports embed source-paper provenance
 for the VDCores and MPK notes kept under `tmp/sources/` and sanitized
 local/remote command examples for reconstructing the run. Tensor sweeps also

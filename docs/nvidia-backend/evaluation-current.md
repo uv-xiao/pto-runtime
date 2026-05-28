@@ -200,9 +200,9 @@ The compact paired gate at commit `b2c5c8a4` uses a WMMA-compatible
 `16x16x16` tensor descriptor, `N=1024`, one repeat, `batch_tasks=2`, and
 `worker_blocks_per_task=4`. The paired runner synced the local tree to
 `bizhaoh200`, captured local A100 and remote H200 reports, merged them, and
-validated the combined JSON with the `compact-current` preset.
+validated the combined JSON with the then-current compact preset.
 
-Validation command:
+Original validation command at capture time:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
@@ -268,8 +268,8 @@ metadata, and zero scheduler errors.
 
 This capture is intentionally retained as previous evidence before the
 graph-generic-args4 benchmark promotion. The `b2c5c8a4` gate superseded it at
-that point; the later `dbb01406` graph-scratch-reuse gate is the current
-`compact-current` validation artifact.
+that point; the later `dbb01406` graph-scratch-reuse gate superseded it for
+explicit graph scratch-reuse evidence.
 
 Original validation command at capture time:
 
@@ -330,7 +330,17 @@ Validation command:
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
     tmp/cuda-backend/combined-current-dbb01406/cuda-benchmark.json \
-    --preset compact-current
+    --require-machine hina --require-machine dasys-h200x8 \
+    --require-size 1024 --expected-repeats 1 --expected-result-count 64 \
+    --require-baseline pto_persistent_dag_graph_scratch_reuse \
+    --require-dispatch pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1 \
+    --require-scratch-reuse pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4 \
+    --require-tensor-tile pto_persistent_dag_tensor=16x16x16 \
+    --require-tensor-tile pto_persistent_dag_graph_tensor=16x16x16 \
+    --require-tensor-tile pto_persistent_dag_tensor_core=16x16x16 \
+    --require-tensor-tile cublas_sgemm=16x16x16 \
+    --require-report-files --require-command-examples \
+    --require-zero-scheduler-errors --require-source-papers
 ```
 
 Graph-chain and scratch-reuse rows from the capture:
@@ -353,6 +363,10 @@ Graph-chain and scratch-reuse rows from the capture:
 - H200 graph scratch reuse: dispatch `1,2,1,2,1,1`, fan-in
   `0,0,2,1,1,2`, dependents `2,2,3,4,5,5`, scratch `tmp0@4`,
   device `38240 ns`, host `48080 ns`, status `pass`.
+
+The generated DAG-shapes summary for this compact capture now includes
+`Graph Scratch Reuse/DAG`: A100 reports `0.86x` and H200 reports `1.05x`
+relative to the matched base `pto_persistent_dag` row.
 
 This capture makes the explicit graph-descriptor scratch-reuse shape visible
 in the same benchmark/report/validator path as the selected graph,
