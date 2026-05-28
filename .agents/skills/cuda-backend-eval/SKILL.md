@@ -515,6 +515,9 @@ For explicit graph-descriptor smokes, it also passes
 `--expected-graph-fanin` and `--expected-graph-dependents`, so reordered,
 diamond, scratch-reuse, and graph tensor captures must prove the recorded
 runtime graph topology.
+For `graph_descriptor_tagged`, it additionally passes
+`--expected-graph-task-args`, so tagged graph captures must prove the
+TaskArgs-like roles that were lowered into the runtime descriptor.
 
 The JSON payload and compact report include `resource_policy` fields for
 `scheduler_blocks`, `worker_blocks`, `worker_blocks_per_task`, `stream_id`,
@@ -1615,8 +1618,8 @@ requirements automatically from `--tensor-rows`, `--tensor-cols`, and
 Use `cuda_validate_smoke.py` for paired smoke artifacts. It checks required
 artifacts, pass status, zero device scheduler errors, expected runtime/mode,
 dispatch IDs, repeat-run lifecycle counts, tensor-tile descriptor shape when
-requested, graph-descriptor fan-in/dependent metadata when requested, and
-generated smoke report files.
+requested, graph-descriptor fan-in/dependent metadata when requested,
+`graph_task_args` metadata when requested, and generated smoke report files.
 `cuda_pair_persistent_smoke.py` runs this validator automatically unless
 `--skip-validation` is set.
 

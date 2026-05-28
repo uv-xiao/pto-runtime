@@ -574,6 +574,8 @@ PYTHONPATH=$PWD:$PWD/python \
     --expected-dispatch 9,2,1 \
     --expected-graph-fanin 0,0,2 \
     --expected-graph-dependents 2,2 \
+    --expected-graph-task-args \
+      'task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2;task2=input:tmp1,input:tmp2,output_existing:out' \
     --require-report-files
 ```
 
@@ -588,7 +590,9 @@ smoke reports. The regenerated report and artifact index include a
 fan-in/dependent topology and the original tagged task-argument roles. This is
 still host-side descriptor construction, but it proves the tagged
 task-argument representation can feed the same persistent-device scheduler
-path on A100 and H200.
+path on A100 and H200. The paired validator also checks
+`--expected-graph-task-args`, so the artifact fails validation if those tagged
+roles disappear from either GPU payload.
 
 The diamond graph-descriptor paired smoke at artifact label `072e396c`
 validates a wider explicit descriptor shape than the three-task

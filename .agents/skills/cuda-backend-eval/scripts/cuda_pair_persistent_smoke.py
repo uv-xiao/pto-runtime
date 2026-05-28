@@ -312,6 +312,16 @@ def _expected_graph_descriptor(config: PairedPersistentSmokeConfig) -> tuple[str
     }.get(config.dag_shape)
 
 
+def _expected_graph_task_args(config: PairedPersistentSmokeConfig) -> str | None:
+    if config.mode != "dag" or config.dag_shape != "graph_descriptor_tagged":
+        return None
+    return (
+        "task0=input:a,input:b,output:tmp1;"
+        "task1=input:a,input:b,output:tmp2;"
+        "task2=input:tmp1,input:tmp2,output_existing:out"
+    )
+
+
 def _expected_scheduler_blocks(config: PairedPersistentSmokeConfig) -> int:
     if config.mode == "direct":
         return 0
@@ -375,6 +385,9 @@ def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> 
     if expected_graph_descriptor is not None:
         fanin, dependents = expected_graph_descriptor
         command.extend(["--expected-graph-fanin", fanin, "--expected-graph-dependents", dependents])
+    expected_graph_task_args = _expected_graph_task_args(config)
+    if expected_graph_task_args is not None:
+        command.extend(["--expected-graph-task-args", expected_graph_task_args])
     return command
 
 

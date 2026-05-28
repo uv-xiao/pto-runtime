@@ -1729,7 +1729,9 @@ The paired validator accepted dispatch `9,2,1`, fan-in `[0,0,2]`,
 dependents `[2,2]`, repeat completions `[3,3]`, and zero scheduler errors on
 both GPUs. The regenerated Markdown/SVG smoke report and artifact index also
 show `Graph task args`, so this artifact now visibly ties the paired hardware
-result back to the tagged task-argument lowering form.
+result back to the tagged task-argument lowering form. The smoke validator
+now checks `--expected-graph-task-args` for this shape as well as dispatch,
+fan-in, dependents, lifecycle counters, resource policy, and report files.
 
 The host-schedule generic-args adapter was checked with a failing test first,
 then local A100 and remote H200 real-data ctypes scene tests:

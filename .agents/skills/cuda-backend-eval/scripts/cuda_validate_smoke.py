@@ -61,6 +61,7 @@ class SmokeValidationExpectation:
     tensor_tile: str | None = None
     graph_fanin: str | None = None
     graph_dependents: str | None = None
+    graph_task_args: str | None = None
     resource_policy: ResourcePolicyExpectation | None = None
     require_report_files: bool = False
 
@@ -235,6 +236,29 @@ def _validate_graph_descriptor(
     return errors
 
 
+def _graph_task_args(payload: dict[str, Any]) -> str | None:
+    task_args = payload.get("graph_task_args")
+    if not isinstance(task_args, dict):
+        return None
+    return ";".join(f"{key}={task_args[key]}" for key in sorted(task_args))
+
+
+def _validate_graph_task_args(
+    payloads: list[dict[str, Any]],
+    *,
+    expected_task_args: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if expected_task_args is None:
+        return errors
+    for payload in payloads:
+        artifact = payload.get("_artifact", "unknown")
+        actual = _graph_task_args(payload)
+        if actual != expected_task_args:
+            errors.append(f"expected graph_task_args {expected_task_args} for artifact={artifact}, found {actual}")
+    return errors
+
+
 def _validate_lifecycle(
     payloads: list[dict[str, Any]],
     *,
@@ -306,6 +330,7 @@ def validate_smoke(
             expected_dependents=expectation.graph_dependents,
         )
     )
+    errors.extend(_validate_graph_task_args(payloads, expected_task_args=expectation.graph_task_args))
     errors.extend(
         _validate_lifecycle(
             payloads,
@@ -331,6 +356,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-tensor-tile")
     parser.add_argument("--expected-graph-fanin")
     parser.add_argument("--expected-graph-dependents")
+    parser.add_argument("--expected-graph-task-args")
     parser.add_argument("--expected-scheduler-blocks", type=int)
     parser.add_argument("--expected-worker-blocks", type=int)
     parser.add_argument("--expected-worker-blocks-per-task", type=int)
@@ -370,6 +396,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             tensor_tile=args.expected_tensor_tile,
             graph_fanin=args.expected_graph_fanin,
             graph_dependents=args.expected_graph_dependents,
+            graph_task_args=args.expected_graph_task_args,
             resource_policy=_resource_policy_expectation(args),
             require_report_files=args.require_report_files,
         ),

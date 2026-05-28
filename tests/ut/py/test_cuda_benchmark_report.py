@@ -1668,6 +1668,47 @@ def test_cuda_smoke_validator_checks_graph_descriptor_metadata(tmp_path):
     assert "expected graph_descriptor.dependents 2,3,4 for artifact=a100, found 2,3,2,3,4,4" in errors
 
 
+def test_cuda_smoke_validator_checks_graph_task_args_metadata(tmp_path):
+    cuda_validate_smoke = _load_smoke_validator_module()
+    artifact_dir = tmp_path / "persistent-graph-descriptor-tagged-smoke"
+    artifact_dir.mkdir()
+    payload = {
+        "status": "pass",
+        "runtime": "persistent_device",
+        "mode": "dag",
+        "dag_shape": "graph_descriptor_tagged",
+        "n": 1024,
+        "repeat_runs": 2,
+        "launch_completed_counts": [3, 3],
+        "dispatch_func_ids": [9, 2, 1],
+        "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+        "graph_descriptor": {
+            "tasks": 3,
+            "fanin": [0, 0, 2],
+            "dependents": [2, 2],
+        },
+        "graph_task_args": {
+            "task0": "input:a,input:b,output:tmp1",
+            "task1": "input:a,input:b,output:tmp2",
+        },
+    }
+    (artifact_dir / "a100.json").write_text(json.dumps(payload) + "\n")
+
+    payloads = cuda_validate_smoke.load_smoke_payloads([artifact_dir / "a100.json"])
+    errors = cuda_validate_smoke.validate_smoke(
+        payloads,
+        expectation=cuda_validate_smoke.SmokeValidationExpectation(
+            graph_task_args="task0=input:a,input:b,output:tmp1;task2=input:tmp1,input:tmp2,output_existing:out",
+        ),
+    )
+
+    assert (
+        "expected graph_task_args "
+        "task0=input:a,input:b,output:tmp1;task2=input:tmp1,input:tmp2,output_existing:out "
+        "for artifact=a100, found task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2"
+    ) in errors
+
+
 def test_cuda_smoke_validator_reports_lifecycle_and_report_errors(tmp_path):
     cuda_validate_smoke = _load_smoke_validator_module()
     artifact_dir = tmp_path / "persistent-graph-smoke"
@@ -3120,6 +3161,8 @@ def test_cuda_pair_persistent_smoke_accepts_tagged_graph_descriptor_workflow(tmp
     assert "0,0,2" in validate
     assert "--expected-graph-dependents" in validate
     assert "2,2" in validate
+    assert "--expected-graph-task-args" in validate
+    assert "task2=input:tmp1,input:tmp2,output_existing:out" in " ".join(validate)
 
 
 def test_cuda_pair_persistent_smoke_accepts_graph_descriptor_repeat_runs(tmp_path):
