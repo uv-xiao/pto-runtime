@@ -56,6 +56,7 @@ REPORT_FILES = (
     "cuda-benchmark.svg",
     "cuda-benchmark-ratios.svg",
     "cuda-benchmark-dag-deltas.svg",
+    "cuda-benchmark-throughput.svg",
 )
 PAIRED_CURRENT_DISPATCH = {
     "pto_persistent_dag": "1,2,1",

@@ -292,7 +292,9 @@ outputs. The tensor-core DAG row measured `37888 ns` device time on A100 and
 under `tmp/cuda-backend/combined-tensor-core-current-0879aa9e/`. Benchmark
 reports now also write `cuda-benchmark-dag-deltas.svg`, which plots each
 `pto_persistent_dag_*` row's signed device-time increment over the matched
-`pto_persistent_dag` scheduler baseline.
+`pto_persistent_dag` scheduler baseline, and
+`cuda-benchmark-throughput.svg`, which plots median GF/s for tensor-DAG and
+cuBLAS rows with recorded tensor tile descriptors.
 
 The first cuBLAS library-backed tensor baseline adds `cublas_sgemm` to the
 same compact selected-baseline report shape. It uses CUDA Runtime API events
@@ -1450,8 +1452,9 @@ PYTHONPATH=$PWD:$PWD/python \
 Result: `tmp/cuda-backend/combined-current-d361006f/` contains
 `cuda-benchmark.json`, `cuda-benchmark.md`, `cuda-benchmark.svg`, and
 `cuda-benchmark-ratios.svg`; it also writes
-`cuda-benchmark-dag-deltas.svg`. The combined JSON has `50` samples and the
-paired-current validator reported:
+`cuda-benchmark-dag-deltas.svg`. New reports also write
+`cuda-benchmark-throughput.svg` for tensor and cuBLAS rows. The combined JSON
+has `50` samples and the paired-current validator reported:
 `validated tmp/cuda-backend/combined-current-d361006f/cuda-benchmark.json`.
 This capture proves the default paired workflow now keeps
 `pto_persistent_dag_tensor`, `pto_persistent_dag_tensor_core`, and
@@ -1472,8 +1475,9 @@ PYTHONPATH=$PWD:$PWD/python \
 
 Result: `tmp/cuda-backend/combined-current-0b3c1699/` contains
 `cuda-benchmark.json`, `cuda-benchmark.md`, `cuda-benchmark.svg`,
-`cuda-benchmark-ratios.svg`, and `cuda-benchmark-dag-deltas.svg`. The
-combined JSON has `50` samples and the validator reported:
+`cuda-benchmark-ratios.svg`, and `cuda-benchmark-dag-deltas.svg`. Regenerated
+reports also include `cuda-benchmark-throughput.svg`. The combined JSON has
+`50` samples and the validator reported:
 `validated tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.json`.
 Selected A100 device times for
 host/base-DAG/tensor/tensor-core/cuBLAS/grid-batch were

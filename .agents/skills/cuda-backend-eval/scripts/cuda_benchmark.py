@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import html
 import json
 import math
 import socket
@@ -56,6 +57,12 @@ SOURCE_PAPERS = (
         "path": "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt",
     },
 )
+TENSOR_THROUGHPUT_BASELINES = {
+    "pto_persistent_dag_tensor",
+    "pto_persistent_dag_graph_tensor",
+    "pto_persistent_dag_tensor_core",
+    "cublas_sgemm",
+}
 
 _FALLBACK_SLOW_VECTOR_ADD_PTX = rb"""
 //
@@ -1936,6 +1943,78 @@ def _dag_shape_rows(
     )
 
 
+def _tensor_tile_shape(tile: Any) -> str | None:
+    if not isinstance(tile, dict):
+        return None
+    rows = tile.get("rows")
+    cols = tile.get("cols")
+    inner = tile.get("inner")
+    if rows is None or cols is None or inner is None:
+        return None
+    return f"{rows}x{cols}x{inner}"
+
+
+def _tensor_flops(row: dict[str, Any]) -> int | None:
+    tile = row.get("tensor_tile")
+    if not isinstance(tile, dict):
+        return None
+    rows = tile.get("rows")
+    cols = tile.get("cols")
+    inner = tile.get("inner")
+    if not isinstance(rows, int) or not isinstance(cols, int) or not isinstance(inner, int):
+        return None
+    if rows <= 0 or cols <= 0 or inner <= 0:
+        return None
+    tile_count = tile.get("tile_count")
+    if not isinstance(tile_count, int) or tile_count <= 0:
+        output_elements = rows * cols
+        n = row.get("n")
+        if not isinstance(n, int) or output_elements <= 0 or n % output_elements != 0:
+            return None
+        tile_count = n // output_elements
+    return 2 * tile_count * rows * cols * inner
+
+
+def _tensor_throughput_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, int, int, int], list[dict[str, Any]]] = defaultdict(list)
+    for row in payload.get("results", []):
+        if row.get("baseline") not in TENSOR_THROUGHPUT_BASELINES:
+            continue
+        grouped[
+            (
+                row["machine"],
+                row["baseline"],
+                int(row["n"]),
+                int(row.get("task_count", 1)),
+                int(row.get("worker_blocks_per_task", 1)),
+            )
+        ].append(row)
+
+    rows: list[dict[str, Any]] = []
+    for key, samples in grouped.items():
+        device_values = [int(row["device_wall_ns"]) for row in samples]
+        median_device = int(statistics.median(device_values))
+        flops = _tensor_flops(samples[0])
+        rows.append(
+            {
+                "machine": key[0],
+                "baseline": key[1],
+                "n": key[2],
+                "task_count": key[3],
+                "worker_blocks_per_task": key[4],
+                "shape": _tensor_tile_shape(samples[0].get("tensor_tile")) or "-",
+                "median_device_wall_ns": median_device,
+                "median_gflops": float(flops) / float(median_device) if flops is not None and median_device else None,
+                "samples": len(samples),
+            }
+        )
+    return sorted(rows, key=lambda row: (row["machine"], row["n"], row["baseline"]))
+
+
+def _format_gflops(value: float | None) -> str:
+    return "-" if value is None else f"{value:.2f}"
+
+
 def _ptx_source_rows(payload: dict[str, Any]) -> list[tuple[str, str, str]]:
     sources: set[tuple[str, str, str]] = set()
     for row in payload.get("results", []):
@@ -2176,6 +2255,49 @@ def render_dag_delta_svg(summary: dict[tuple[str, str, int, int, int], dict[str,
     return "\n".join(lines) + "\n"
 
 
+def render_tensor_throughput_svg(payload: dict[str, Any]) -> str:
+    rows = _tensor_throughput_rows(payload)
+    if not rows:
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="760" height="96"></svg>\n'
+
+    max_gflops = max(1.0, *(float(row.get("median_gflops") or 0) for row in rows))
+    left = 340
+    chart_width = 520
+    bar_height = 18
+    row_gap = 10
+    height = 68 + len(rows) * (bar_height + row_gap)
+    width = left + chart_width + 170
+    colors = {
+        "pto_persistent_dag_tensor": "#e76f51",
+        "pto_persistent_dag_graph_tensor": "#c7522a",
+        "pto_persistent_dag_tensor_core": "#d1495b",
+        "cublas_sgemm": "#006d77",
+    }
+    lines = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<rect width="100%" height="100%" fill="white"/>',
+        '<text x="20" y="28" font-family="sans-serif" font-size="18" font-weight="700">'
+        "Tensor throughput by baseline</text>",
+        '<text x="20" y="50" font-family="sans-serif" font-size="12">'
+        "Median GF/s from recorded tensor tile shape</text>",
+    ]
+    for idx, row in enumerate(rows):
+        y = 68 + idx * (bar_height + row_gap)
+        label = f"{row['machine']} n={row['n']} {row['shape']} {row['baseline']}"
+        value = row.get("median_gflops")
+        numeric_value = float(value or 0)
+        bar_width = int(chart_width * numeric_value / max_gflops) if max_gflops else 0
+        color = colors.get(row["baseline"], "#777777")
+        lines.append(f'<text x="20" y="{y + 14}" font-family="sans-serif" font-size="12">{html.escape(label)}</text>')
+        lines.append(f'<rect x="{left}" y="{y}" width="{bar_width}" height="{bar_height}" fill="{color}"/>')
+        lines.append(
+            f'<text x="{left + bar_width + 8}" y="{y + 14}" font-family="sans-serif" font-size="12">'
+            f"{_format_gflops(value)} GF/s</text>"
+        )
+    lines.append("</svg>")
+    return "\n".join(lines) + "\n"
+
+
 def render_markdown_report(payload: dict[str, Any]) -> str:
     summary = summarize_results(payload)
     device_refs = _matched_device_refs(summary)
@@ -2282,6 +2404,22 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 f"{row['task_count']} | {row['base_device_wall_ns']} | "
                 f"{row['median_device_wall_ns']} | {increment} | "
                 f"{_signed_ratio_text(increment, row['base_device_wall_ns'])} |"
+            )
+    tensor_rows = _tensor_throughput_rows(payload)
+    if tensor_rows:
+        lines.extend(
+            [
+                "",
+                "## Tensor Throughput Rows",
+                "",
+                "| Machine | Baseline | N | Tensor tile | Median device ns | Median GF/s |",
+                "| ------- | -------- | - | ----------- | ---------------- | ----------- |",
+            ]
+        )
+        for row in tensor_rows:
+            lines.append(
+                f"| {row['machine']} | {row['baseline']} | {row['n']} | {row['shape']} | "
+                f"{row['median_device_wall_ns']} | {_format_gflops(row['median_gflops'])} |"
             )
     ptx_source_rows = _ptx_source_rows(payload)
     if ptx_source_rows:
@@ -2410,6 +2548,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "",
             "![DAG increment chart](cuda-benchmark-dag-deltas.svg)",
             "",
+            "![Tensor throughput chart](cuda-benchmark-throughput.svg)",
+            "",
         ]
     )
     return "\n".join(lines)
@@ -2423,6 +2563,7 @@ def write_report(payload: dict[str, Any], output_dir: Path) -> None:
     (output_dir / "cuda-benchmark.svg").write_text(render_svg(summary))
     (output_dir / "cuda-benchmark-ratios.svg").write_text(render_ratio_svg(summary))
     (output_dir / "cuda-benchmark-dag-deltas.svg").write_text(render_dag_delta_svg(summary))
+    (output_dir / "cuda-benchmark-throughput.svg").write_text(render_tensor_throughput_svg(payload))
 
 
 def _parse_sizes(raw: str) -> list[int]:

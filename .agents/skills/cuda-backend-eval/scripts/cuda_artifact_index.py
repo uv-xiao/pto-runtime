@@ -161,7 +161,7 @@ def _read_artifact(path: Path, root: Path) -> dict[str, Any]:
         "has_command_examples": _has_command_examples(metadata),
         "has_markdown": (path / "cuda-benchmark.md").exists(),
         "has_svg": (path / "cuda-benchmark.svg").exists(),
-        "has_throughput_svg": False,
+        "has_throughput_svg": (path / "cuda-benchmark-throughput.svg").exists(),
         "has_ratio_svg": (path / "cuda-benchmark-ratios.svg").exists(),
         "has_dag_delta_svg": (path / "cuda-benchmark-dag-deltas.svg").exists(),
     }

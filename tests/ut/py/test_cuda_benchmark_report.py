@@ -502,6 +502,7 @@ def test_cuda_artifact_index_scans_benchmark_outputs(tmp_path):
     )
     (artifact_dir / "cuda-benchmark.md").write_text("# report\n")
     (artifact_dir / "cuda-benchmark.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-throughput.svg").write_text("<svg></svg>\n")
     (artifact_dir / "cuda-benchmark-ratios.svg").write_text("<svg></svg>\n")
     (artifact_dir / "cuda-benchmark-dag-deltas.svg").write_text("<svg></svg>\n")
 
@@ -522,7 +523,7 @@ def test_cuda_artifact_index_scans_benchmark_outputs(tmp_path):
             "has_command_examples": False,
             "has_markdown": True,
             "has_svg": True,
-            "has_throughput_svg": False,
+            "has_throughput_svg": True,
             "has_ratio_svg": True,
             "has_dag_delta_svg": True,
         }
@@ -857,6 +858,7 @@ def test_cuda_capture_validator_accepts_complete_capture(tmp_path):
     (artifact_dir / "cuda-benchmark.svg").write_text("<svg></svg>\n")
     (artifact_dir / "cuda-benchmark-ratios.svg").write_text("<svg></svg>\n")
     (artifact_dir / "cuda-benchmark-dag-deltas.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-throughput.svg").write_text("<svg></svg>\n")
 
     errors = cuda_validate_capture.validate_capture(
         payload,
@@ -904,6 +906,7 @@ def test_cuda_capture_validator_reports_missing_baseline_and_artifact(tmp_path):
     assert "missing report file cuda-benchmark.svg" in errors
     assert "missing report file cuda-benchmark-ratios.svg" in errors
     assert "missing report file cuda-benchmark-dag-deltas.svg" in errors
+    assert "missing report file cuda-benchmark-throughput.svg" in errors
 
 
 def test_cuda_capture_validator_requires_source_papers(tmp_path):
@@ -4333,6 +4336,72 @@ def test_write_report_writes_dag_delta_svg(tmp_path):
     cuda_benchmark.write_report(payload, tmp_path)
 
     assert (tmp_path / "cuda-benchmark-dag-deltas.svg").exists()
+
+
+def test_render_report_includes_tensor_throughput_rows():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "tensor-throughput-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+            "tensor_tile": {"rows": 16, "cols": 16, "inner": 16},
+        },
+        "results": [
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_dag_tensor_core",
+                "n": 512,
+                "task_count": 4,
+                "device_wall_ns": 1024,
+                "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 2},
+            },
+            {
+                "machine": "a100-local",
+                "baseline": "cublas_sgemm",
+                "n": 512,
+                "task_count": 1,
+                "device_wall_ns": 2048,
+                "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 2},
+            },
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+    svg = cuda_benchmark.render_tensor_throughput_svg(payload)
+
+    assert "## Tensor Throughput Rows" in report
+    assert "| a100-local | pto_persistent_dag_tensor_core | 512 | 16x16x16 | 1024 | 16.00 |" in report
+    assert "| a100-local | cublas_sgemm | 512 | 16x16x16 | 2048 | 8.00 |" in report
+    assert "![Tensor throughput chart](cuda-benchmark-throughput.svg)" in report
+    assert "Tensor throughput by baseline" in svg
+    assert "16.00 GF/s" in svg
+
+
+def test_write_report_writes_tensor_throughput_svg(tmp_path):
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "write-throughput-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+            "tensor_tile": {"rows": 16, "cols": 16, "inner": 16},
+        },
+        "results": [
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_dag_tensor_core",
+                "n": 512,
+                "task_count": 4,
+                "device_wall_ns": 1024,
+                "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 2},
+            }
+        ],
+    }
+
+    cuda_benchmark.write_report(payload, tmp_path)
+
+    assert (tmp_path / "cuda-benchmark-throughput.svg").exists()
 
 
 def test_render_report_uses_batch_host_schedule_reference_for_batch_rows():

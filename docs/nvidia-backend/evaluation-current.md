@@ -35,16 +35,19 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/combined-current-d361006f/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-current-d361006f/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-d361006f/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/combined-current-d361006f/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.json`
 - `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.json`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.json`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-current-a46db551/cuda-benchmark.json`
@@ -534,6 +537,9 @@ The generated `cuda-benchmark-dag-deltas.svg` chart visualizes the signed
 device-time increment over the matched `pto_persistent_dag` scheduler
 baseline, which is the current report view for separating scheduler overhead
 from additional generated-dispatch task work.
+Regenerated benchmark reports also include `cuda-benchmark-throughput.svg`,
+which normalizes tensor-DAG and cuBLAS rows by the recorded tensor tile
+descriptor and tile count into median GF/s.
 
 ## cuBLAS Library Baseline Row
 

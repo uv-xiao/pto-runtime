@@ -1016,6 +1016,8 @@ The script writes:
   against its matched reference.
 - `cuda-benchmark-dag-deltas.svg`: bar chart of each `pto_persistent_dag_*`
   row's device-time increment over the matched `pto_persistent_dag` row.
+- `cuda-benchmark-throughput.svg`: bar chart of median GF/s for tensor-DAG
+  and cuBLAS rows that record a tensor tile descriptor.
 
 For tensor-DAG and tensor-library experiments, pass `--tensor-rows`,
 `--tensor-cols`, and `--tensor-inner` to the benchmark script. These flags
@@ -1380,6 +1382,11 @@ show the absolute device-time delta after subtracting the matched
 `pto_persistent_dag` scheduler baseline. Use that view when distinguishing
 scheduler overhead from extra task-body work in tensor, tensor-core, graph,
 and other generated-dispatch DAG rows.
+Tensor and cuBLAS rows also produce a `Tensor Throughput Rows` table and
+`cuda-benchmark-throughput.svg`. That view normalizes the recorded
+`rows x cols x inner` descriptor and tile count into median GF/s, so use it
+when comparing selected tensor baselines by useful arithmetic rather than raw
+launch time.
 
 The report also includes a PTX-source table by machine and baseline. Treat any
 `embedded-sm80-*` row as a fallback path: the local CUDA driver JIT compiled
