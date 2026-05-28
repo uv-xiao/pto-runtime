@@ -42,6 +42,7 @@ class PairedPersistentSmokeConfig:
     worker_blocks_per_task: int = 1
     worker_blocks: int | None = None
     stream_id: int = 0
+    block_dim: int = 256
     repeat_runs: int = 1
     tensor_rows: int = 16
     tensor_cols: int = 16
@@ -128,6 +129,8 @@ def _smoke_args(*, device: int, arch: str, output_json: Path, config: PairedPers
         str(config.worker_blocks_per_task),
         "--stream-id",
         str(config.stream_id),
+        "--block-dim",
+        str(config.block_dim),
         "--repeat-runs",
         str(config.repeat_runs),
         "--output-json",
@@ -353,7 +356,7 @@ def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> 
         "--expected-stream-id",
         str(config.stream_id),
         "--expected-block-dim",
-        "256",
+        str(config.block_dim),
         "--expected-grid-dim",
         str(expected_scheduler_blocks + expected_worker_blocks),
         "--require-report-files",
@@ -463,6 +466,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--worker-blocks-per-task", type=int, default=1)
     parser.add_argument("--worker-blocks", type=int, default=None)
     parser.add_argument("--stream-id", type=int, default=0)
+    parser.add_argument("--block-dim", type=int, default=256)
     parser.add_argument("--repeat-runs", type=int, default=1)
     parser.add_argument("--tensor-rows", type=int, default=16)
     parser.add_argument("--tensor-cols", type=int, default=16)
@@ -499,6 +503,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         worker_blocks_per_task=args.worker_blocks_per_task,
         worker_blocks=args.worker_blocks,
         stream_id=args.stream_id,
+        block_dim=args.block_dim,
         repeat_runs=args.repeat_runs,
         tensor_rows=args.tensor_rows,
         tensor_cols=args.tensor_cols,

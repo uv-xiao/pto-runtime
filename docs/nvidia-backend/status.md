@@ -2551,12 +2551,17 @@ Needed:
   scheduler errors, so the remaining lifecycle gap is normal PTO graph breadth
   rather than prepared-callable reset coverage;
 - broader resource policy beyond the current single scheduler block,
-  configurable queue/DAG worker blocks, direct worker-blocks-per-task, and
-  callable stream id tracer bullet. The current paired A100/H200 resource
-  policy smoke validates a five-task DAG-chain repeat run with
-  `scheduler_blocks=1`, `worker_blocks=2`, `worker_blocks_per_task=1`,
-  `stream_id=1`, `block_dim=256`, and `grid_dim=3`, so the remaining gap is
-  policy breadth rather than artifact validation;
+  configurable queue/DAG worker blocks, direct worker-blocks-per-task,
+  callable stream id tracer bullet, and configurable block dimension. The
+  current paired A100/H200 resource-policy smoke validates a five-task
+  DAG-chain repeat run with `scheduler_blocks=1`, `worker_blocks=2`,
+  `worker_blocks_per_task=1`, `stream_id=1`, `block_dim=128`, and
+  `grid_dim=3`. The capture under
+  `tmp/cuda-backend/persistent-block128-working/` also validates
+  `repeat_runs=2`, `launch_completed_counts=[5,5]`, dispatch
+  `1,2,1,2,1`, generated Markdown/SVG reports, and zero device scheduler
+  errors on A100 and H200, so the remaining gap is policy breadth rather than
+  artifact validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow, initial-fan-in, and
   no-root/unreachable-task diagnostics.

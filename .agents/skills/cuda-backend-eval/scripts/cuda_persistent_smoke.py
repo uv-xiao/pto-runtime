@@ -1064,6 +1064,7 @@ class DagSmokeConfig:
     queue_capacity: int
     worker_blocks: int
     stream_id: int
+    block_dim: int
     ptx: bytes
     ptx_buf: Any
     persistent_artifact: CudaPersistentCallableArtifact | None
@@ -1995,6 +1996,7 @@ def _make_direct_launch(
     dev_tasks: int,
     worker_blocks_per_task: int = 1,
     stream_id: int = 0,
+    block_dim: int = 256,
 ) -> PersistentLaunch:
     if worker_blocks_per_task <= 0:
         raise ValueError("worker_blocks_per_task must be positive")
@@ -2018,7 +2020,7 @@ def _make_direct_launch(
             image_size=ptx_size,
             entry_name=entry_name,
             grid_dim=worker_blocks,
-            block_dim=256,
+            block_dim=block_dim,
             shared_mem_bytes=0,
             stream_id=stream_id,
         ),
@@ -2039,6 +2041,7 @@ def _make_queue_launch(
     dev_tasks: int,
     worker_blocks: int,
     stream_id: int = 0,
+    block_dim: int = 256,
 ) -> PersistentLaunch:
     host_counters_t = ctypes.c_uint32 * 3
     host_counters = host_counters_t(0, 0, 0)
@@ -2085,7 +2088,7 @@ def _make_queue_launch(
             image_size=ptx_size,
             entry_name=b"pto_persistent_vector_add_queue_executor",
             grid_dim=scheduler_blocks + worker_blocks,
-            block_dim=256,
+            block_dim=block_dim,
             shared_mem_bytes=0,
             stream_id=stream_id,
         ),
@@ -2113,9 +2116,18 @@ def _make_launch(  # noqa: PLR0913
     worker_blocks_per_task: int = 1,
     worker_blocks: int | None = None,
     stream_id: int = 0,
+    block_dim: int = 256,
 ) -> PersistentLaunch:
     if mode == "direct":
-        return _make_direct_launch(ptx_buf, ptx_size, task_count, dev_tasks, worker_blocks_per_task, stream_id)
+        return _make_direct_launch(
+            ptx_buf,
+            ptx_size,
+            task_count,
+            dev_tasks,
+            worker_blocks_per_task,
+            stream_id,
+            block_dim,
+        )
     return _make_queue_launch(
         runtime,
         ctx,
@@ -2126,6 +2138,7 @@ def _make_launch(  # noqa: PLR0913
         dev_tasks,
         worker_blocks if worker_blocks is not None else max(1, task_count),
         stream_id,
+        block_dim,
     )
 
 
@@ -2309,7 +2322,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             artifact,
             op=1003,
             grid_dim=scheduler_blocks + worker_blocks,
-            block_dim=256,
+            block_dim=config.block_dim,
             shared_mem_bytes=0,
             stream_id=config.stream_id,
         )
@@ -2327,7 +2340,20 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             host_fanin, host_counters = reset_launch_state()
             timing = PtoRunTiming()
             if (
-                runtime.run_prepared(ctx, None, 0, ctypes.byref(args), 256, 0, 0, 0, 0, 0, None, ctypes.byref(timing))
+                runtime.run_prepared(
+                    ctx,
+                    None,
+                    0,
+                    ctypes.byref(args),
+                    config.block_dim,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    None,
+                    ctypes.byref(timing),
+                )
                 != 0
             ):
                 raise RuntimeError("run_prepared dag failed")
@@ -2489,7 +2515,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 "worker_blocks": worker_blocks,
                 "worker_blocks_per_task": 1,
                 "stream_id": config.stream_id,
-                "block_dim": 256,
+                "block_dim": config.block_dim,
                 "grid_dim": scheduler_blocks + worker_blocks,
             },
             "completed_count": completed_count,
@@ -2628,6 +2654,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
     worker_blocks_per_task: int = 1,
     worker_blocks: int | None = None,
     stream_id: int = 0,
+    block_dim: int = 256,
     dag_shape: str = "fork_join",
     tensor_rows: int = 16,
     tensor_cols: int = 16,
@@ -2676,6 +2703,8 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         raise ValueError("worker_blocks is only supported for queue and dag modes")
     if stream_id < 0:
         raise ValueError("stream_id must be non-negative")
+    if block_dim <= 0:
+        raise ValueError("block_dim must be positive")
     if repeat_runs <= 0:
         raise ValueError("repeat_runs must be positive")
     tensor_tile = _make_tensor_tile_descriptor(rows=tensor_rows, cols=tensor_cols, inner=tensor_inner)
@@ -2735,6 +2764,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
                     queue_capacity=queue_capacity,
                     worker_blocks=worker_blocks if worker_blocks is not None else task_count,
                     stream_id=stream_id,
+                    block_dim=block_dim,
                     ptx=ptx,
                     ptx_buf=ptx_buf,
                     persistent_artifact=persistent_artifact,
@@ -2783,6 +2813,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
                 worker_blocks_per_task,
                 worker_blocks,
                 stream_id,
+                block_dim,
             )
             if runtime.prepare_callable(ctx, 0, ctypes.byref(launch.manifest)) != 0:
                 raise RuntimeError("prepare_callable failed")
@@ -2800,7 +2831,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
                         None,
                         0,
                         ctypes.byref(launch.args),
-                        256,
+                        block_dim,
                         0,
                         0,
                         0,
@@ -2858,7 +2889,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
             "worker_blocks": launch.worker_blocks,
             "worker_blocks_per_task": worker_blocks_per_task,
             "stream_id": stream_id,
-            "block_dim": 256,
+            "block_dim": block_dim,
             "grid_dim": launch.scheduler_blocks + launch.worker_blocks,
         },
         "completed_count": completed_count,
@@ -2885,6 +2916,7 @@ def main() -> None:
     parser.add_argument("--worker-blocks-per-task", type=int, default=1)
     parser.add_argument("--worker-blocks", type=int, default=None)
     parser.add_argument("--stream-id", type=int, default=0)
+    parser.add_argument("--block-dim", type=int, default=256)
     parser.add_argument("--repeat-runs", type=int, default=1)
     parser.add_argument(
         "--dag-shape",
@@ -2936,6 +2968,7 @@ def main() -> None:
             worker_blocks_per_task=args.worker_blocks_per_task,
             worker_blocks=args.worker_blocks,
             stream_id=args.stream_id,
+            block_dim=args.block_dim,
             dag_shape=args.dag_shape,
             tensor_rows=args.tensor_rows,
             tensor_cols=args.tensor_cols,

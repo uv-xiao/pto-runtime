@@ -2541,6 +2541,7 @@ def test_cuda_persistent_smoke_main_writes_output_json(tmp_path, monkeypatch, ca
             "device": kwargs["device"],
             "n": kwargs["n"],
             "ptx_arch": kwargs["arch"],
+            "resource_policy": {"block_dim": kwargs["block_dim"]},
         },
     )
     monkeypatch.setattr(
@@ -2562,6 +2563,8 @@ def test_cuda_persistent_smoke_main_writes_output_json(tmp_path, monkeypatch, ca
             "3",
             "--dag-shape",
             "chain",
+            "--block-dim",
+            "128",
             "--output-json",
             str(output),
         ],
@@ -2577,6 +2580,7 @@ def test_cuda_persistent_smoke_main_writes_output_json(tmp_path, monkeypatch, ca
     assert written["dag_shape"] == "chain"
     assert written["device"] == 1
     assert written["ptx_arch"] == "compute_90"
+    assert written["resource_policy"]["block_dim"] == 128
 
 
 def test_cuda_pair_persistent_smoke_builds_chain_a100_h200_workflow(tmp_path):
@@ -2593,6 +2597,7 @@ def test_cuda_pair_persistent_smoke_builds_chain_a100_h200_workflow(tmp_path):
         queue_capacity=3,
         worker_blocks=2,
         stream_id=1,
+        block_dim=128,
     )
 
     local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
@@ -2616,6 +2621,8 @@ def test_cuda_pair_persistent_smoke_builds_chain_a100_h200_workflow(tmp_path):
     assert "2" in local
     assert "--stream-id" in local
     assert "1" in local
+    assert "--block-dim" in local
+    assert "128" in local
     assert "--arch" in local
     assert "compute_80" in local
     assert str(tmp_path / "cuda-backend" / "persistent-chain-smoke-abc123" / "a100.json") in local
@@ -2634,6 +2641,7 @@ def test_cuda_pair_persistent_smoke_builds_chain_a100_h200_workflow(tmp_path):
     assert "--dag-shape chain" in remote_shell
     assert "--worker-blocks 2" in remote_shell
     assert "--stream-id 1" in remote_shell
+    assert "--block-dim 128" in remote_shell
     assert "--arch compute_90" in remote_shell
     assert "persistent-chain-smoke-abc123/h200.json" in remote_shell
 
@@ -2667,7 +2675,7 @@ def test_cuda_pair_persistent_smoke_builds_chain_a100_h200_workflow(tmp_path):
     assert "--expected-worker-blocks-per-task" in validate
     assert "--expected-stream-id" in validate
     assert "--expected-block-dim" in validate
-    assert "256" in validate
+    assert "128" in validate
     assert "--expected-grid-dim" in validate
     assert "3" in validate
     assert "--require-report-files" in validate

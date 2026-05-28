@@ -209,16 +209,17 @@ PYTHONPATH=$PWD:$PWD/python \
     --device 0 --task-count 4 --n 1024 --arch compute_80 --mode queue
 ```
 
-Pass `--worker-blocks` and `--stream-id` to validate the current
+Pass `--worker-blocks`, `--stream-id`, and `--block-dim` to validate the current
 persistent-device resource policy: one scheduler block, configurable queue/DAG
 worker blocks, direct-mode `--worker-blocks-per-task`, and CUDA callable stream
-selection.
+selection plus the manifest block dimension.
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
     --device 0 --task-count 6 --n 1024 --arch compute_80 \
-    --mode queue --queue-capacity 2 --worker-blocks 2 --stream-id 1
+    --mode queue --queue-capacity 2 --worker-blocks 2 --stream-id 1 \
+    --block-dim 128
 ```
 
 For paired A100/H200 evidence of the same policy, use the persistent runner.
@@ -228,9 +229,15 @@ It validates the recorded `resource_policy` fields in both JSON artifacts:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
     --dag-shape chain --task-count 5 --queue-capacity 3 \
-    --worker-blocks 2 --stream-id 1 --repeat-runs 2 \
+    --worker-blocks 2 --stream-id 1 --block-dim 128 --repeat-runs 2 \
     --sync-remote-tree
 ```
+
+The paired `block_dim=128` resource-policy capture under
+`tmp/cuda-backend/persistent-block128-working/` validated A100 and H200 JSON,
+Markdown, and SVG artifacts with `scheduler_blocks=1`, `worker_blocks=2`,
+`stream_id=1`, `block_dim=128`, `grid_dim=3`, `repeat_runs=2`, and DAG-chain
+dispatch `1,2,1,2,1`.
 
 Run the bounded-ring persistent smoke with wraparound:
 
