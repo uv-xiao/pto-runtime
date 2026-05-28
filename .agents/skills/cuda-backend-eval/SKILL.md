@@ -766,7 +766,8 @@ Use `cuda_persistent_lifecycle_matrix.py` when direct, queue, and DAG
 prepared-callable lifecycle evidence should be captured together on local A100
 and remote H200. The default matrix uses `repeat_runs=2`, `stream_id=1`,
 direct `worker_blocks_per_task=2`, and queue/DAG `worker_blocks=2`, then
-validates each paired smoke before writing one Markdown/SVG matrix report:
+validates each paired smoke and the combined matrix report before refreshing
+the artifact index:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \

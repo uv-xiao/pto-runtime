@@ -3209,6 +3209,80 @@ def test_cuda_persistent_lifecycle_matrix_builds_default_workflow(tmp_path):
     assert not any("cuda-lifecycle-matrix.md" in part for command in commands for part in command)
 
 
+def test_cuda_persistent_lifecycle_matrix_validates_written_report(tmp_path):
+    cuda_lifecycle_matrix = _load_persistent_lifecycle_matrix_module()
+    output_root = tmp_path / "cuda-backend"
+    calls = []
+
+    def fake_runner(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0, stdout="abc123\n", stderr="")
+
+    def write_payload(directory, completed_count, *, mode, dag_shape=None, dispatch=None):
+        directory.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": mode,
+            "n": 1024,
+            "device_wall_ns": 4096,
+            "host_wall_ns": 8192,
+            "repeat_runs": 2,
+            "completed_count": completed_count,
+            "launch_completed_counts": [completed_count, completed_count],
+            "resource_policy": {
+                "scheduler_blocks": 1 if mode != "direct" else 0,
+                "worker_blocks": 2,
+                "worker_blocks_per_task": 1 if mode != "direct" else 2,
+                "stream_id": 1,
+                "block_dim": 256,
+                "grid_dim": 3,
+            },
+        }
+        if dag_shape is not None:
+            payload["dag_shape"] = dag_shape
+            payload["device_scheduler_errors"] = {"count": 0, "code": 0, "task_id": 0}
+        if dispatch is not None:
+            payload["dispatch_func_ids"] = dispatch
+        for artifact in ("a100", "h200"):
+            (directory / f"{artifact}.json").write_text(json.dumps(payload) + "\n")
+
+    write_payload(output_root / "persistent-direct-repeat2-smoke-abc123", 2, mode="direct")
+    write_payload(output_root / "persistent-queue-repeat2-smoke-abc123", 4, mode="queue")
+    write_payload(
+        output_root / "persistent-chain-repeat2-smoke-abc123",
+        5,
+        mode="dag",
+        dag_shape="chain",
+        dispatch=[1, 2, 1, 2, 1],
+    )
+    config = cuda_lifecycle_matrix.LifecycleMatrixConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=output_root,
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        sync_remote_tree=True,
+    )
+
+    commands = cuda_lifecycle_matrix.run_lifecycle_matrix(config, runner=fake_runner, dry_run=False)
+
+    validate_script = ".agents/skills/cuda-backend-eval/scripts/cuda_validate_lifecycle_matrix.py"
+    validate_commands = [command for command in commands if validate_script in command]
+    assert len(validate_commands) == 1
+    validate_command = validate_commands[0]
+    assert validate_command[:2] == [
+        ".venv/bin/python",
+        validate_script,
+    ]
+    json_path = output_root / "persistent-lifecycle-matrix-abc123" / "cuda-lifecycle-matrix.json"
+    assert str(json_path) in validate_command
+    assert validate_command[-2:] == ["--preset", "default"]
+    assert commands[-2] == validate_command
+    assert commands[-1][-2:] == ["--root", str(output_root)]
+    assert calls[-2] == (validate_command, {"check": True})
+
+
 def test_cuda_persistent_lifecycle_matrix_renders_report(tmp_path):
     cuda_lifecycle_matrix = _load_persistent_lifecycle_matrix_module()
     rows = [

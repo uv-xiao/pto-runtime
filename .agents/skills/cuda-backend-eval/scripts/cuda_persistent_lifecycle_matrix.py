@@ -305,6 +305,17 @@ def write_lifecycle_report(
     return markdown_path, svg_path
 
 
+def build_validate_command(config: LifecycleMatrixConfig, suffix: str) -> list[str]:
+    output_dir = config.output_root / f"persistent-lifecycle-matrix-{suffix}"
+    return [
+        config.local_python,
+        ".agents/skills/cuda-backend-eval/scripts/cuda_validate_lifecycle_matrix.py",
+        str(output_dir / "cuda-lifecycle-matrix.json"),
+        "--preset",
+        "default",
+    ]
+
+
 def run_lifecycle_matrix(
     config: LifecycleMatrixConfig,
     *,
@@ -330,6 +341,10 @@ def run_lifecycle_matrix(
         markdown_path, svg_path = write_lifecycle_report(rows, output_dir, f"persistent-lifecycle-matrix-{suffix}")
         print(markdown_path)
         print(svg_path)
+        validate_command = build_validate_command(config, suffix)
+        print(" ".join(shlex.quote(part) for part in validate_command), flush=True)
+        runner(validate_command, check=True)
+        commands.append(validate_command)
         index_command = paired_smoke.build_index_command(
             paired_smoke.PairedPersistentSmokeConfig(
                 output_root=config.output_root,
