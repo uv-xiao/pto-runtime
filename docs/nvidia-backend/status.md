@@ -2116,6 +2116,57 @@ total `device_wall_ns=42080`, and `host_wall_ns=59414`. The same
 `persistent_dag_generic_args_f32` four-slot scene-test path passed on H200
 with `1 passed, 59 deselected` after the known PTO-ISA SSH refresh warning.
 
+The explicit graph-descriptor adapter now has the same four-slot generic
+argument coverage. The descriptor shape `graph_descriptor_generic_args4`
+keeps the graph metadata path (`graph_descriptor.fanin=[0,0,2]`,
+`graph_descriptor.dependents=[2,2]`) while mapping `tensor_args[0]=tmp0`,
+`tensor_args[1]=tmp3`, `tensor_args[2]=a`, and `tensor_args[3]=b`, with
+scalar slots `[1.5, 0.25, 0.125, 0.0625]`. Focused TDD checks first failed
+because the smoke runner did not recognize this DAG shape and the paired
+validator had no dispatch expectation. After the fix, local A100 checks
+passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'graph_generic_args_four_slots or graph_descriptor_generic_args4' \
+  --platform cuda
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 3 --n 1024 --arch compute_80 \
+    --mode dag --queue-capacity 2 \
+    --dag-shape graph_descriptor_generic_args4 \
+    --output-json \
+      tmp/cuda-backend/persistent-graph_descriptor_generic_args4-smoke-working/a100.json
+```
+
+The paired A100/H200 repeat-run smoke was then captured with:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_generic_args4 --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree
+```
+
+Result:
+`tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The validator required `runtime=persistent_device`,
+`mode=dag`, `dag_shape=graph_descriptor_generic_args4`, `repeat_runs=2`,
+`launch_completed_counts=[3,3]`, `dispatch_func_ids=[9,2,1]`, zero scheduler
+errors, `graph_descriptor.fanin=[0,0,2]`,
+`graph_descriptor.dependents=[2,2]`, resource policy `scheduler_blocks=1`,
+`worker_blocks=3`, `block_dim=256`, `grid_dim=4`, and generated report files.
+A100 reported per-launch device times `[33792,18432]`, total
+`device_wall_ns=52224`, and `host_wall_ns=390302`. H200 reported per-launch
+device times `[23936,21344]`, total `device_wall_ns=45280`, and
+`host_wall_ns=62740`. The same graph-descriptor four-slot scene-test path
+passed on H200 with `2 passed, 60 deselected` after the known PTO-ISA SSH
+refresh warning.
+
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph
 adapter no longer requires topological task order. A focused unit test first

@@ -85,6 +85,10 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/h200.json`
 - `tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-generic_args4-repeat2-smoke-7bac4e3e/cuda-smoke-report.svg`
+- `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/a100.json`
+- `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/h200.json`
+- `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/cuda-smoke-report.md`
+- `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/cuda-smoke-report.svg`
 - `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/a100.json`
 - `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/h200.json`
 - `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/cuda-smoke-report.md`
@@ -241,6 +245,39 @@ PYTHONPATH=$PWD:$PWD/python \
 Both rows reported zero device scheduler errors and generated Markdown/SVG
 smoke reports. The high H200 host time is launch-side noise in this single
 capture; the per-launch CUDA event times are the useful lifecycle signal.
+
+## Supplemental Four-Slot Graph-Descriptor Smoke
+
+The four-slot graph-descriptor persistent DAG smoke at artifact label
+`11db2c9d` validates that the explicit graph descriptor path carries the same
+generic tensor/scalar argument packet as the direct `generic_args4` DAG shape.
+It records graph fan-in `[0,0,2]`, dependents `[2,2]`, dispatch `9,2,1`,
+and four generic slots:
+`tensor_args[0]=tmp0`, `tensor_args[1]=tmp3`, `tensor_args[2]=a`,
+`tensor_args[3]=b`, with scalar slots `[1.5,0.25,0.125,0.0625]`.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/a100.json \
+    tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-dag-shape graph_descriptor_generic_args4 \
+    --expected-repeat-runs 2 --expected-completed-count 3 \
+    --expected-dispatch 9,2,1 --require-report-files
+```
+
+| GPU | Dispatch | Fan-in | Dependents | Launch completions | Device ns | Host ns | Status |
+| --- | -------- | ------ | ---------- | ------------------ | --------- | ------- | ------ |
+| A100 | `9,2,1` | `0,0,2` | `2,2` | `3,3` | 52224 | 390302 | pass |
+| H200 | `9,2,1` | `0,0,2` | `2,2` | `3,3` | 45280 | 62740 | pass |
+
+Both rows reported zero device scheduler errors and generated Markdown/SVG
+smoke reports. The matching L2 `SceneTestCase` selection also passed on H200
+with `2 passed, 60 deselected` after the known PTO-ISA SSH refresh warning.
 
 ## Supplemental Reordered Graph-Descriptor Smoke
 

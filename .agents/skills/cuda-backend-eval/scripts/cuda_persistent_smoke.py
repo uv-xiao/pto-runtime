@@ -1743,14 +1743,14 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
-    if dag_shape in {"generic_args", "generic_args4", "graph_descriptor"}:
+    if dag_shape in {"generic_args", "generic_args4", "graph_descriptor", "graph_descriptor_generic_args4"}:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
         dependents_t = ctypes.c_uint32 * 2
         task_t = CudaPersistentDagTask * task_count
         tensor_args_t = ctypes.c_void_p * 4
         scalar_args_t = ctypes.c_float * 4
-        if dag_shape == "generic_args4":
+        if dag_shape in {"generic_args4", "graph_descriptor_generic_args4"}:
             tensor_args = tensor_args_t(dev_tmp0, dev_tmp3, dev_a, dev_b)
             scalar_args = scalar_args_t(1.5, 0.25, 0.125, 0.0625)
             tensor_arg_count = 4
@@ -2158,6 +2158,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         "generic_args4",
         "graph_descriptor",
         "graph_descriptor_diamond",
+        "graph_descriptor_generic_args4",
         "graph_descriptor_reordered",
     }
     if config.dag_shape in {"triad", "quad", *graph_arg_shapes}:
@@ -2398,7 +2399,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     _f32(_f32(1.5 * host_a[i]) + _f32(expected_tmp0[i] + _f32(0.25 * expected_tmp3[i])))
                     for i in range(n)
                 ]
-                if config.dag_shape == "generic_args4":
+                if config.dag_shape in {"generic_args4", "graph_descriptor_generic_args4"}:
                     expected_tmp1 = [
                         _f32(expected_tmp1[i] + _f32(0.125 * host_a[i]) + _f32(0.0625 * host_b[i])) for i in range(n)
                     ]
@@ -2437,6 +2438,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     "generic_args4",
                     "graph_descriptor",
                     "graph_descriptor_diamond",
+                    "graph_descriptor_generic_args4",
                     "graph_descriptor_reordered",
                 }
                 and list(host_tmp2) != expected_tmp2
@@ -2533,6 +2535,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         if config.dag_shape in {
             "graph_descriptor",
             "graph_descriptor_diamond",
+            "graph_descriptor_generic_args4",
             "graph_descriptor_reordered",
             "graph_tensor_tile",
         }:
@@ -2542,8 +2545,13 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 "fanin": initial_fanin,
             }
             if config.dag_shape != "graph_tensor_tile":
-                result["tensor_args"] = {"tensor_args[0]": "tmp0", "tensor_args[1]": "tmp3"}
-                result["scalar_args"] = {"scalar_args[0]": 1.5, "scalar_args[1]": 0.25}
+                tensor_args = {"tensor_args[0]": "tmp0", "tensor_args[1]": "tmp3"}
+                scalar_args = {"scalar_args[0]": 1.5, "scalar_args[1]": 0.25}
+                if config.dag_shape == "graph_descriptor_generic_args4":
+                    tensor_args.update({"tensor_args[2]": "a", "tensor_args[3]": "b"})
+                    scalar_args.update({"scalar_args[2]": 0.125, "scalar_args[3]": 0.0625})
+                result["tensor_args"] = tensor_args
+                result["scalar_args"] = scalar_args
         return result
     finally:
         for ptr in allocated:
@@ -2625,6 +2633,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "generic_args4",
         "graph_descriptor",
         "graph_descriptor_diamond",
+        "graph_descriptor_generic_args4",
         "graph_descriptor_reordered",
         "graph_tensor_tile",
         "quad",
@@ -2673,6 +2682,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
             "generic_args4",
             "graph_descriptor",
             "graph_descriptor_diamond",
+            "graph_descriptor_generic_args4",
             "graph_descriptor_reordered",
         }
         and ptx_source.startswith("embedded-")
@@ -2872,6 +2882,7 @@ def main() -> None:
             "generic_args4",
             "graph_descriptor",
             "graph_descriptor_diamond",
+            "graph_descriptor_generic_args4",
             "graph_descriptor_reordered",
             "graph_tensor_tile",
             "quad",
