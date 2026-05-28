@@ -893,6 +893,9 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_graph`: generated-dispatch DAG using an explicit
   runtime graph descriptor, validating the generic graph-lowering path shared
   with `persistent_dag_graph_f32`.
+- `pto_persistent_dag_graph_diamond`: five-task generated-dispatch DAG using
+  an explicit graph descriptor with two roots, two fan-out consumers, and a
+  final join.
 - `pto_persistent_dag_unary_square`: generated-dispatch DAG with a one-input
   square task body, validating unary persistent DAG arguments in the
   benchmark path.
@@ -1086,6 +1089,22 @@ PYTHONPATH=$PWD:$PWD/python \
     --single-baseline pto_persistent_dag_graph \
     --sizes 4096 --arch compute_80
 ```
+
+Use `--single-baseline pto_persistent_dag_graph_diamond` for a quick
+benchmark path check of the wider explicit graph descriptor with dispatch
+`9,2,1,2,1`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_diamond \
+    --sizes 1024 --arch compute_80
+```
+
+The current compact paired benchmark capture with this row is under
+`tmp/cuda-backend/combined-current-945016c3/`. It uses `N=1024`, one repeat,
+no batch rows, validates source-paper provenance and zero scheduler errors,
+and includes Markdown plus SVG reports.
 
 Use `--single-baseline pto_persistent_dag_unary_square` for a quick
 benchmark path check of the unary persistent DAG on one GPU:

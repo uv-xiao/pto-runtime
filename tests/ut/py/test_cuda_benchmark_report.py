@@ -1494,8 +1494,9 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert ".agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py" in validate
     assert str(tmp_path / "cuda-backend" / "combined-current-abc123" / "cuda-benchmark.json") in validate
     assert "--expected-result-count" in validate
-    assert "792" in validate
+    assert "810" in validate
     assert "--require-baseline" in validate
+    assert "pto_persistent_dag_graph_diamond" in validate
     assert "pto_persistent_dag_graph_tensor" in validate
     assert "pto_persistent_dag_tensor_core" in validate
     assert "cublas_sgemm" in validate
@@ -1524,9 +1525,10 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "--expected-repeats" in validate
     assert "2" in validate
     assert "--expected-result-count" in validate
-    assert "224" in validate
+    assert "232" in validate
     assert "--require-baseline" in validate
     baselines = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-baseline"]
+    assert "pto_persistent_dag_graph_diamond" in baselines
     assert "pto_persistent_dag_graph_tensor" in baselines
     assert "pto_host_schedule_batch" in baselines
     assert "pto_persistent_device_grid_batch" in baselines
@@ -3849,7 +3851,7 @@ def test_cuda_current_summary_renders_worker_and_dag_tables():
 
     assert "| A100 | 65536 | 6 | 128 | 3000 | 0.30x |" in worker_table
     assert (
-        "| A100 | 65536 | 1.50x | 2.00x | 1.25x | 1.23x | 1.30x | 1.35x | 1.40x | 1.10x | 1.15x | 1.20x | 2.50x |"
+        "| A100 | 65536 | 1.50x | 2.00x | 1.25x | 1.23x | 1.30x | 1.35x | 1.40x | 1.10x | 1.15x | - | 1.20x | 2.50x |"
     ) in dag_table
 
 
@@ -3893,9 +3895,10 @@ def test_cuda_current_summary_keeps_old_captures_without_scalar_affine():
 
     assert (
         "| GPU | N | Chain/DAG | Reuse/DAG | Scalar AXPY/DAG | Scalar Scale/DAG | Scalar Affine/DAG | "
-        "Triad/DAG | Quad/DAG | Generic Args/DAG | Graph Descriptor/DAG | Unary Square/DAG | Tensor/DAG |"
+        "Triad/DAG | Quad/DAG | Generic Args/DAG | Graph Descriptor/DAG | Graph Diamond/DAG | Unary Square/DAG | "
+        "Tensor/DAG |"
     ) in dag_table
-    assert "| A100 | 65536 | 1.50x | 2.00x | 1.25x | - | - | - | - | - | - | - | 2.50x |" in dag_table
+    assert "| A100 | 65536 | 1.50x | 2.00x | 1.25x | - | - | - | - | - | - | - | - | 2.50x |" in dag_table
 
 
 def test_cuda_current_summary_renders_tensor_sweep_table():
@@ -5329,13 +5332,14 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "pto_persistent_dag_quad",
         "pto_persistent_dag_generic_args",
         "pto_persistent_dag_graph",
+        "pto_persistent_dag_graph_diamond",
         "pto_persistent_dag_unary_square",
         "pto_persistent_dag_tensor",
         "pto_persistent_dag_graph_tensor",
         "pto_persistent_dag_tensor_core",
         "cublas_sgemm",
     ]
-    assert len(payload["results"]) == 23
+    assert len(payload["results"]) == 24
 
 
 def test_run_single_sample_dispatches_cublas_sgemm(monkeypatch):
@@ -5864,6 +5868,77 @@ def test_run_single_sample_dispatches_graph_descriptor_dag(monkeypatch):
     assert result["graph_descriptor"] == {"tasks": 3, "dependents": [2, 2], "fanin": [0, 0, 2]}
 
 
+def test_run_single_sample_dispatches_graph_diamond_dag(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = {}
+
+    def fake_run_persistent_sample(
+        device,
+        n,
+        arch,
+        mode="direct",
+        task_count=None,
+        baseline=None,
+        worker_blocks_per_task=1,
+        dag_shape="fork_join",
+        tensor_tile=None,
+    ):
+        seen.update(
+            {
+                "device": device,
+                "n": n,
+                "arch": arch,
+                "mode": mode,
+                "task_count": task_count,
+                "baseline": baseline,
+                "worker_blocks_per_task": worker_blocks_per_task,
+                "dag_shape": dag_shape,
+                "tensor_tile": tensor_tile,
+            }
+        )
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count or 5,
+            "dag_shape": dag_shape,
+            "graph_descriptor": {
+                "tasks": 5,
+                "dependents": [2, 3, 2, 3, 4, 4],
+                "fanin": [0, 0, 2, 2, 2],
+            },
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    monkeypatch.setattr(cuda_benchmark, "run_persistent_sample", fake_run_persistent_sample)
+
+    result = cuda_benchmark.run_single_sample(
+        baseline="pto_persistent_dag_graph_diamond",
+        device=3,
+        n=1024,
+        block_dim=128,
+        arch="compute_80",
+    )
+
+    assert seen == {
+        "device": 3,
+        "n": 1024,
+        "arch": "compute_80",
+        "mode": "dag",
+        "task_count": None,
+        "baseline": "pto_persistent_dag_graph_diamond",
+        "worker_blocks_per_task": 1,
+        "dag_shape": "graph_descriptor_diamond",
+        "tensor_tile": None,
+    }
+    assert result["baseline"] == "pto_persistent_dag_graph_diamond"
+    assert result["graph_descriptor"] == {
+        "tasks": 5,
+        "dependents": [2, 3, 2, 3, 4, 4],
+        "fanin": [0, 0, 2, 2, 2],
+    }
+
+
 def test_run_single_sample_dispatches_graph_tensor_tile_dag(monkeypatch):
     cuda_benchmark = _load_benchmark_module()
     seen = {}
@@ -6168,6 +6243,7 @@ def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
         ("pto_persistent_dag_quad", 1),
         ("pto_persistent_dag_generic_args", 1),
         ("pto_persistent_dag_graph", 1),
+        ("pto_persistent_dag_graph_diamond", 1),
         ("pto_persistent_dag_unary_square", 1),
         ("pto_persistent_dag_tensor", 1),
         ("pto_persistent_dag_graph_tensor", 1),
@@ -6178,7 +6254,7 @@ def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
         ("pto_persistent_queue_batch", 6),
     ]
     assert payload["metadata"]["batch_tasks"] == 6
-    assert len(payload["results"]) == 26
+    assert len(payload["results"]) == 27
 
 
 def test_run_benchmark_can_include_worker_grid_batch_mode(monkeypatch):

@@ -40,6 +40,11 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.json`
+- `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.svg`
+- `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.json`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-current-a46db551/cuda-benchmark.json`
@@ -371,6 +376,20 @@ slots, explicit runtime graph lowering, and unary task-body lowering.
 The tensor row also proves the descriptor metadata path for non-square
 `8x4x12` tiles. Treat these DAG-shape rows as correctness and scheduler-shape
 evidence first; throughput conclusions require a tuned tensor workload.
+
+The compact paired benchmark at artifact label `945016c3` adds the wider
+`pto_persistent_dag_graph_diamond` benchmark row. It uses `N=1024`, one
+repeat, no batch rows, and validates `48` combined A100/H200 rows with source
+paper provenance, command examples, report files, and zero scheduler errors.
+
+| GPU | Base DAG ns | Graph Diamond ns | Graph Diamond/DAG | Dispatch | Tasks |
+| --- | ----------- | ---------------- | ----------------- | -------- | ----- |
+| A100 | 45056 | 36864 | 0.82x | `9,2,1,2,1` | 5 |
+| H200 | 35488 | 31744 | 0.89x | `9,2,1,2,1` | 5 |
+
+The row is a graph-lowering and scheduling-shape check, not an equal-work
+throughput comparison: the diamond graph has two roots, two fan-out consumers,
+and a final join, while the base DAG has three elementwise tasks.
 
 ## Supplemental Tensor Shape Sweep
 

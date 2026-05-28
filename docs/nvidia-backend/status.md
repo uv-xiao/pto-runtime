@@ -207,6 +207,7 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - `pto_persistent_dag_quad`;
 - `pto_persistent_dag_generic_args`;
 - `pto_persistent_dag_graph`;
+- `pto_persistent_dag_graph_diamond`;
 - `pto_persistent_dag_unary_square`;
 - `pto_persistent_dag_tensor`;
 - `pto_persistent_dag_graph_tensor`;
@@ -225,6 +226,17 @@ argument slots, and `pto_persistent_dag_unary_square`, validating unary
 persistent DAG arguments in the full paired benchmark path. It also includes
 `pto_persistent_dag_graph`, validating the explicit runtime graph descriptor
 path in the full paired benchmark path.
+
+A compact paired benchmark at commit `945016c3` adds
+`pto_persistent_dag_graph_diamond` to the benchmark matrix and validates the
+new row on A100 and H200. It uses `N=1024`, one repeat, no batch rows, the
+default `16x16x16` tensor descriptor for tensor rows, and writes raw JSON,
+Markdown, and SVG reports under
+`tmp/cuda-backend/combined-current-945016c3/`. The validator checked `48`
+combined rows, required command examples, source-paper provenance, report
+files, and zero scheduler errors. The graph-diamond row reported dispatch
+`[9,2,1,2,1]`, five completed tasks, A100 `device_wall_ns=36864`, and H200
+`device_wall_ns=31744`.
 
 The latest current-head compact paired validation at commit `0b3c1699` uses
 the default `16x16x16` tensor descriptor so the scalar tensor DAG,
