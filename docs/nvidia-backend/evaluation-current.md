@@ -2,7 +2,7 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus the current-head compact validation capture from
-commit `2aedb40f`. The raw JSON, Markdown, and SVG reports are generated
+commit `b2c5c8a4`. The raw JSON, Markdown, and SVG reports are generated
 locally under `tmp/cuda-backend/` and intentionally remain uncommitted.
 
 The capture uses `nvcc` for target-specific PTX on both machines:
@@ -58,6 +58,16 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/combined-current-2aedb40f/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-2aedb40f/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/combined-current-2aedb40f/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/a100-current-b2c5c8a4/cuda-benchmark.json`
+- `tmp/cuda-backend/a100-current-b2c5c8a4/cuda-benchmark.md`
+- `tmp/cuda-backend/h200-current-b2c5c8a4/cuda-benchmark.json`
+- `tmp/cuda-backend/h200-current-b2c5c8a4/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark.json`
+- `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark.svg`
+- `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.json`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.svg`
@@ -106,6 +116,66 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/cuda-smoke-report.svg`
 
+## Current Compact Paired Gate
+
+The compact paired gate at commit `b2c5c8a4` uses a WMMA-compatible
+`16x16x16` tensor descriptor, `N=1024`, one repeat, `batch_tasks=2`, and
+`worker_blocks_per_task=4`. The paired runner synced the local tree to
+`bizhaoh200`, captured local A100 and remote H200 reports, merged them, and
+validated the combined JSON with the `compact-current` preset.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark.json \
+    --preset compact-current
+```
+
+The combined JSON has `60` samples: `30` selected benchmark rows per GPU,
+including selected one-task baselines, same-work batch rows, and the worker
+grid batch row. The validator checked A100/H200 machine names, size `1024`,
+one repeat, selected tensor baselines, `pto_host_schedule_generic_args`,
+`pto_persistent_dag_graph_generic_args4`, source-paper provenance, sanitized
+command examples, generated Markdown/SVG reports, expected
+generated-dispatch sequences, tensor descriptor metadata, and zero scheduler
+errors for PTO persistent DAG rows.
+
+Selected rows:
+
+| GPU | Host ns | Host generic ns | Base DAG ns | Persistent generic ns | Graph generic4 ns | Tensor ns | Tensor-core ns | cuBLAS ns | Grid batch ns |
+| --- | ------- | --------------- | ----------- | --------------------- | ----------------- | --------- | -------------- | --------- | ------------- |
+| A100 | 22528 | 35840 | 44032 | 29696 | 27648 | 37888 | 36864 | 37888 | 37888 |
+| H200 | 16992 | 31264 | 40320 | 30592 | 27520 | 48992 | 32480 | 34304 | 31872 |
+
+Launch baseline comparison from the same raw JSON:
+
+| GPU | N | PTO host ns | Compiler ns | Driver ns | Graph ns | Compiler/PTO | Graph/PTO |
+| --- | - | ----------- | ----------- | --------- | -------- | ------------ | --------- |
+| A100 | 1024 | 22528 | 20480 | 31743 | 22528 | 0.91x | 1.00x |
+| H200 | 1024 | 16992 | 13376 | 21312 | 17247 | 0.79x | 1.02x |
+
+Selected tensor throughput from the same raw JSON:
+
+| GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | cuBLAS ns | Scalar GF/s | Graph GF/s | Tensor-core GF/s | cuBLAS GF/s | Tensor-core/scalar | cuBLAS/scalar |
+| --- | - | ----- | --------- | -------- | -------------- | --------- | ----------- | ---------- | ---------------- | ----------- | ------------------ | ------------- |
+| A100 | 1024 | 16x16x16 | 37888 | 41984 | 36864 | 37888 | 0.86 | 0.78 | 0.89 | 0.86 | 0.97x | 1.00x |
+| H200 | 1024 | 16x16x16 | 48992 | 47264 | 32480 | 34304 | 0.67 | 0.69 | 1.01 | 0.96 | 0.66x | 0.70x |
+
+Worker-grid result:
+
+| GPU | N | Tasks | Best worker blocks/task | Device ns | Vs host batch |
+| --- | - | ----- | ----------------------- | --------- | ------------- |
+| A100 | 1024 | 2 | 4 | 37888 | 1.32x |
+| H200 | 1024 | 2 | 4 | 31872 | 1.60x |
+
+The report directory contains `cuda-benchmark.json`, `cuda-benchmark.md`,
+`cuda-benchmark.svg`, `cuda-benchmark-ratios.svg`,
+`cuda-benchmark-dag-deltas.svg`, and `cuda-benchmark-throughput.svg`. This
+capture supersedes the `2aedb40f` compact gate for current-head validation
+because it includes the graph-generic-args4 benchmark promotion.
+
 ## Previous Compact Paired Gate
 
 The compact paired gate at commit `2aedb40f` uses a
@@ -118,9 +188,9 @@ checks all 29 selected baselines on A100 and H200, including
 examples, generated Markdown/SVG report files, dispatch sequences, tensor tile
 metadata, and zero scheduler errors.
 
-The current compact preset also requires
-`pto_persistent_dag_graph_generic_args4`, so the next full compact capture
-should contain 60 combined samples instead of this capture's 58 samples.
+This capture is intentionally retained as previous evidence before the
+graph-generic-args4 benchmark promotion. The `b2c5c8a4` gate supersedes it for
+`compact-current` validation.
 
 Original validation command at capture time:
 

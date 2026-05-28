@@ -1067,7 +1067,7 @@ Use `--dry-run` to print the commands without launching benchmarks. The paired
 benchmark default tensor descriptor is `16x16x16` so the scalar tensor DAG,
 explicit graph tensor DAG, WMMA tensor-core DAG, and cuBLAS rows can run
 together. The current committed summary keeps the full `61cf96cd` capture plus
-the compact current-head `2aedb40f` gate in
+the compact current-head `b2c5c8a4` gate in
 `docs/nvidia-backend/evaluation-current.md`.
 
 For a lighter no-torch real-data check, run the paired Worker smoke instead of
@@ -1405,7 +1405,7 @@ directly from a combined benchmark JSON payload:
 ```bash
 PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py \
-    tmp/cuda-backend/combined-current-2aedb40f/cuda-benchmark.json
+    tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark.json
 ```
 
 Use `--section launch`, `--section unary-square`, `--section worker-grid`,
@@ -1443,6 +1443,8 @@ The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the host-schedule generic-args baseline, graph
 generic-args4 baseline, size `1024`, one repeat, `60` combined samples, and
 the Markdown/SVG report files.
+The current compact gate artifact is under
+`tmp/cuda-backend/combined-current-b2c5c8a4/`.
 New paired-runner captures use a dynamic validator command because the
 selected benchmark rows can change with runner flags.
 `--require-command-examples` checks that
