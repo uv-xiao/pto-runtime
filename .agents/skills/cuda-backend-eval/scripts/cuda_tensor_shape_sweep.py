@@ -32,6 +32,27 @@ _ALLOWED_BASELINES = frozenset(
         "cublas_sgemm",
     }
 )
+SOURCE_PAPERS = (
+    {
+        "id": "arXiv:2605.03190",
+        "label": "VDCores",
+        "path": "tmp/sources/arxiv-2605.03190-vdcores.txt",
+    },
+    {
+        "id": "arXiv:2512.22219v1",
+        "label": "MPK persistent kernel",
+        "path": "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt",
+    },
+)
+PAPER_SETUP = (
+    "Model-shaped tensor tile sweep using fixed GPU work, repeated samples, "
+    "selected launch/library baselines, local A100, and remote H200."
+)
+WORKLOAD_DESCRIPTIONS = {
+    "pto_persistent_dag_tensor": "PTO persistent DAG with scalar tiled GEMM work.",
+    "pto_persistent_dag_tensor_core": "PTO persistent DAG with a block-wide WMMA TF32/F32 task.",
+    "cublas_sgemm": "CUDA Runtime API plus cuBLAS SGEMM over the same descriptor.",
+}
 
 
 @dataclass(frozen=True)
@@ -273,6 +294,21 @@ def _format_number(value: int | float) -> str:
     return str(value)
 
 
+def _source_paper_summary(metadata: dict[str, Any]) -> str:
+    papers = metadata.get("source_papers") or SOURCE_PAPERS
+    parts = []
+    for paper in papers:
+        if not isinstance(paper, dict):
+            continue
+        paper_id = paper.get("id")
+        label = paper.get("label")
+        if paper_id and label:
+            parts.append(f"`{paper_id}` {label}")
+        elif paper_id:
+            parts.append(f"`{paper_id}`")
+    return "; ".join(parts)
+
+
 def _median_summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     groups: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
     for row in results:
@@ -315,8 +351,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- N: `{metadata['n']}`",
         f"- Repeats: `{metadata['repeats']}`",
         f"- Baselines: {', '.join(f'`{baseline}`' for baseline in metadata.get('baselines', []))}.",
-        "- Workload: `pto_persistent_dag_tensor` scalar tiled GEMM DAG.",
-        "- Scope: early model-shaped tile sweep, not a tuned tensor-core result.",
+        f"- Source setup: {_source_paper_summary(metadata)}.",
+        f"- Paper alignment: {metadata.get('paper_setup', PAPER_SETUP)}",
+        "- Workloads:",
+        *[
+            f"  - `{baseline}`: {WORKLOAD_DESCRIPTIONS.get(baseline, 'custom tensor sweep baseline.')}"
+            for baseline in metadata.get("baselines", [])
+        ],
+        "- Scope: early model-shaped tile sweep, not an end-to-end model benchmark.",
         "",
         "| Artifact | Machine | Baseline | Shape | Repeat | Status | Device ns | Host ns | Tiles | Dispatch |",
         "| -------- | ------- | -------- | ----- | ------ | ------ | --------- | ------- | ----- | -------- |",
@@ -449,7 +491,8 @@ def run_tensor_shape_sweep(
             "repeats": config.repeats,
             "baselines": list(config.baselines),
             "shapes": [shape.label for shape in config.shapes],
-            "paper_setup": "Model-shaped tensor tile sweep inspired by VDCores/MPK evaluation shapes.",
+            "paper_setup": PAPER_SETUP,
+            "source_papers": list(SOURCE_PAPERS),
         },
         "results": results,
     }

@@ -166,8 +166,10 @@ The current multi-baseline tensor shape sweep was captured at commit
 three repeats for two WMMA-compatible descriptors and compares the scalar
 tensor DAG, `pto_persistent_dag_tensor_core`, and `cublas_sgemm` in one
 Markdown/SVG report. The Markdown keeps raw repeat rows plus medians, while
-the SVG plots median device time with sample counts. Each row uses `N=256`;
-the table below reports median device time across the three samples.
+new reports also record VDCores/MPK source-paper provenance and per-baseline
+workload descriptions. The SVG plots median device time with sample counts.
+Each row uses `N=256`; the table below reports median device time across the
+three samples.
 
 | GPU | Shape | Scalar tensor ns | Tensor-core ns | cuBLAS ns | Tensor-core/scalar | cuBLAS/scalar |
 | --- | ----- | ---------------- | -------------- | --------- | ------------------ | ------------- |

@@ -1041,6 +1041,10 @@ PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
     --section tensor-sweep
 ```
 
+New tensor-sweep artifacts include source-paper provenance for the VDCores and
+MPK notes in `tmp/sources/`, the paper-alignment statement for the current
+microbenchmark setup, and one workload description per selected baseline.
+
 Validate the paired-current capture before copying numbers into docs:
 
 ```bash

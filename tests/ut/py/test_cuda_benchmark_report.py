@@ -1135,6 +1135,10 @@ def test_cuda_tensor_shape_sweep_parses_shapes_and_renders_report():
             "repeats": 2,
             "shapes": ["8x4x12"],
             "baselines": ["pto_persistent_dag_tensor", "cublas_sgemm"],
+            "source_papers": [
+                {"id": "arXiv:2605.03190", "label": "VDCores"},
+                {"id": "arXiv:2512.22219v1", "label": "MPK persistent kernel"},
+            ],
         },
         "results": [
             {
@@ -1166,7 +1170,11 @@ def test_cuda_tensor_shape_sweep_parses_shapes_and_renders_report():
     markdown = cuda_tensor_shape_sweep.render_markdown(payload)
     svg = cuda_tensor_shape_sweep.render_svg(payload)
 
-    assert "- Workload: `pto_persistent_dag_tensor` scalar tiled GEMM DAG." in markdown
+    assert "- Source setup: `arXiv:2605.03190` VDCores; `arXiv:2512.22219v1` MPK persistent kernel." in markdown
+    assert "- Workloads:" in markdown
+    assert "  - `pto_persistent_dag_tensor`: PTO persistent DAG with scalar tiled GEMM work." in markdown
+    assert "  - `cublas_sgemm`: CUDA Runtime API plus cuBLAS SGEMM over the same descriptor." in markdown
+    assert "- Workload: `pto_persistent_dag_tensor` scalar tiled GEMM DAG." not in markdown
     assert "- Baselines: `pto_persistent_dag_tensor`, `cublas_sgemm`." in markdown
     assert (
         "| a100 | hina | pto_persistent_dag_tensor | 8x4x12 | 0 | pass | 1000 | 1500 | 128 | `3,1,2,1` |"
@@ -1182,6 +1190,47 @@ def test_cuda_tensor_shape_sweep_parses_shapes_and_renders_report():
     assert "8x4x12" in svg
     assert "cublas_sgemm" in svg
     assert "r0" not in svg
+
+
+def test_cuda_tensor_shape_sweep_dry_run_records_source_papers(tmp_path):
+    cuda_tensor_shape_sweep = _load_tensor_shape_sweep_module()
+
+    def fake_runner(command, **kwargs):
+        class Result:
+            stdout = "abc123\n"
+
+        assert command == ["git", "rev-parse", "--short", "HEAD"]
+        return Result()
+
+    payload = cuda_tensor_shape_sweep.run_tensor_shape_sweep(
+        cuda_tensor_shape_sweep.TensorShapeSweepConfig(
+            output_root=tmp_path,
+            n=256,
+            repeats=1,
+            baselines=("pto_persistent_dag_tensor_core",),
+            shapes=(cuda_tensor_shape_sweep.TensorShape(rows=16, cols=16, inner=16),),
+            refresh_remote=False,
+        ),
+        runner=fake_runner,
+        dry_run=True,
+    )
+
+    assert payload["metadata"]["paper_setup"] == (
+        "Model-shaped tensor tile sweep using fixed GPU work, repeated samples, "
+        "selected launch/library baselines, local A100, and remote H200."
+    )
+    assert payload["metadata"]["source_papers"] == [
+        {
+            "id": "arXiv:2605.03190",
+            "label": "VDCores",
+            "path": "tmp/sources/arxiv-2605.03190-vdcores.txt",
+        },
+        {
+            "id": "arXiv:2512.22219v1",
+            "label": "MPK persistent kernel",
+            "path": "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt",
+        },
+    ]
 
 
 def test_cuda_pair_benchmark_can_reuse_remote_checkout(tmp_path):
