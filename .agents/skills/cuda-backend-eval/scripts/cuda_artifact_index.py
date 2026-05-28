@@ -142,6 +142,7 @@ def _read_artifact(path: Path, root: Path) -> dict[str, Any]:
         "has_markdown": (path / "cuda-benchmark.md").exists(),
         "has_svg": (path / "cuda-benchmark.svg").exists(),
         "has_ratio_svg": (path / "cuda-benchmark-ratios.svg").exists(),
+        "has_dag_delta_svg": (path / "cuda-benchmark-dag-deltas.svg").exists(),
     }
 
 
@@ -199,6 +200,7 @@ def _read_smoke_artifact(path: Path, root: Path) -> dict[str, Any]:
         "has_markdown": True,
         "has_svg": (path / "cuda-smoke-report.svg").exists(),
         "has_ratio_svg": False,
+        "has_dag_delta_svg": False,
     }
 
 
@@ -236,13 +238,13 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             "| Path | Kind | Label | Machine | Commit | Results | Sizes | "
             "Tensor tile | Smoke mode | Dispatch | Scheduler errors | "
             "Repeat runs | Launch completions | Resource policy | Scalar args | "
-            "Tensor args | Baselines | Markdown | SVG | ratio SVG |"
+            "Tensor args | Baselines | Markdown | SVG | ratio SVG | DAG delta SVG |"
         ),
         (
             "| ---- | ---- | ----- | ------- | ------ | ------- | ----- | "
             "----------- | ---------- | -------- | ---------------- | "
             "----------- | ------------------ | --------------- | ----------- | "
-            "----------- | --------- | -------- | --- | --------- |"
+            "----------- | --------- | -------- | --- | --------- | ------------- |"
         ),
     ]
     for entry in entries:
@@ -260,7 +262,7 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             f"{_format_list(entry.get('tensor_args', []))} | "
             f"{_format_list(entry['baselines'])} | "
             f"{_checkmark(entry['has_markdown'])} | {_checkmark(entry['has_svg'])} | "
-            f"{_checkmark(entry['has_ratio_svg'])} |"
+            f"{_checkmark(entry['has_ratio_svg'])} | {_checkmark(entry['has_dag_delta_svg'])} |"
         )
     lines.append("")
     return "\n".join(lines)

@@ -376,6 +376,7 @@ def test_cuda_artifact_index_scans_benchmark_outputs(tmp_path):
     (artifact_dir / "cuda-benchmark.md").write_text("# report\n")
     (artifact_dir / "cuda-benchmark.svg").write_text("<svg></svg>\n")
     (artifact_dir / "cuda-benchmark-ratios.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-dag-deltas.svg").write_text("<svg></svg>\n")
 
     entries = cuda_artifact_index.scan_artifacts(tmp_path)
 
@@ -393,6 +394,7 @@ def test_cuda_artifact_index_scans_benchmark_outputs(tmp_path):
             "has_markdown": True,
             "has_svg": True,
             "has_ratio_svg": True,
+            "has_dag_delta_svg": True,
         }
     ]
 
@@ -417,6 +419,7 @@ def test_cuda_artifact_index_renders_markdown_and_writes_default_index(tmp_path)
         "direct_driver_graph |"
     ) in report
     assert "ratio SVG" in report
+    assert "DAG delta SVG" in report
 
 
 def test_cuda_artifact_index_records_benchmark_tensor_tiles(tmp_path):
@@ -519,6 +522,7 @@ def test_cuda_artifact_index_scans_smoke_report_outputs(tmp_path):
             "has_markdown": True,
             "has_svg": True,
             "has_ratio_svg": False,
+            "has_dag_delta_svg": False,
         }
     ]
     assert (
@@ -624,6 +628,7 @@ def test_cuda_capture_validator_accepts_complete_capture(tmp_path):
     (artifact_dir / "cuda-benchmark.md").write_text("# report\n")
     (artifact_dir / "cuda-benchmark.svg").write_text("<svg></svg>\n")
     (artifact_dir / "cuda-benchmark-ratios.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-dag-deltas.svg").write_text("<svg></svg>\n")
 
     errors = cuda_validate_capture.validate_capture(
         payload,
@@ -670,6 +675,7 @@ def test_cuda_capture_validator_reports_missing_baseline_and_artifact(tmp_path):
     assert "missing report file cuda-benchmark.md" in errors
     assert "missing report file cuda-benchmark.svg" in errors
     assert "missing report file cuda-benchmark-ratios.svg" in errors
+    assert "missing report file cuda-benchmark-dag-deltas.svg" in errors
 
 
 def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
@@ -2851,6 +2857,31 @@ def test_write_report_writes_ratio_svg(tmp_path):
     assert (tmp_path / "cuda-benchmark-ratios.svg").exists()
 
 
+def test_write_report_writes_dag_delta_svg(tmp_path):
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "write-dag-delta-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+        },
+        "results": [
+            {"machine": "a100-local", "baseline": "pto_persistent_dag", "n": 1024, "device_wall_ns": 1000},
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_dag_tensor_core",
+                "n": 1024,
+                "task_count": 4,
+                "device_wall_ns": 1250,
+            },
+        ],
+    }
+
+    cuda_benchmark.write_report(payload, tmp_path)
+
+    assert (tmp_path / "cuda-benchmark-dag-deltas.svg").exists()
+
+
 def test_render_report_uses_batch_host_schedule_reference_for_batch_rows():
     cuda_benchmark = _load_benchmark_module()
     payload = {
@@ -3371,7 +3402,7 @@ def test_render_report_highlights_dag_shape_rows():
                 "baseline": "pto_persistent_dag_graph",
                 "n": 4096,
                 "task_count": 3,
-                "device_wall_ns": 1100,
+                "device_wall_ns": 900,
             },
             {
                 "machine": "a100-local",
@@ -3393,9 +3424,68 @@ def test_render_report_highlights_dag_shape_rows():
     assert ("| a100-local | 4096 | pto_persistent_dag_triad | 3 | 1500 | 1.50x |") in report
     assert ("| a100-local | 4096 | pto_persistent_dag_quad | 3 | 1600 | 1.60x |") in report
     assert ("| a100-local | 4096 | pto_persistent_dag_generic_args | 3 | 1250 | 1.25x |") in report
-    assert ("| a100-local | 4096 | pto_persistent_dag_graph | 3 | 1100 | 1.10x |") in report
+    assert ("| a100-local | 4096 | pto_persistent_dag_graph | 3 | 900 | 0.90x |") in report
     assert ("| a100-local | 4096 | pto_persistent_dag_unary_square | 3 | 1200 | 1.20x |") in report
     assert ("| a100-local | 4096 | pto_persistent_dag_tensor | 4 | 4200 | 4.20x |") in report
+    assert "## DAG Increment Rows" in report
+    assert (
+        "| Machine | N | Baseline | Tasks | Base DAG ns | Median device ns | Increment ns | "
+        "Increment vs base |"
+    ) in report
+    assert (
+        "| a100-local | 4096 | pto_persistent_dag_tensor | 4 | 1000 | 4200 | 3200 | 3.20x |"
+    ) in report
+    assert (
+        "| a100-local | 4096 | pto_persistent_dag_graph | 3 | 1000 | 900 | -100 | -0.10x |"
+    ) in report
+    assert "![DAG increment chart](cuda-benchmark-dag-deltas.svg)" in report
+
+
+def test_render_dag_delta_svg_visualizes_increment_over_base_dag():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {"label": "dag-delta-svg-unit"},
+        "results": [
+            {"machine": "a100-local", "baseline": "pto_persistent_dag", "n": 1024, "device_wall_ns": 1000},
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_dag_tensor_core",
+                "n": 1024,
+                "task_count": 4,
+                "device_wall_ns": 1500,
+            },
+        ],
+    }
+    summary = cuda_benchmark.summarize_results(payload)
+
+    svg = cuda_benchmark.render_dag_delta_svg(summary)
+
+    assert "DAG device-time increment over pto_persistent_dag" in svg
+    assert "pto_persistent_dag_tensor_core" in svg
+    assert "+500 ns" in svg
+
+
+def test_render_dag_delta_svg_keeps_negative_deltas_in_view():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {"label": "dag-negative-delta-svg-unit"},
+        "results": [
+            {"machine": "a100-local", "baseline": "pto_persistent_dag", "n": 1024, "device_wall_ns": 1000},
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_dag_graph",
+                "n": 1024,
+                "task_count": 3,
+                "device_wall_ns": 500,
+            },
+        ],
+    }
+    summary = cuda_benchmark.summarize_results(payload)
+
+    svg = cuda_benchmark.render_dag_delta_svg(summary)
+
+    assert "-500 ns" in svg
+    assert 'x="-' not in svg
 
 
 def test_render_report_summarizes_ptx_sources_by_machine_and_baseline():

@@ -1622,6 +1622,12 @@ def _ratio_text(value: int, reference: int | None) -> str:
     return f"{value / reference:.2f}x"
 
 
+def _signed_ratio_text(value: int, reference: int | None) -> str:
+    if reference is None or reference == 0:
+        return "-"
+    return f"{value / reference:.2f}x"
+
+
 def _best_worker_grid_rows(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) -> list[dict[str, Any]]:
     best: dict[tuple[str, int, int], dict[str, Any]] = {}
     for row in summary.values():
@@ -1820,6 +1826,48 @@ def render_ratio_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any
     return "\n".join(lines) + "\n"
 
 
+def render_dag_delta_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) -> str:
+    rows = _dag_shape_rows(summary)
+    if not rows:
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="760" height="96"></svg>\n'
+
+    max_delta = max(1, *(abs(row["median_device_wall_ns"] - row["base_device_wall_ns"]) for row in rows))
+    left = 310
+    half_width = 260
+    bar_height = 18
+    row_gap = 10
+    height = 68 + len(rows) * (bar_height + row_gap)
+    width = left + half_width * 2 + 150
+    zero_x = left + half_width
+    lines = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<rect width="100%" height="100%" fill="white"/>',
+        '<text x="20" y="28" font-family="sans-serif" font-size="18" font-weight="700">'
+        "DAG device-time increment over pto_persistent_dag</text>",
+        f'<line x1="{zero_x}" y1="42" x2="{zero_x}" y2="{height - 16}" stroke="#444" stroke-width="1"/>',
+    ]
+    for idx, row in enumerate(rows):
+        y = 68 + idx * (bar_height + row_gap)
+        delta = row["median_device_wall_ns"] - row["base_device_wall_ns"]
+        label = f"{row['machine']} n={row['n']} tasks={row['task_count']} {row['baseline']}"
+        bar_width = max(1, int(half_width * abs(delta) / max_delta))
+        color = "#2a9d65" if delta <= 0 else "#c43d3d"
+        lines.append(f'<text x="20" y="{y + 14}" font-family="sans-serif" font-size="12">{label}</text>')
+        if delta >= 0:
+            lines.append(f'<rect x="{zero_x}" y="{y}" width="{bar_width}" height="{bar_height}" fill="{color}"/>')
+            value_x = zero_x + bar_width + 8
+        else:
+            x = zero_x - bar_width
+            lines.append(f'<rect x="{x}" y="{y}" width="{bar_width}" height="{bar_height}" fill="{color}"/>')
+            value_x = max(4, x - 72)
+        lines.append(
+            f'<text x="{value_x}" y="{y + 14}" font-family="sans-serif" font-size="12">'
+            f"{delta:+d} ns</text>"
+        )
+    lines.append("</svg>")
+    return "\n".join(lines) + "\n"
+
+
 def render_markdown_report(payload: dict[str, Any]) -> str:
     summary = summarize_results(payload)
     device_refs = _matched_device_refs(summary)
@@ -1903,6 +1951,25 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 f"| {row['machine']} | {row['n']} | {row['baseline']} | "
                 f"{row['task_count']} | {row['median_device_wall_ns']} | "
                 f"{_ratio_text(row['median_device_wall_ns'], row['base_device_wall_ns'])} |"
+            )
+        lines.extend(
+            [
+                "",
+                "## DAG Increment Rows",
+                "",
+                "| Machine | N | Baseline | Tasks | Base DAG ns | Median device ns | "
+                "Increment ns | Increment vs base |",
+                "| ------- | - | -------- | ----- | ----------- | ---------------- | "
+                "------------ | ----------------- |",
+            ]
+        )
+        for row in dag_shape_rows:
+            increment = row["median_device_wall_ns"] - row["base_device_wall_ns"]
+            lines.append(
+                f"| {row['machine']} | {row['n']} | {row['baseline']} | "
+                f"{row['task_count']} | {row['base_device_wall_ns']} | "
+                f"{row['median_device_wall_ns']} | {increment} | "
+                f"{_signed_ratio_text(increment, row['base_device_wall_ns'])} |"
             )
     ptx_source_rows = _ptx_source_rows(payload)
     if ptx_source_rows:
@@ -2011,6 +2078,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "",
             "![Device ratio chart](cuda-benchmark-ratios.svg)",
             "",
+            "![DAG increment chart](cuda-benchmark-dag-deltas.svg)",
+            "",
         ]
     )
     return "\n".join(lines)
@@ -2023,6 +2092,7 @@ def write_report(payload: dict[str, Any], output_dir: Path) -> None:
     (output_dir / "cuda-benchmark.md").write_text(render_markdown_report(payload))
     (output_dir / "cuda-benchmark.svg").write_text(render_svg(summary))
     (output_dir / "cuda-benchmark-ratios.svg").write_text(render_ratio_svg(summary))
+    (output_dir / "cuda-benchmark-dag-deltas.svg").write_text(render_dag_delta_svg(summary))
 
 
 def _parse_sizes(raw: str) -> list[int]:

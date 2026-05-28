@@ -236,7 +236,10 @@ same `16x16x16` descriptor. The compact selected-baseline report uses
 outputs. The tensor-core DAG row measured `37888 ns` device time on A100 and
 `38656 ns` on H200, compared with `40960 ns` and `43392 ns` for the scalar
 `pto_persistent_dag_tensor` row in the same report. The raw artifacts are
-under `tmp/cuda-backend/combined-tensor-core-current-0879aa9e/`.
+under `tmp/cuda-backend/combined-tensor-core-current-0879aa9e/`. Benchmark
+reports now also write `cuda-benchmark-dag-deltas.svg`, which plots each
+`pto_persistent_dag_*` row's signed device-time increment over the matched
+`pto_persistent_dag` scheduler baseline.
 
 Evidence:
 
@@ -1493,8 +1496,10 @@ the GEMM body is a scalar microbenchmark rather than a tuned tensor-core
 kernel. The first paired tensor-shape sweep now covers `8x4x12`,
 `16x16x64`, and `32x16x64` descriptors on A100 and H200. The first
 `tensor_core_tile` smoke and selected-baseline benchmark row also validate a
-block-wide WMMA generated-dispatch task body on both GPUs. The remaining gap
-is tuned tensor execution and comparative throughput, not descriptor-shape or
+block-wide WMMA generated-dispatch task body on both GPUs. The benchmark
+report now includes a signed DAG-increment table and SVG, so scheduler-vs-task
+work separation exists for current microbenchmarks. The remaining gap is
+tuned tensor execution and comparative throughput, not descriptor-shape or
 first tensor-core callable plumbing.
 
 Needed:
@@ -1503,7 +1508,8 @@ Needed:
   single-tile WMMA benchmark row;
 - broader model-kernel shape families once the tensor-core/library path
   exists;
-- evaluation rows that distinguish scheduler overhead from compute throughput.
+- real tuned-kernel throughput rows beyond the current scheduler-adjusted
+  microbenchmark deltas.
 
 ### CI Coverage
 

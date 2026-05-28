@@ -49,6 +49,7 @@ REPORT_FILES = (
     "cuda-benchmark.md",
     "cuda-benchmark.svg",
     "cuda-benchmark-ratios.svg",
+    "cuda-benchmark-dag-deltas.svg",
 )
 
 

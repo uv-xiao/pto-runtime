@@ -193,16 +193,20 @@ Tensor-core row details:
 
 - A100: `pto_persistent_dag_tensor_core`, `16x16x16`,
   `wmma:m16n16k8:tf32->f32`, `37888 ns` device, `52277 ns` host,
-  `0.90x` versus `pto_persistent_dag`.
+  `0.90x` versus `pto_persistent_dag`; signed DAG increment `-4096 ns`.
 - H200: `pto_persistent_dag_tensor_core`, `16x16x16`,
   `wmma:m16n16k8:tf32->f32`, `38656 ns` device, `50211 ns` host,
-  `0.97x` versus `pto_persistent_dag`.
+  `0.97x` versus `pto_persistent_dag`; signed DAG increment `-1088 ns`.
 
 For context, the scalar tensor DAG row in the same report measured `40960 ns`
 on A100 and `43392 ns` on H200. The tensor-core row therefore validates that
 WMMA callable bodies now participate in the normal selected-baseline report
 and chart flow, but it still measures one small generated task shape rather
 than a tuned tensor-core kernel.
+The generated `cuda-benchmark-dag-deltas.svg` chart visualizes the signed
+device-time increment over the matched `pto_persistent_dag` scheduler
+baseline, which is the current report view for separating scheduler overhead
+from additional generated-dispatch task work.
 
 ## Reproduction Commands
 

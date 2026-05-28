@@ -818,6 +818,8 @@ The script writes:
 - `cuda-benchmark.svg`: bar chart of median device time by baseline.
 - `cuda-benchmark-ratios.svg`: bar chart of each row's device-time ratio
   against its matched reference.
+- `cuda-benchmark-dag-deltas.svg`: bar chart of each `pto_persistent_dag_*`
+  row's device-time increment over the matched `pto_persistent_dag` row.
 
 For tensor-DAG experiments, pass `--tensor-rows`, `--tensor-cols`, and
 `--tensor-inner` to the benchmark script. These flags affect only
@@ -1017,6 +1019,11 @@ that compares `pto_persistent_dag_*` rows against the three-task
 `pto_persistent_dag` row for the same machine and vector length. Use this
 table for lifecycle and callable-shape interpretation because those rows do
 not have the same task count as the host-schedule baseline.
+The adjacent `DAG Increment Rows` table and `cuda-benchmark-dag-deltas.svg`
+show the absolute device-time delta after subtracting the matched
+`pto_persistent_dag` scheduler baseline. Use that view when distinguishing
+scheduler overhead from extra task-body work in tensor, tensor-core, graph,
+and other generated-dispatch DAG rows.
 
 The report also includes a PTX-source table by machine and baseline. Treat any
 `embedded-sm80-*` row as a fallback path: the local CUDA driver JIT compiled
