@@ -965,7 +965,7 @@ def run_persistent_sample(
     tensor_tile: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     if task_count is None:
-        if dag_shape == "tensor_tile":
+        if dag_shape in {"tensor_tile", "tensor_core_tile"}:
             task_count = 4
         elif dag_shape == "scratch_reuse":
             task_count = 6
@@ -1148,6 +1148,16 @@ def run_single_sample(  # noqa: PLR0912
             dag_shape="tensor_tile",
             tensor_tile=tensor_tile,
         )
+    if baseline == "pto_persistent_dag_tensor_core":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="tensor_core_tile",
+            tensor_tile=tensor_tile,
+        )
     if baseline == "pto_persistent_device_batch":
         return run_persistent_sample(
             device=device,
@@ -1308,9 +1318,13 @@ def run_benchmark(
                     "pto_persistent_dag_graph",
                     "pto_persistent_dag_unary_square",
                     "pto_persistent_dag_tensor",
+                    "pto_persistent_dag_tensor_core",
                 ):
                     sample_kwargs: dict[str, Any] = {}
-                    if baseline == "pto_persistent_dag_tensor" and tensor_tile is not None:
+                    if (
+                        baseline in {"pto_persistent_dag_tensor", "pto_persistent_dag_tensor_core"}
+                        and tensor_tile is not None
+                    ):
                         sample_kwargs["tensor_tile"] = tensor_tile
                     persistent = run_single_sample(
                         baseline=baseline,
@@ -1727,6 +1741,7 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
         "pto_persistent_dag_graph": "#7f5b42",
         "pto_persistent_dag_unary_square": "#e3a857",
         "pto_persistent_dag_tensor": "#e76f51",
+        "pto_persistent_dag_tensor_core": "#d1495b",
         "pto_persistent_device": "#9467bd",
         "pto_persistent_device_batch": "#7b52ab",
         "pto_persistent_device_grid_batch": "#5f3b9d",
@@ -1974,6 +1989,14 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 else "- `pto_persistent_dag_tensor` uses the default 16x16x16 tiled GEMM"
             ),
             "  descriptor followed by elementwise residual, gate, and fan-in tasks.",
+            (
+                f"- `pto_persistent_dag_tensor_core` uses a WMMA tensor-core task with a configured "
+                f"{tensor_tile_shape} descriptor"
+                if tensor_tile_shape is not None
+                else "- `pto_persistent_dag_tensor_core` uses a WMMA tensor-core task with a default "
+                "16x16x16 descriptor"
+            ),
+            "  and the current `wmma:m16n16k8:tf32->f32` generated-dispatch body.",
             "- `pto_stream_serial` measures two independent PTO launches issued",
             "  sequentially on the host-schedule stream pool.",
             "- `pto_stream_parallel` measures two independent PTO launches issued",
@@ -2051,6 +2074,7 @@ def main() -> None:
             "pto_persistent_dag_graph",
             "pto_persistent_dag_unary_square",
             "pto_persistent_dag_tensor",
+            "pto_persistent_dag_tensor_core",
             "pto_host_schedule_batch",
             "pto_persistent_device_batch",
             "pto_persistent_device_grid_batch",
@@ -2116,7 +2140,11 @@ def main() -> None:
                     args.arch,
                     task_count=task_count,
                     worker_blocks_per_task=worker_blocks_per_task_values[0],
-                    tensor_tile=tensor_tile if args.single_baseline == "pto_persistent_dag_tensor" else None,
+                    tensor_tile=(
+                        tensor_tile
+                        if args.single_baseline in {"pto_persistent_dag_tensor", "pto_persistent_dag_tensor_core"}
+                        else None
+                    ),
                 ),
                 sort_keys=True,
             )

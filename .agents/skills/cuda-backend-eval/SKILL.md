@@ -719,6 +719,11 @@ same vector-add PTX kernel through two launch paths:
   GEMM task followed by elementwise residual, gate, and fan-in tasks. The
   benchmark uses the default 16x16x16 descriptor unless
   `--tensor-rows`, `--tensor-cols`, and `--tensor-inner` are supplied.
+- `pto_persistent_dag_tensor_core`: four-task generated-dispatch DAG with a
+  block-wide WMMA `m16n16k8` TF32 tensor-core task followed by the same
+  elementwise residual, gate, and fan-in tasks. Use this for the first
+  tensor-core benchmark row; it still measures a single generated task shape,
+  not a tuned model kernel.
 - `pto_host_schedule_batch`, `pto_persistent_device_batch`,
   `pto_persistent_device_grid_batch`, and `pto_persistent_queue_batch`:
   same-work batch rows enabled by `--batch-tasks N`. Pass a
@@ -915,6 +920,17 @@ PYTHONPATH=$PWD:$PWD/python \
 The sweep writes `cuda-tensor-shape-sweep.json`,
 `cuda-tensor-shape-sweep.md`, and `cuda-tensor-shape-sweep.svg` under
 `tmp/cuda-backend/tensor-shape-sweep-<commit>/`.
+
+Use `--single-baseline pto_persistent_dag_tensor_core` for a quick benchmark
+path check of the WMMA tensor-core generated-dispatch DAG:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_tensor_core \
+    --sizes 256 --arch compute_80 \
+    --tensor-rows 16 --tensor-cols 16 --tensor-inner 16
+```
 
 Refresh the local artifact index after adding or merging captures:
 

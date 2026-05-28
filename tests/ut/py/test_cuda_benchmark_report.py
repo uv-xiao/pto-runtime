@@ -3013,6 +3013,43 @@ def test_render_report_describes_dag_tensor_rows():
     assert "pto_persistent_dag_tensor" in svg
 
 
+def test_render_report_describes_dag_tensor_core_rows():
+    cuda_benchmark = _load_benchmark_module()
+    payload = {
+        "metadata": {
+            "label": "dag-tensor-core-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+            "tensor_tile": {"rows": 16, "cols": 16, "inner": 16},
+        },
+        "results": [
+            {"machine": "a100-local", "baseline": "pto_host_schedule", "n": 256, "device_wall_ns": 1000},
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_dag_tensor_core",
+                "n": 256,
+                "task_count": 4,
+                "dag_shape": "tensor_core_tile",
+                "device_wall_ns": 3200,
+                "tensor_core": {
+                    "api": "wmma",
+                    "mma_shape": "m16n16k8",
+                    "input": "tf32",
+                    "accumulator": "f32",
+                },
+            },
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+    svg = cuda_benchmark.render_svg(cuda_benchmark.summarize_results(payload))
+
+    assert "| a100-local | pto_persistent_dag_tensor_core | 256 | 4 | 1 | 1 | 3200 | 3200 | - |" in report
+    assert "`pto_persistent_dag_tensor_core` uses a WMMA tensor-core task" in report
+    assert "m16n16k8" in report
+    assert "pto_persistent_dag_tensor_core" in svg
+
+
 def test_render_report_describes_dag_scalar_axpy_rows():
     cuda_benchmark = _load_benchmark_module()
     payload = {
@@ -3672,8 +3709,9 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "pto_persistent_dag_graph",
         "pto_persistent_dag_unary_square",
         "pto_persistent_dag_tensor",
+        "pto_persistent_dag_tensor_core",
     ]
-    assert len(payload["results"]) == 19
+    assert len(payload["results"]) == 20
 
 
 def test_run_single_sample_dispatches_scalar_axpy_dag(monkeypatch):
@@ -4111,6 +4149,104 @@ def test_run_single_sample_dispatches_graph_descriptor_dag(monkeypatch):
     assert result["graph_descriptor"] == {"tasks": 3, "dependents": [2, 2], "fanin": [0, 0, 2]}
 
 
+def test_run_persistent_sample_defaults_tensor_core_tile_to_four_tasks(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = {}
+
+    def fake_run_persistent_smoke(**kwargs):
+        seen.update(kwargs)
+        return {
+            "baseline": "pto_persistent_dag_tensor_core",
+            "n": kwargs["n"],
+            "task_count": kwargs["task_count"],
+            "dag_shape": kwargs["dag_shape"],
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    monkeypatch.setattr(cuda_benchmark, "run_persistent_smoke", fake_run_persistent_smoke)
+
+    result = cuda_benchmark.run_persistent_sample(
+        device=3,
+        n=256,
+        arch="compute_80",
+        mode="dag",
+        baseline="pto_persistent_dag_tensor_core",
+        dag_shape="tensor_core_tile",
+        tensor_tile={"rows": 16, "cols": 16, "inner": 16},
+    )
+
+    assert seen["task_count"] == 4
+    assert seen["dag_shape"] == "tensor_core_tile"
+    assert seen["tensor_rows"] == 16
+    assert seen["tensor_cols"] == 16
+    assert seen["tensor_inner"] == 16
+    assert result["baseline"] == "pto_persistent_dag_tensor_core"
+
+
+def test_run_single_sample_dispatches_tensor_core_dag(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = {}
+
+    def fake_run_persistent_sample(
+        device,
+        n,
+        arch,
+        mode="direct",
+        task_count=None,
+        baseline=None,
+        worker_blocks_per_task=1,
+        dag_shape="fork_join",
+        tensor_tile=None,
+    ):
+        seen.update(
+            {
+                "device": device,
+                "n": n,
+                "arch": arch,
+                "mode": mode,
+                "task_count": task_count,
+                "baseline": baseline,
+                "worker_blocks_per_task": worker_blocks_per_task,
+                "dag_shape": dag_shape,
+                "tensor_tile": tensor_tile,
+            }
+        )
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count or 4,
+            "dag_shape": dag_shape,
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    tensor_tile = {"rows": 16, "cols": 16, "inner": 16}
+    monkeypatch.setattr(cuda_benchmark, "run_persistent_sample", fake_run_persistent_sample)
+
+    result = cuda_benchmark.run_single_sample(
+        baseline="pto_persistent_dag_tensor_core",
+        device=3,
+        n=256,
+        block_dim=128,
+        arch="compute_80",
+        tensor_tile=tensor_tile,
+    )
+
+    assert seen == {
+        "device": 3,
+        "n": 256,
+        "arch": "compute_80",
+        "mode": "dag",
+        "task_count": None,
+        "baseline": "pto_persistent_dag_tensor_core",
+        "worker_blocks_per_task": 1,
+        "dag_shape": "tensor_core_tile",
+        "tensor_tile": tensor_tile,
+    }
+    assert result["baseline"] == "pto_persistent_dag_tensor_core"
+
+
 def test_run_benchmark_passes_tensor_descriptor_to_tensor_dag(monkeypatch):
     cuda_benchmark = _load_benchmark_module()
     seen = []
@@ -4154,10 +4290,14 @@ def test_run_benchmark_passes_tensor_descriptor_to_tensor_dag(monkeypatch):
         tensor_tile=tensor_tile,
     )
 
-    tensor_calls = [item for item in seen if item[0] == "pto_persistent_dag_tensor"]
-    non_tensor_calls = [item for item in seen if item[0] != "pto_persistent_dag_tensor"]
+    tensor_baselines = {"pto_persistent_dag_tensor", "pto_persistent_dag_tensor_core"}
+    tensor_calls = [item for item in seen if item[0] in tensor_baselines]
+    non_tensor_calls = [item for item in seen if item[0] not in tensor_baselines]
     assert payload["metadata"]["tensor_tile"] == tensor_tile
-    assert tensor_calls == [("pto_persistent_dag_tensor", tensor_tile)]
+    assert tensor_calls == [
+        ("pto_persistent_dag_tensor", tensor_tile),
+        ("pto_persistent_dag_tensor_core", tensor_tile),
+    ]
     assert all(call[1] is None for call in non_tensor_calls)
 
 
@@ -4214,12 +4354,13 @@ def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
         ("pto_persistent_dag_graph", 1),
         ("pto_persistent_dag_unary_square", 1),
         ("pto_persistent_dag_tensor", 1),
+        ("pto_persistent_dag_tensor_core", 1),
         ("pto_host_schedule_batch", 6),
         ("pto_persistent_device_batch", 6),
         ("pto_persistent_queue_batch", 6),
     ]
     assert payload["metadata"]["batch_tasks"] == 6
-    assert len(payload["results"]) == 22
+    assert len(payload["results"]) == 23
 
 
 def test_run_benchmark_can_include_worker_grid_batch_mode(monkeypatch):
