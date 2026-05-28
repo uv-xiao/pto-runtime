@@ -1554,6 +1554,15 @@ def run_single_sample(  # noqa: PLR0912
             baseline=baseline,
             dag_shape="graph_descriptor_generic_args4",
         )
+    if baseline == "pto_persistent_dag_graph_chain":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="graph_descriptor_chain",
+        )
     if baseline == "pto_persistent_dag_graph_diamond":
         return run_persistent_sample(
             device=device,
@@ -1775,6 +1784,7 @@ def run_benchmark(
                     "pto_persistent_dag_generic_args",
                     "pto_persistent_dag_graph",
                     "pto_persistent_dag_graph_generic_args4",
+                    "pto_persistent_dag_graph_chain",
                     "pto_persistent_dag_graph_diamond",
                     "pto_persistent_dag_unary_square",
                     "pto_persistent_dag_tensor",
@@ -2322,6 +2332,7 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
         "pto_persistent_dag_quad": "#b66d2c",
         "pto_persistent_dag_generic_args": "#a65f2c",
         "pto_persistent_dag_graph": "#7f5b42",
+        "pto_persistent_dag_graph_chain": "#6d4c41",
         "pto_persistent_dag_graph_diamond": "#5d4037",
         "pto_persistent_dag_unary_square": "#e3a857",
         "pto_persistent_dag_tensor": "#e76f51",
@@ -2692,6 +2703,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "  to validate variable-arity persistent DAG arguments.",
             "- `pto_persistent_dag_graph` uses an explicit runtime graph descriptor",
             "  to validate the generic graph-lowering path used by SceneTestCase.",
+            "- `pto_persistent_dag_graph_chain` uses a five-task explicit graph",
+            "  descriptor with chain dependencies.",
             "- `pto_persistent_dag_graph_diamond` uses a five-task explicit graph",
             "  descriptor with two roots, two fan-out consumers, and a final join.",
             "- `pto_persistent_dag_unary_square` uses a one-input square task body",
@@ -2828,6 +2841,7 @@ def main() -> None:
             "pto_persistent_dag_generic_args",
             "pto_persistent_dag_graph",
             "pto_persistent_dag_graph_generic_args4",
+            "pto_persistent_dag_graph_chain",
             "pto_persistent_dag_graph_diamond",
             "pto_persistent_dag_unary_square",
             "pto_persistent_dag_tensor",

@@ -9,8 +9,8 @@ local A100 runs, and remote H200 runs.
 ## Current Evidence
 
 The latest full paired A100/H200 benchmark capture was taken at commit
-`61cf96cd`, and the latest compact current-head paired gate was taken at
-commit `b2c5c8a4`. Supplemental tensor-shape and tensor-core captures were
+`61cf96cd`, and the latest compact current-head paired gate uses artifact
+label `06b8c0c6`. Supplemental tensor-shape and tensor-core captures were
 taken at commits `c0ada3ad` and `0879aa9e`. The first cuBLAS library baseline
 capture uses the `343924df` artifact label. The first multi-baseline tensor
 shape sweep used the `6f9a0b78` artifact label, and the latest multi-size
@@ -67,6 +67,9 @@ committed:
 - `tmp/cuda-backend/a100-current-b2c5c8a4/`
 - `tmp/cuda-backend/h200-current-b2c5c8a4/`
 - `tmp/cuda-backend/combined-current-b2c5c8a4/`
+- `tmp/cuda-backend/a100-current-06b8c0c6/`
+- `tmp/cuda-backend/h200-current-06b8c0c6/`
+- `tmp/cuda-backend/combined-current-06b8c0c6/`
 - `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/persistent-scalar_scale-smoke-e9c9f5f2/`
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/`
@@ -175,6 +178,9 @@ does not get copied into the current-evaluation tables.
 - `pto_persistent_dag_graph`: generated-dispatch DAG that reads an explicit
   runtime graph descriptor before downstream fan-in. This row validates the
   same graph-lowering shape used by `persistent_dag_graph_f32`.
+- `pto_persistent_dag_graph_chain`: explicit graph-descriptor variant of the
+  five-task chain DAG, validating that the benchmark path can time the chain
+  shape from graph metadata rather than a fixed DAG adapter.
 - `pto_persistent_dag_unary_square`: generated-dispatch DAG with a one-input
   square task body before downstream fan-in.
 - `pto_persistent_dag_tensor`: four-task generated-dispatch DAG with a tiled

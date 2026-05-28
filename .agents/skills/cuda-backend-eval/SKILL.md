@@ -1000,6 +1000,9 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_graph`: generated-dispatch DAG using an explicit
   runtime graph descriptor, validating the generic graph-lowering path shared
   with `persistent_dag_graph_f32`.
+- `pto_persistent_dag_graph_chain`: five-task generated-dispatch DAG using
+  an explicit graph descriptor with the same chain dependency shape as
+  `pto_persistent_dag_chain`.
 - `pto_persistent_dag_graph_diamond`: five-task generated-dispatch DAG using
   an explicit graph descriptor with two roots, two fan-out consumers, and a
   final join.
@@ -1096,7 +1099,7 @@ Use `--dry-run` to print the commands without launching benchmarks. The paired
 benchmark default tensor descriptor is `16x16x16` so the scalar tensor DAG,
 explicit graph tensor DAG, WMMA tensor-core DAG, and cuBLAS rows can run
 together. The current committed summary keeps the full `61cf96cd` capture plus
-the compact current-head `b2c5c8a4` gate in
+the compact current-head `06b8c0c6` gate in
 `docs/nvidia-backend/evaluation-current.md`.
 
 For a lighter no-torch real-data check, run the paired Worker smoke instead of
@@ -1222,6 +1225,17 @@ benchmark path check of the wider explicit graph descriptor with dispatch
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --single-baseline pto_persistent_dag_graph_diamond \
+    --sizes 1024 --arch compute_80
+```
+
+Use `--single-baseline pto_persistent_dag_graph_chain` for a quick benchmark
+path check of the explicit five-task chain graph descriptor with dispatch
+`1,2,1,2,1`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_chain \
     --sizes 1024 --arch compute_80
 ```
 
@@ -1434,7 +1448,7 @@ directly from a combined benchmark JSON payload:
 ```bash
 PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py \
-    tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark.json
+    tmp/cuda-backend/combined-current-06b8c0c6/cuda-benchmark.json
 ```
 
 Use `--section launch`, `--section unary-square`, `--section worker-grid`,
@@ -1470,10 +1484,11 @@ PYTHONPATH=$PWD:$PWD/python \
 
 The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the host-schedule generic-args baseline, graph
-generic-args4 baseline, size `1024`, one repeat, `60` combined samples, and
+generic-args4 baseline, graph-chain baseline, size `1024`, one repeat,
+`62` combined samples, and
 the Markdown/SVG report files.
-The current compact gate artifact is under
-`tmp/cuda-backend/combined-current-b2c5c8a4/`.
+The current compact gate artifact with graph-chain benchmark coverage is
+under `tmp/cuda-backend/combined-current-06b8c0c6/`.
 New paired-runner captures use a dynamic validator command because the
 selected benchmark rows can change with runner flags.
 `--require-command-examples` checks that

@@ -1,9 +1,10 @@
 # CUDA Current Evaluation Capture
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
-from commit `61cf96cd`, plus the current-head compact validation capture from
-commit `b2c5c8a4`. The raw JSON, Markdown, and SVG reports are generated
-locally under `tmp/cuda-backend/` and intentionally remain uncommitted.
+from commit `61cf96cd`, plus the compact current-head validation capture with
+artifact label `06b8c0c6`. The raw JSON, Markdown, and SVG reports are
+generated locally under `tmp/cuda-backend/` and intentionally remain
+uncommitted.
 
 The capture uses `nvcc` for target-specific PTX on both machines:
 
@@ -68,6 +69,16 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/combined-current-b2c5c8a4/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/a100-current-06b8c0c6/cuda-benchmark.json`
+- `tmp/cuda-backend/a100-current-06b8c0c6/cuda-benchmark.md`
+- `tmp/cuda-backend/h200-current-06b8c0c6/cuda-benchmark.json`
+- `tmp/cuda-backend/h200-current-06b8c0c6/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-current-06b8c0c6/cuda-benchmark.json`
+- `tmp/cuda-backend/combined-current-06b8c0c6/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-current-06b8c0c6/cuda-benchmark.svg`
+- `tmp/cuda-backend/combined-current-06b8c0c6/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/combined-current-06b8c0c6/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/combined-current-06b8c0c6/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.json`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark.svg`
@@ -120,7 +131,7 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/cuda-smoke-report.svg`
 
-## Current Compact Paired Gate
+## Previous Graph-Generic Compact Gate
 
 The compact paired gate at commit `b2c5c8a4` uses a WMMA-compatible
 `16x16x16` tensor descriptor, `N=1024`, one repeat, `batch_tasks=2`, and
@@ -177,10 +188,10 @@ Worker-grid result:
 The report directory contains `cuda-benchmark.json`, `cuda-benchmark.md`,
 `cuda-benchmark.svg`, `cuda-benchmark-ratios.svg`,
 `cuda-benchmark-dag-deltas.svg`, and `cuda-benchmark-throughput.svg`. This
-capture supersedes the `2aedb40f` compact gate for current-head validation
-because it includes the graph-generic-args4 benchmark promotion.
+capture is retained as the previous compact gate that added the
+graph-generic-args4 benchmark promotion.
 
-## Previous Compact Paired Gate
+## Previous Generic-Args Compact Gate
 
 The compact paired gate at commit `2aedb40f` uses a
 WMMA-compatible `16x16x16` tensor descriptor, `N=1024`, one repeat,
@@ -193,8 +204,9 @@ examples, generated Markdown/SVG report files, dispatch sequences, tensor tile
 metadata, and zero scheduler errors.
 
 This capture is intentionally retained as previous evidence before the
-graph-generic-args4 benchmark promotion. The `b2c5c8a4` gate supersedes it for
-`compact-current` validation.
+graph-generic-args4 benchmark promotion. The `b2c5c8a4` gate superseded it at
+that point; the later `06b8c0c6` graph-chain gate is the current
+`compact-current` validation artifact.
 
 Original validation command at capture time:
 
@@ -235,6 +247,41 @@ the three-size,
 three-repeat rows below for broad trend reading. The `2aedb40f` gate was
 captured after adding the host-schedule generic-args benchmark row; all PTO
 persistent DAG rows reported zero device scheduler errors.
+
+## Current Compact Paired Gate
+
+The compact paired gate at artifact label `06b8c0c6` promotes
+`pto_persistent_dag_graph_chain` into the selected benchmark path. It uses
+the current compact preset shape: `N=1024`, one repeat, `batch_tasks=2`,
+`worker_blocks_per_task=4`, and the default `16x16x16` tensor descriptor.
+The paired runner synced the local tree to `bizhaoh200`, captured local A100
+and remote H200 reports, merged `62` rows, and validated the combined JSON
+with source-paper provenance, sanitized command examples, report files, tensor
+descriptor metadata, expected dispatch sequences, and zero PTO scheduler
+errors.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/combined-current-06b8c0c6/cuda-benchmark.json \
+    --preset compact-current
+```
+
+Graph-chain rows from the capture:
+
+| GPU | Baseline | N | Dispatch | Graph fanin | Graph dependents | Device ns | Host ns | Status |
+| --- | -------- | - | -------- | ----------- | ---------------- | --------- | ------- | ------ |
+| A100 | `pto_persistent_dag_chain` | 1024 | `1,2,1,2,1` | - | - | 50176 | 64959 | pass |
+| A100 | `pto_persistent_dag_graph_chain` | 1024 | `1,2,1,2,1` | `0,0,2,1,1` | `2,2,3,4` | 43008 | 53807 | pass |
+| H200 | `pto_persistent_dag_chain` | 1024 | `1,2,1,2,1` | - | - | 45952 | 60262 | pass |
+| H200 | `pto_persistent_dag_graph_chain` | 1024 | `1,2,1,2,1` | `0,0,2,1,1` | `2,2,3,4` | 37344 | 47666 | pass |
+
+This capture makes the explicit graph-descriptor chain visible in the same
+benchmark/report/validator path as the selected graph, graph-generic, diamond,
+and tensor graph rows. It is still a compact one-size gate, not a replacement
+for the full three-size paired capture.
 
 ## Supplemental Scalar-Scale Benchmark
 

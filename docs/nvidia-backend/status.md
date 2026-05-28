@@ -244,7 +244,7 @@ sequence. The graph-diamond row reported dispatch `[9,2,1,2,1]`, five
 completed tasks, A100 `device_wall_ns=36864`, and H200
 `device_wall_ns=31744`.
 
-The latest current-head compact paired validation at commit `b2c5c8a4` uses
+The previous graph-generic compact paired validation at commit `b2c5c8a4` uses
 the default `16x16x16` tensor descriptor so the scalar tensor DAG,
 `pto_persistent_dag_tensor_core`, and `cublas_sgemm` rows are all runnable in
 the same paired report. It runs `N=1024`, one repeat, `batch_tasks=2`, and
@@ -259,6 +259,19 @@ grid-batch were `22528/35840/44032/29696/27648/37888/36864/37888/37888 ns`;
 H200 reported
 `16992/31264/40320/30592/27520/48992/32480/34304/31872 ns`. All PTO
 persistent DAG rows reported zero device scheduler errors.
+
+The latest compact paired validation at artifact label `06b8c0c6` adds
+`pto_persistent_dag_graph_chain` to the selected benchmark path. It uses the
+same `N=1024`, one repeat, `batch_tasks=2`, `worker_blocks_per_task=4`, and
+default `16x16x16` tensor descriptor shape as the compact gate, producing
+`62` combined rows under `tmp/cuda-backend/combined-current-06b8c0c6/`. The
+validator checked source-paper provenance, sanitized command examples, report
+files, tensor descriptor metadata, dispatch sequences, zero scheduler errors,
+and the new graph-chain row. The graph-chain row reported
+`graph_descriptor.fanin=[0,0,2,1,1]`,
+`graph_descriptor.dependents=[2,2,3,4]`, dispatch `[1,2,1,2,1]`,
+completed count `5`, A100 `device_wall_ns=43008`, and H200
+`device_wall_ns=37344`.
 
 The compact paired benchmark gate at artifact label `a46db551` promotes
 `pto_persistent_dag_scalar_scale` into the selected benchmark path. It uses
@@ -2222,9 +2235,11 @@ Result:
 `dispatch_func_ids=[9,2,1]`, zero scheduler errors, resource policy
 `scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`, and `grid_dim=4`.
 A100 reported `device_wall_ns=43008` and `host_wall_ns=58143`; H200 reported
-`device_wall_ns=33664` and `host_wall_ns=43163`. The current paired-current
-validator now expects this baseline and therefore expects `846` full paired
-samples or `60` compact paired samples.
+`device_wall_ns=33664` and `host_wall_ns=43163`.
+
+After promoting `pto_persistent_dag_graph_chain` to a benchmark baseline, the
+paired-current validator now expects `864` full paired samples or `62`
+compact paired samples.
 
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph
