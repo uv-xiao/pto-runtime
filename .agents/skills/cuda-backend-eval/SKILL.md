@@ -1031,6 +1031,16 @@ Use `--section launch`, `--section unary-square`, `--section worker-grid`, or
 `--section dag-shapes` to refresh only one table. This avoids hand-calculating
 the current-evaluation summary from raw JSON.
 
+Render the compact tensor-baseline sweep table directly from its raw sweep
+JSON:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py \
+    tmp/cuda-backend/tensor-shape-sweep-c4ee08eb/cuda-tensor-shape-sweep.json \
+    --section tensor-sweep
+```
+
 Validate the paired-current capture before copying numbers into docs:
 
 ```bash

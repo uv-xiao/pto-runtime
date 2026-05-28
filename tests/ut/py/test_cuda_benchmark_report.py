@@ -2894,6 +2894,79 @@ def test_cuda_current_summary_keeps_old_captures_without_scalar_affine():
     assert "| A100 | 65536 | 1.50x | 2.00x | 1.25x | - | - | - | - | - | - | 2.50x |" in dag_table
 
 
+def test_cuda_current_summary_renders_tensor_sweep_table():
+    cuda_current_summary = _load_current_summary_module()
+    payload = {
+        "results": [
+            {
+                "artifact": "a100",
+                "machine": "a100",
+                "baseline": "pto_persistent_dag_tensor",
+                "shape": "16x16x16",
+                "device_wall_ns": 1000,
+                "status": "pass",
+            },
+            {
+                "artifact": "a100",
+                "machine": "a100",
+                "baseline": "pto_persistent_dag_tensor",
+                "shape": "16x16x16",
+                "device_wall_ns": 1200,
+                "status": "pass",
+            },
+            {
+                "artifact": "a100",
+                "machine": "a100",
+                "baseline": "pto_persistent_dag_tensor_core",
+                "shape": "16x16x16",
+                "device_wall_ns": 900,
+                "status": "pass",
+            },
+            {
+                "artifact": "a100",
+                "machine": "a100",
+                "baseline": "cublas_sgemm",
+                "shape": "16x16x16",
+                "device_wall_ns": 1500,
+                "status": "pass",
+            },
+            {
+                "artifact": "h200",
+                "machine": "h200",
+                "baseline": "pto_persistent_dag_tensor",
+                "shape": "16x16x16",
+                "device_wall_ns": 800,
+                "status": "pass",
+            },
+            {
+                "artifact": "h200",
+                "machine": "h200",
+                "baseline": "pto_persistent_dag_tensor_core",
+                "shape": "16x16x16",
+                "device_wall_ns": 1000,
+                "status": "pass",
+            },
+            {
+                "artifact": "h200",
+                "machine": "h200",
+                "baseline": "cublas_sgemm",
+                "shape": "16x16x16",
+                "device_wall_ns": 1600,
+                "status": "pass",
+            },
+        ]
+    }
+
+    table = cuda_current_summary.render_tensor_sweep_table(payload)
+
+    assert (
+        "| GPU | Shape | Scalar tensor ns | Tensor-core ns | cuBLAS ns | Tensor-core/scalar | cuBLAS/scalar |"
+        in table
+    )
+    assert "| A100 | 16x16x16 | 1100 | 900 | 1500 | 0.82x | 1.36x |" in table
+    assert "| H200 | 16x16x16 | 800 | 1000 | 1600 | 1.25x | 2.00x |" in table
+
+
 def test_summarize_results_groups_by_machine_and_baseline():
     cuda_benchmark = _load_benchmark_module()
     payload = {

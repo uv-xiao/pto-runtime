@@ -7,12 +7,13 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
-"""Render compact CUDA current-evaluation summary tables from benchmark JSON."""
+"""Render compact CUDA current-evaluation summary tables from raw JSON."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import statistics
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,9 @@ Summary = Mapping[SummaryKey, Mapping[str, Any]]
 Payload = dict[str, Any]
 
 MACHINE_LABELS = {
+    "a100": "A100",
     "hina": "A100",
+    "h200": "H200",
     "dasys-h200x8": "H200",
 }
 
@@ -87,7 +90,7 @@ def _median(summary: Summary, key: SummaryKey) -> int:
     return int(summary[key]["median_device_wall_ns"])
 
 
-def _ratio(numerator: int, denominator: int) -> str:
+def _ratio(numerator: int | float, denominator: int | float) -> str:
     return f"{numerator / denominator:.2f}x"
 
 
@@ -95,6 +98,12 @@ def _ratio_for_key(summary: Summary, key: SummaryKey, denominator: int) -> str:
     if key not in summary:
         return "-"
     return _ratio(_median(summary, key), denominator)
+
+
+def _format_number(value: int | float) -> str:
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
 
 
 def _table(headers: Sequence[str], rows: Sequence[Sequence[str | int]]) -> str:
@@ -229,6 +238,59 @@ def render_dag_shape_table(payload: Payload) -> str:
     )
 
 
+def _tensor_sweep_medians(payload: Payload) -> dict[tuple[str, str, str], int | float]:
+    groups: dict[tuple[str, str, str], list[int]] = {}
+    for row in payload.get("results", []):
+        if row.get("status", "pass") != "pass":
+            continue
+        machine = str(row.get("machine") or row.get("artifact", "unknown"))
+        baseline = str(row.get("baseline", "unknown"))
+        shape = str(row.get("shape", "unknown"))
+        groups.setdefault((machine, baseline, shape), []).append(int(row.get("device_wall_ns", 0)))
+    return {key: statistics.median(values) for key, values in groups.items()}
+
+
+def render_tensor_sweep_table(payload: Payload) -> str:
+    medians = _tensor_sweep_medians(payload)
+    rows: list[list[str | int]] = []
+    machine_shapes = sorted(
+        {(machine, shape) for machine, _, shape in medians},
+        key=lambda item: (_machine_label(item[0]), item[1], item[0]),
+    )
+    for machine, shape in machine_shapes:
+        scalar_key = (machine, "pto_persistent_dag_tensor", shape)
+        tensor_core_key = (machine, "pto_persistent_dag_tensor_core", shape)
+        cublas_key = (machine, "cublas_sgemm", shape)
+        if scalar_key not in medians:
+            continue
+        scalar = medians[scalar_key]
+        tensor_core = medians.get(tensor_core_key)
+        cublas = medians.get(cublas_key)
+        rows.append(
+            [
+                _machine_label(machine),
+                shape,
+                _format_number(scalar),
+                _format_number(tensor_core) if tensor_core is not None else "-",
+                _format_number(cublas) if cublas is not None else "-",
+                _ratio(tensor_core, scalar) if tensor_core is not None else "-",
+                _ratio(cublas, scalar) if cublas is not None else "-",
+            ]
+        )
+    return _table(
+        [
+            "GPU",
+            "Shape",
+            "Scalar tensor ns",
+            "Tensor-core ns",
+            "cuBLAS ns",
+            "Tensor-core/scalar",
+            "cuBLAS/scalar",
+        ],
+        rows,
+    )
+
+
 def render_summary(payload: Payload) -> str:
     return "\n\n".join(
         [
@@ -249,7 +311,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("json_path", type=Path)
     parser.add_argument(
         "--section",
-        choices=("all", "launch", "unary-square", "worker-grid", "dag-shapes"),
+        choices=("all", "launch", "unary-square", "worker-grid", "dag-shapes", "tensor-sweep"),
         default="all",
     )
     return parser.parse_args(argv)
@@ -266,6 +328,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(render_worker_grid_table(payload))
     elif args.section == "dag-shapes":
         print(render_dag_shape_table(payload))
+    elif args.section == "tensor-sweep":
+        print(render_tensor_sweep_table(payload))
     else:
         print(render_summary(payload))
 

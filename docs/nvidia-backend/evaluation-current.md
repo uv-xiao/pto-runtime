@@ -169,12 +169,12 @@ Markdown/SVG report. The Markdown keeps raw repeat rows plus medians, while
 the SVG plots median device time with sample counts. Each row uses `N=256`;
 the table below reports median device time across the three samples.
 
-| GPU | Shape | Scalar tensor ns | Tensor-core ns | cuBLAS ns |
-| --- | ----- | ---------------- | -------------- | --------- |
-| A100 | 16x16x16 | 37888 | 35840 | 43007 |
-| A100 | 16x16x64 | 40960 | 38912 | 46080 |
-| H200 | 16x16x16 | 30784 | 33056 | 56960 |
-| H200 | 16x16x64 | 45664 | 34176 | 52639 |
+| GPU | Shape | Scalar tensor ns | Tensor-core ns | cuBLAS ns | Tensor-core/scalar | cuBLAS/scalar |
+| --- | ----- | ---------------- | -------------- | --------- | ------------------ | ------------- |
+| A100 | 16x16x16 | 37888 | 35840 | 43007 | 0.95x | 1.14x |
+| A100 | 16x16x64 | 40960 | 38912 | 46080 | 0.95x | 1.12x |
+| H200 | 16x16x16 | 30784 | 33056 | 56960 | 1.07x | 1.85x |
+| H200 | 16x16x64 | 45664 | 34176 | 52639 | 0.75x | 1.15x |
 
 The tensor-core rows use dispatch `10,1,2,1`, while the scalar tensor rows use
 `3,1,2,1`. cuBLAS rows have no PTO dispatch sequence because they run through
