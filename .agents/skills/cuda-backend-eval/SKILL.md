@@ -941,6 +941,15 @@ The sweep writes `cuda-tensor-shape-sweep.json`,
 `cuda-tensor-shape-sweep.md`, and `cuda-tensor-shape-sweep.svg` under
 `tmp/cuda-backend/tensor-shape-sweep-<commit>/`.
 
+Validate the compact tensor-baseline sweep before copying numbers into docs:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_validate_tensor_sweep.py \
+    tmp/cuda-backend/tensor-shape-sweep-<commit>/cuda-tensor-shape-sweep.json \
+    --preset compact-tensor-baselines
+```
+
 Use `--single-baseline pto_persistent_dag_tensor_core` for a quick benchmark
 path check of the WMMA tensor-core generated-dispatch DAG:
 

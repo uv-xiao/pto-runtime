@@ -257,6 +257,9 @@ cuBLAS SGEMM rows. The first compact comparison report at commit `6f9a0b78`
 uses `16x16x16` and `16x16x64` descriptors with `N=256` and one repeat. The
 artifact under `tmp/cuda-backend/tensor-shape-sweep-6f9a0b78/` writes raw
 rows, a median summary table, and an SVG chart.
+`cuda_validate_tensor_sweep.py --preset compact-tensor-baselines` now checks
+that this artifact has the expected A100/H200 rows, baselines, shapes, report
+files, and PTO dispatch sequences before the numbers are copied into docs.
 
 Evidence:
 

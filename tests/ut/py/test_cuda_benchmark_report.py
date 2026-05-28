@@ -195,6 +195,26 @@ def _load_capture_validator_module():
         sys.modules.pop(spec.name, None)
 
 
+def _load_tensor_sweep_validator_module():
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / ".agents"
+        / "skills"
+        / "cuda-backend-eval"
+        / "scripts"
+        / "cuda_validate_tensor_sweep.py"
+    )
+    spec = importlib.util.spec_from_file_location("cuda_validate_tensor_sweep", script_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.modules.pop(spec.name, None)
+
+
 def _load_smoke_validator_module():
     script_path = (
         Path(__file__).resolve().parents[3]
@@ -689,6 +709,124 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_generic_args" in args.require_baseline
     assert "pto_persistent_dag_graph" in args.require_baseline
     assert args.expected_result_count == 720
+
+
+def _tensor_sweep_payload():
+    results = []
+    baselines = {
+        "pto_persistent_dag_tensor": [3, 1, 2, 1],
+        "pto_persistent_dag_tensor_core": [10, 1, 2, 1],
+        "cublas_sgemm": [],
+    }
+    for artifact in ("a100", "h200"):
+        for baseline, dispatch in baselines.items():
+            for shape in ("16x16x16", "16x16x64"):
+                rows, cols, inner = (int(part) for part in shape.split("x"))
+                for repeat in range(2):
+                    results.append(
+                        {
+                            "artifact": artifact,
+                            "machine": artifact,
+                            "baseline": baseline,
+                            "shape": shape,
+                            "repeat": repeat,
+                            "status": "pass",
+                            "device_wall_ns": 1000,
+                            "host_wall_ns": 1500,
+                            "dispatch_func_ids": dispatch,
+                            "tensor_tile": {"rows": rows, "cols": cols, "inner": inner, "tile_count": 1},
+                        }
+                    )
+    return {
+        "metadata": {
+            "label": "tensor-shape-sweep-abc123",
+            "git_commit": "abc123",
+            "n": 256,
+            "repeats": 2,
+            "baselines": list(baselines),
+            "shapes": ["16x16x16", "16x16x64"],
+        },
+        "results": results,
+    }
+
+
+def test_cuda_tensor_sweep_validator_accepts_complete_artifact(tmp_path):
+    cuda_validate_tensor_sweep = _load_tensor_sweep_validator_module()
+    artifact_dir = tmp_path / "tensor-shape-sweep-abc123"
+    artifact_dir.mkdir()
+    payload = _tensor_sweep_payload()
+    (artifact_dir / "cuda-tensor-shape-sweep.json").write_text(json.dumps(payload) + "\n")
+    (artifact_dir / "cuda-tensor-shape-sweep.md").write_text("# report\n")
+    (artifact_dir / "cuda-tensor-shape-sweep.svg").write_text("<svg></svg>\n")
+
+    errors = cuda_validate_tensor_sweep.validate_tensor_sweep(
+        payload,
+        artifact_dir=artifact_dir,
+        required_artifacts=["a100", "h200"],
+        required_baselines=["pto_persistent_dag_tensor", "pto_persistent_dag_tensor_core", "cublas_sgemm"],
+        required_shapes=["16x16x16", "16x16x64"],
+        expected_repeats=2,
+        expected_result_count=24,
+        required_dispatch={
+            "pto_persistent_dag_tensor": "3,1,2,1",
+            "pto_persistent_dag_tensor_core": "10,1,2,1",
+        },
+        require_report_files=True,
+    )
+
+    assert errors == []
+
+
+def test_cuda_tensor_sweep_validator_reports_missing_rows_and_metadata(tmp_path):
+    cuda_validate_tensor_sweep = _load_tensor_sweep_validator_module()
+    artifact_dir = tmp_path / "tensor-shape-sweep-abc123"
+    artifact_dir.mkdir()
+    payload = _tensor_sweep_payload()
+    payload["results"] = [
+        row
+        for row in payload["results"]
+        if not (
+            row["artifact"] == "h200"
+            and row["baseline"] == "pto_persistent_dag_tensor_core"
+            and row["shape"] == "16x16x64"
+        )
+    ]
+    payload["results"][0]["status"] = "fail"
+    payload["results"][1]["tensor_tile"]["inner"] = 32
+    payload["results"][2]["dispatch_func_ids"] = [9]
+
+    errors = cuda_validate_tensor_sweep.validate_tensor_sweep(
+        payload,
+        artifact_dir=artifact_dir,
+        required_artifacts=["a100", "h200"],
+        required_baselines=["pto_persistent_dag_tensor", "pto_persistent_dag_tensor_core", "cublas_sgemm"],
+        required_shapes=["16x16x16", "16x16x64"],
+        expected_repeats=2,
+        expected_result_count=24,
+        required_dispatch={"pto_persistent_dag_tensor": "3,1,2,1"},
+        require_report_files=True,
+    )
+
+    assert "expected 24 results, found 22" in errors
+    assert "non-pass row artifact=a100 baseline=pto_persistent_dag_tensor shape=16x16x16" in errors
+    assert "expected tensor tile 16x16x16 for artifact=a100 baseline=pto_persistent_dag_tensor, found 16x16x32" in errors
+    assert "expected dispatch 3,1,2,1 for artifact=a100 baseline=pto_persistent_dag_tensor, found 9" in errors
+    assert "missing baseline pto_persistent_dag_tensor_core artifact=h200 shape=16x16x64" in errors
+    assert "missing report file cuda-tensor-shape-sweep.md" in errors
+    assert "missing report file cuda-tensor-shape-sweep.svg" in errors
+
+
+def test_cuda_tensor_sweep_validator_compact_preset_keeps_dispatch_commas():
+    cuda_validate_tensor_sweep = _load_tensor_sweep_validator_module()
+    args = cuda_validate_tensor_sweep.parse_args(["sweep.json", "--preset", "compact-tensor-baselines"])
+
+    cuda_validate_tensor_sweep._apply_preset(args)
+    required_dispatch = cuda_validate_tensor_sweep._parse_required_dispatch(args.require_dispatch)
+
+    assert required_dispatch == {
+        "pto_persistent_dag_tensor": "3,1,2,1",
+        "pto_persistent_dag_tensor_core": "10,1,2,1",
+    }
 
 
 def test_cuda_smoke_validator_accepts_paired_lifecycle_artifact(tmp_path):
