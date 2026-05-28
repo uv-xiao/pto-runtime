@@ -492,10 +492,10 @@ def _build_cuda_host_schedule_args(
     if arg_builder == "elementwise_generic_args_f32":
         tensor_arg_names = list(cuda_spec.get("tensor_args", []))
         scalar_arg_names = list(cuda_spec.get("scalar_args", []))
-        if len(tensor_arg_names) != 2:
-            raise ValueError("CUDA elementwise_generic_args_f32 scene tests require exactly two tensor_args")
-        if len(scalar_arg_names) != 2:
-            raise ValueError("CUDA elementwise_generic_args_f32 scene tests require exactly two scalar_args")
+        if len(tensor_arg_names) > 4:
+            raise ValueError("CUDA elementwise_generic_args_f32 supports at most four tensor_args")
+        if len(scalar_arg_names) > 4:
+            raise ValueError("CUDA elementwise_generic_args_f32 supports at most four scalar_args")
         missing_tensor_args = [name for name in tensor_arg_names if name not in device_buffers.ptrs]
         if missing_tensor_args:
             raise ValueError(

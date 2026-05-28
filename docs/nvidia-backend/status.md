@@ -162,8 +162,10 @@ tensor/scalar `(a, b, out, alpha, n)` task bodies. It also accepts
 `(a, b, out, alpha, beta, n)` task bodies and `elementwise_triad_f32` for
 three-input `(a, b, c, out, n)` task bodies, `elementwise_quad_f32` for
 four-input `(a, b, c, d, out, n)` task bodies, and
-`elementwise_generic_args_f32` for the first host-schedule generic
-tensor/scalar argument slots.
+`elementwise_generic_args_f32` for the host-schedule generic tensor/scalar
+argument slots. The original two-slot launch ABI remains available, and the
+host runtime also accepts the four tensor/scalar slots already represented by
+`CudaVectorGenericArgs`.
 The no-torch Worker smoke can validate that same non-addition host-schedule
 ABI with `--op mul`, unary ABI with `--op square`, scalar ABI with
 `--op scale`, mixed tensor/scalar ABI with `--op axpy`, and two-scalar affine
@@ -1535,10 +1537,11 @@ unary-square callable specs, end to end.
 The fourth-tensor persistent quad callable spec also runs end to end through
 ctypes-backed real data. The host-schedule quad callable spec also runs
 through both the normal `SceneTestCase` L2 path and the no-torch Worker smoke
-path. The host-schedule generic-args callable spec now has a ctypes-backed
-scene test, so it runs on H200 without requiring `torch`; it lowers
-`tensor_args[0]`, `tensor_args[1]`, `scalar_args[0]`, and `scalar_args[1]`
-through the host runtime launch ABI. A generic `persistent_dag_graph_f32`
+path. The host-schedule generic-args callable spec now has ctypes-backed
+scene tests, so it runs on H200 without requiring `torch`; it lowers the
+original two-slot `tensor_args[0:2]` and `scalar_args[0:2]` path, plus the
+four-slot `tensor_args[0:4]` and `scalar_args[0:4]` path, through the host
+runtime launch ABI. A generic `persistent_dag_graph_f32`
 adapter can now lower explicit
 runtime graph descriptors with per-task `func_id`, dependency lists, fan-in,
 temporary buffers, generic tensor slots, and scalar slots through the same L2
@@ -1596,6 +1599,45 @@ Result: `tmp/cuda-backend/worker-generic_args-smoke-72c8186c/` contains
 `device_wall_ns=35840`, while the H200 row reported
 `ptx_source=kernel-compiler-worker-task-body-generic_args-compute_90` and
 `device_wall_ns=15488`.
+
+After widening host-schedule generic args to the four tensor/scalar slots
+already present in `CudaVectorGenericArgs`, the new `generic_args4`
+ctypes `SceneTestCase` and no-torch Worker smoke were run on A100 and H200.
+Focused local checks:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py -q \
+  -k 'builds_cuda_elementwise_generic_args' --platform cuda
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py -q \
+  -k 'host_schedule_elementwise_generic_args_with_ctypes_data or \
+      host_schedule_elementwise_generic_args_four_slots_with_ctypes_data' \
+  --platform cuda
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'generic_args4_helpers or generic_args_helpers_use_aux_tensor'
+```
+
+The paired no-torch Worker smoke was captured with:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_smoke.py \
+    --op generic_args4 --sync-remote-tree --build-runtime
+```
+
+Result: `tmp/cuda-backend/worker-generic_args4-smoke-03ed75da/` contains
+`a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The artifact validator accepted both rows with
+`runtime=host_schedule` and `mode=worker/generic_args4`; the A100 row
+reported
+`ptx_source=kernel-compiler-worker-task-body-generic_args4-compute_80` and
+`device_wall_ns=26624`, while the H200 row reported
+`ptx_source=kernel-compiler-worker-task-body-generic_args4-compute_90` and
+`device_wall_ns=19552`.
 
 The same host-schedule generic-args path is now a benchmark baseline:
 `pto_host_schedule_generic_args`. It compiles a generated task-body wrapper
@@ -2089,8 +2131,8 @@ generated report files. A100 reported per-launch device times
 Needed:
 
 - broader CUDA scene-test argument builders beyond the current binary
-  elementwise, unary square, scalar scale, axpy, affine, triad, quad, and
-  first host-schedule generic-args and persistent scalar/DAG tracer bullets.
+  elementwise, unary square, scalar scale, axpy, affine, triad, quad,
+  host-schedule generic-args, and persistent scalar/DAG tracer bullets.
 
 ### Fourth-Tensor Persistent DAG Verification
 

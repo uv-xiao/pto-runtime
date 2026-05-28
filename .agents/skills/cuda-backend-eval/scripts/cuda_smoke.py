@@ -221,6 +221,12 @@ def _worker_task_body(op: str) -> str:
         expression = "ctx->a[i] * ctx->b[i] + ctx->c[i] * ctx->d[i]"
     elif op == "generic_args":
         expression = "ctx->scalar0 * ctx->a[i] + ctx->tensor0[i] + ctx->scalar1 * ctx->tensor1[i] + ctx->b[i]"
+    elif op == "generic_args4":
+        expression = (
+            "ctx->scalar0 * ctx->a[i] + ctx->tensor0[i] + "
+            "ctx->scalar1 * ctx->tensor1[i] + ctx->scalar2 * ctx->tensor2[i] + "
+            "ctx->scalar3 * ctx->tensor3[i] + ctx->b[i]"
+        )
     else:
         raise ValueError(f"unknown worker smoke op: {op}")
     return f"""
@@ -258,6 +264,8 @@ def _worker_expected_output(op: str, n: int) -> list[float]:
         return [_fma_f32(float(i), float(2 * i), _float32(float(3 * i) * float(4 * i))) for i in range(n)]
     if op == "generic_args":
         return [float(7.5 * i) for i in range(n)]
+    if op == "generic_args4":
+        return [float(8.5 * i) for i in range(n)]
     raise ValueError(f"unknown worker smoke op: {op}")
 
 
@@ -334,6 +342,23 @@ struct PtoTaskContext {
     unsigned long long n;
 };
 """.strip()
+    if op == "generic_args4":
+        return """
+struct PtoTaskContext {
+    const float *a;
+    const float *b;
+    float *out;
+    const float *tensor0;
+    const float *tensor1;
+    const float *tensor2;
+    const float *tensor3;
+    float scalar0;
+    float scalar1;
+    float scalar2;
+    float scalar3;
+    unsigned long long n;
+};
+""".strip()
     return """
 struct PtoTaskContext {
     const float *a;
@@ -403,6 +428,21 @@ def _worker_host_parameters(op: str) -> tuple[str, ...]:
             "float scalar1",
             "unsigned long long n",
         )
+    if op == "generic_args4":
+        return (
+            "const float *a",
+            "const float *b",
+            "float *out",
+            "const float *tensor0",
+            "const float *tensor1",
+            "const float *tensor2",
+            "const float *tensor3",
+            "float scalar0",
+            "float scalar1",
+            "float scalar2",
+            "float scalar3",
+            "unsigned long long n",
+        )
     return (
         "const float *a",
         "const float *b",
@@ -426,6 +466,8 @@ def _worker_host_context_initializer(op: str) -> str:
         return "a, b, c, d, out, n"
     if op == "generic_args":
         return "a, b, out, tensor0, tensor1, scalar0, scalar1, n"
+    if op == "generic_args4":
+        return "a, b, out, tensor0, tensor1, tensor2, tensor3, scalar0, scalar1, scalar2, scalar3, n"
     return "a, b, out, n"
 
 
@@ -444,10 +486,12 @@ def _worker_host_op(op: str) -> int:
         return 7
     if op == "generic_args":
         return 8
+    if op == "generic_args4":
+        return 9
     return 1
 
 
-def _worker_raw_args(op: str, dev_a, dev_b, dev_c, dev_d, dev_out, n: int):
+def _worker_raw_args(op: str, dev_a, dev_b, dev_c, dev_d, dev_e, dev_f, dev_out, n: int):
     if op == "scale":
         return CudaVectorScaleArgs(a=dev_a, out=dev_out, alpha=1.5, n=n)
     if op == "square":
@@ -471,6 +515,19 @@ def _worker_raw_args(op: str, dev_a, dev_b, dev_c, dev_d, dev_out, n: int):
             scalar_args=scalar_args_t(1.5, 0.25, 0.0, 0.0),
             tensor_arg_count=2,
             scalar_arg_count=2,
+            n=n,
+        )
+    if op == "generic_args4":
+        tensor_args_t = ctypes.c_void_p * 4
+        scalar_args_t = ctypes.c_float * 4
+        return CudaVectorGenericArgs(
+            a=dev_a,
+            b=dev_b,
+            out=dev_out,
+            tensor_args=tensor_args_t(dev_c, dev_d, dev_e, dev_f),
+            scalar_args=scalar_args_t(1.5, 0.25, 0.125, 0.0625),
+            tensor_arg_count=4,
+            scalar_arg_count=4,
             n=n,
         )
     return CudaVectorAddArgs(a=dev_a, b=dev_b, out=dev_out, n=n)
@@ -593,13 +650,17 @@ def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool
         host_a = array_t(*[float(i) for i in range(n)])
         host_b = array_t(*[float(2 * i) for i in range(n)])
         host_c = array_t(*[float(3 * i) for i in range(n)])
+        host_e = array_t(*[float(5 * i) for i in range(n)])
+        host_f = array_t(*[float(6 * i) for i in range(n)])
         host_out = array_t()
         nbytes = ctypes.sizeof(host_a)
 
         dev_a = worker.malloc(nbytes)
         dev_b = worker.malloc(nbytes) if op not in {"scale", "square"} else None
-        dev_c = worker.malloc(nbytes) if op in {"triad", "quad", "generic_args"} else None
-        dev_d = worker.malloc(nbytes) if op in {"quad", "generic_args"} else None
+        dev_c = worker.malloc(nbytes) if op in {"triad", "quad", "generic_args", "generic_args4"} else None
+        dev_d = worker.malloc(nbytes) if op in {"quad", "generic_args", "generic_args4"} else None
+        dev_e = worker.malloc(nbytes) if op == "generic_args4" else None
+        dev_f = worker.malloc(nbytes) if op == "generic_args4" else None
         dev_out = worker.malloc(nbytes)
         try:
             worker.copy_to(dev_a, ctypes.addressof(host_a), nbytes)
@@ -610,8 +671,12 @@ def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool
             if dev_d is not None:
                 host_d = array_t(*[float(4 * i) for i in range(n)])
                 worker.copy_to(dev_d, ctypes.addressof(host_d), nbytes)
+            if dev_e is not None:
+                worker.copy_to(dev_e, ctypes.addressof(host_e), nbytes)
+            if dev_f is not None:
+                worker.copy_to(dev_f, ctypes.addressof(host_f), nbytes)
 
-            args = _worker_raw_args(op, dev_a, dev_b, dev_c, dev_d, dev_out, n)
+            args = _worker_raw_args(op, dev_a, dev_b, dev_c, dev_d, dev_e, dev_f, dev_out, n)
             config = CallConfig()
             config.block_dim = block_dim
             timing = worker.run(cid, args, config)
@@ -627,6 +692,10 @@ def run_worker_smoke(device: int, n: int, block_dim: int, arch: str, build: bool
                 worker.free(dev_c)
             if dev_d is not None:
                 worker.free(dev_d)
+            if dev_e is not None:
+                worker.free(dev_e)
+            if dev_f is not None:
+                worker.free(dev_f)
             worker.free(dev_out)
     finally:
         worker.close()
@@ -662,7 +731,7 @@ def main() -> None:
     parser.add_argument("--runner", choices=("direct_c_api", "worker"), default="direct_c_api")
     parser.add_argument(
         "--op",
-        choices=("add", "mul", "scale", "square", "axpy", "affine", "triad", "quad", "generic_args"),
+        choices=("add", "mul", "scale", "square", "axpy", "affine", "triad", "quad", "generic_args", "generic_args4"),
         default="add",
         help="Worker task body operation",
     )

@@ -74,6 +74,7 @@ committed:
 - `tmp/cuda-backend/tensor-descriptor-smoke-6c49c5cf/`
 - `tmp/cuda-backend/persistent-graph_descriptor-repeat2-smoke-5139ba23/`
 - `tmp/cuda-backend/persistent-tensor_tile-8x4x12-repeat2-smoke-223425b6/`
+- `tmp/cuda-backend/worker-generic_args4-smoke-03ed75da/`
 - `tmp/cuda-backend/persistent-graph_tensor_tile-16x16x16-repeat2-working/`
 - `tmp/cuda-backend/combined-graph-tensor-current-working/`
 - `tmp/cuda-backend/tensor-shape-sweep-c0ada3ad/`

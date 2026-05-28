@@ -24,6 +24,7 @@ enum PtoCudaHostScheduleOp : uint32_t {
     PTO_CUDA_HOST_OP_VECTOR_TRIAD_F32 = 6,
     PTO_CUDA_HOST_OP_VECTOR_QUAD_F32 = 7,
     PTO_CUDA_HOST_OP_VECTOR_GENERIC_ARGS_F32 = 8,
+    PTO_CUDA_HOST_OP_VECTOR_GENERIC_ARGS4_F32 = 9,
 };
 
 struct PtoCudaHostCallable {

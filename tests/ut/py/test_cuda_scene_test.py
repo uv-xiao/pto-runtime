@@ -102,6 +102,18 @@ if (i < ctx->n) {
 }
 """.lstrip()
 
+_VECTOR_GENERIC_ARGS4_BODY = """
+unsigned long long i = blockIdx.x * blockDim.x + threadIdx.x;
+if (i < ctx->n) {
+    ctx->out[i] = ctx->scalar0 * ctx->a[i] +
+                  ctx->tensor0[i] +
+                  ctx->scalar1 * ctx->tensor1[i] +
+                  ctx->scalar2 * ctx->tensor2[i] +
+                  ctx->scalar3 * ctx->tensor3[i] +
+                  ctx->b[i];
+}
+""".lstrip()
+
 _VECTOR_SQUARE_BODY = """
 unsigned long long i = blockIdx.x * blockDim.x + threadIdx.x;
 if (i < ctx->n) {
@@ -190,6 +202,23 @@ struct PtoTaskContext {
 };
 """.strip()
 
+_VECTOR_GENERIC_ARGS4_CONTEXT = """
+struct PtoTaskContext {
+    const float *a;
+    const float *b;
+    float *out;
+    const float *tensor0;
+    const float *tensor1;
+    const float *tensor2;
+    const float *tensor3;
+    float scalar0;
+    float scalar1;
+    float scalar2;
+    float scalar3;
+    unsigned long long n;
+};
+""".strip()
+
 _VECTOR_ADD_HOST_PARAMS = (
     "const float *a",
     "const float *b",
@@ -252,6 +281,21 @@ _VECTOR_GENERIC_ARGS_HOST_PARAMS = (
     "const float *tensor1",
     "float scalar0",
     "float scalar1",
+    "unsigned long long n",
+)
+
+_VECTOR_GENERIC_ARGS4_HOST_PARAMS = (
+    "const float *a",
+    "const float *b",
+    "float *out",
+    "const float *tensor0",
+    "const float *tensor1",
+    "const float *tensor2",
+    "const float *tensor3",
+    "float scalar0",
+    "float scalar1",
+    "float scalar2",
+    "float scalar3",
     "unsigned long long n",
 )
 
@@ -407,7 +451,7 @@ class _CtypesFloatTensor:
 
 
 class _FakeCudaBuffers:
-    ptrs = {"a": 101, "b": 202, "c": 404, "d": 505, "out": 303}
+    ptrs = {"a": 101, "b": 202, "c": 404, "d": 505, "e": 606, "f": 707, "out": 303}
 
 
 class _FakeWorker:
@@ -595,6 +639,37 @@ def _cuda_elementwise_generic_args_spec(source, *, task_name, arch="compute_80",
             "args": ["a", "b", "out"],
             "tensor_args": ["c", "d"],
             "scalar_args": ["alpha", "beta"],
+        }
+    }
+
+
+def _cuda_elementwise_generic_args4_spec(source, *, task_name, arch="compute_80", grid_dim=4, block_dim=256):
+    return {
+        "cuda": {
+            "source": str(source),
+            "task_name": task_name,
+            "arch": arch,
+            "context_definition": _VECTOR_GENERIC_ARGS4_CONTEXT,
+            "host_parameters": _VECTOR_GENERIC_ARGS4_HOST_PARAMS,
+            "host_context_initializer": (
+                "a, b, out, tensor0, tensor1, tensor2, tensor3, scalar0, scalar1, scalar2, scalar3, n"
+            ),
+            "grid_dim": grid_dim,
+            "block_dim": block_dim,
+            "op": 9,
+            "signature": [
+                ArgDirection.IN,
+                ArgDirection.IN,
+                ArgDirection.IN,
+                ArgDirection.IN,
+                ArgDirection.IN,
+                ArgDirection.IN,
+                ArgDirection.OUT,
+            ],
+            "arg_builder": "elementwise_generic_args_f32",
+            "args": ["a", "b", "out"],
+            "tensor_args": ["c", "d", "e", "f"],
+            "scalar_args": ["alpha", "beta", "gamma", "delta"],
         }
     }
 
@@ -1371,6 +1446,36 @@ def test_scene_test_builds_cuda_elementwise_generic_args():
     assert args.tensor_arg_count == 2
     assert args.scalar_arg_count == 2
     assert args.n == 17
+
+
+def test_scene_test_builds_cuda_elementwise_generic_args_four_slots():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(17)),
+        Tensor("b", _FakeTensor(17)),
+        Tensor("c", _FakeTensor(17)),
+        Tensor("d", _FakeTensor(17)),
+        Tensor("e", _FakeTensor(17)),
+        Tensor("f", _FakeTensor(17)),
+        Tensor("out", _FakeTensor(17)),
+        Scalar("alpha", ctypes.c_float(1.5)),
+        Scalar("beta", ctypes.c_float(0.25)),
+        Scalar("gamma", ctypes.c_float(0.125)),
+        Scalar("delta", ctypes.c_float(0.0625)),
+    )
+    cuda_spec = {
+        "arg_builder": "elementwise_generic_args_f32",
+        "args": ["a", "b", "out"],
+        "tensor_args": ["c", "d", "e", "f"],
+        "scalar_args": ["alpha", "beta", "gamma", "delta"],
+    }
+
+    args = _build_cuda_host_schedule_args(test_args, cast(Any, _FakeCudaBuffers()), cuda_spec)
+
+    assert isinstance(args, CudaVectorGenericArgs)
+    assert list(args.tensor_args) == [404, 505, 606, 707]
+    assert list(args.scalar_args) == pytest.approx([1.5, 0.25, 0.125, 0.0625])
+    assert args.tensor_arg_count == 4
+    assert args.scalar_arg_count == 4
 
 
 def test_scene_test_builds_cuda_persistent_chain_args():
@@ -2306,6 +2411,76 @@ def test_scene_test_runs_cuda_host_schedule_elementwise_generic_args_with_ctypes
         actual = args.out.to_list()
         expected = [
             1.5 * a_values[idx] + c_values[idx] + 0.25 * d_values[idx] + b_values[idx] for idx in range(len(actual))
+        ]
+        assert actual == pytest.approx(expected)
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_host_schedule_elementwise_generic_args_four_slots_with_ctypes_data(tmp_path):
+    source = tmp_path / "vector_generic_args4.pto.cu"
+    source.write_text(_VECTOR_GENERIC_ARGS4_BODY)
+
+    @scene_test(level=2, runtime="host_schedule")
+    class CudaVectorGenericArgs4Scene(SceneTestCase):
+        CALLABLE = _cuda_elementwise_generic_args4_spec(source, task_name="vector_generic_args4")
+        CASES = [
+            {
+                "name": "n1024",
+                "platforms": ["cuda"],
+                "params": {"n": 1024, "alpha": 1.5, "beta": 0.25, "gamma": 0.125, "delta": 0.0625},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            n = params["n"]
+            args = TaskArgsBuilder(
+                Tensor("a", _CtypesFloatTensor(float(i + 1) for i in range(n))),
+                Tensor("b", _CtypesFloatTensor(float(i) * 0.5 for i in range(n))),
+                Tensor("c", _CtypesFloatTensor(float(i) * 0.25 for i in range(n))),
+                Tensor("d", _CtypesFloatTensor(float(i) * 0.125 for i in range(n))),
+                Tensor("e", _CtypesFloatTensor(float(i) * 0.0625 for i in range(n))),
+                Tensor("f", _CtypesFloatTensor(float(i) * 0.03125 for i in range(n))),
+                Tensor("out", _CtypesFloatTensor(0.0 for _ in range(n))),
+                Scalar("alpha", ctypes.c_float(params["alpha"])),
+                Scalar("beta", ctypes.c_float(params["beta"])),
+                Scalar("gamma", ctypes.c_float(params["gamma"])),
+                Scalar("delta", ctypes.c_float(params["delta"])),
+            )
+            self.last_args = args
+            return args
+
+        def compute_golden(self, args, params):
+            raise AssertionError("ctypes scene uses explicit post-run validation")
+
+    scene = CudaVectorGenericArgs4Scene()
+    worker = CudaVectorGenericArgs4Scene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(
+            worker,
+            callable_obj,
+            CudaVectorGenericArgs4Scene.CASES[0],
+            skip_golden=True,
+        )
+        args = scene.last_args
+        a_values = args.a.to_list()
+        b_values = args.b.to_list()
+        c_values = args.c.to_list()
+        d_values = args.d.to_list()
+        e_values = args.e.to_list()
+        f_values = args.f.to_list()
+        actual = args.out.to_list()
+        expected = [
+            1.5 * a_values[idx]
+            + c_values[idx]
+            + 0.25 * d_values[idx]
+            + 0.125 * e_values[idx]
+            + 0.0625 * f_values[idx]
+            + b_values[idx]
+            for idx in range(len(actual))
         ]
         assert actual == pytest.approx(expected)
     finally:

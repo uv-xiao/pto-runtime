@@ -139,6 +139,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --output-json tmp/cuda-backend/worker-generic_args-smoke/a100.json
 ```
 
+Use `--op generic_args4` after changing the host-schedule generic packet path
+that consumes all four `CudaVectorGenericArgs::tensor_args` and
+`scalar_args` slots:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_smoke.py \
+    --runner worker --op generic_args4 --device 0 --n 1024 \
+    --block-dim 256 --arch compute_80 \
+    --output-json tmp/cuda-backend/worker-generic_args4-smoke/a100.json
+```
+
 Use `cuda_smoke_report.py` to turn captured smoke JSON from A100 and H200 into
 Markdown and SVG evidence. Persistent-device reports include dispatch
 `func_id` sequences, device-side scheduler error counters, resource policy,
@@ -1035,6 +1047,9 @@ It mirrors the benchmark runner's remote refresh, `--skip-remote-refresh`,
 `--build-runtime` for source changes under `src/cuda/`. It captures
 host-schedule Worker smoke JSON on A100/H200, renders a compact smoke report,
 and refreshes the artifact index.
+
+Use `--op generic_args4` with the same command when validating the four-slot
+generic host-schedule ABI.
 
 The script writes:
 

@@ -3137,6 +3137,36 @@ def test_cuda_worker_smoke_generic_args_helpers_use_aux_tensor_and_scalar_slots(
     assert cuda_smoke._worker_host_op("generic_args") == 8
 
 
+def test_cuda_worker_smoke_generic_args4_helpers_use_all_aux_slots():
+    cuda_smoke = _load_smoke_module()
+
+    body = cuda_smoke._worker_task_body("generic_args4")
+
+    assert "ctx->tensor2[i]" in body
+    assert "ctx->scalar3 * ctx->tensor3[i]" in body
+    assert cuda_smoke._worker_expected_output("generic_args4", 4) == [0.0, 8.5, 17.0, 25.5]
+    assert "const float *tensor3;" in cuda_smoke._worker_context_definition("generic_args4")
+    assert "float scalar3;" in cuda_smoke._worker_context_definition("generic_args4")
+    assert cuda_smoke._worker_host_parameters("generic_args4") == (
+        "const float *a",
+        "const float *b",
+        "float *out",
+        "const float *tensor0",
+        "const float *tensor1",
+        "const float *tensor2",
+        "const float *tensor3",
+        "float scalar0",
+        "float scalar1",
+        "float scalar2",
+        "float scalar3",
+        "unsigned long long n",
+    )
+    assert cuda_smoke._worker_host_context_initializer("generic_args4") == (
+        "a, b, out, tensor0, tensor1, tensor2, tensor3, scalar0, scalar1, scalar2, scalar3, n"
+    )
+    assert cuda_smoke._worker_host_op("generic_args4") == 9
+
+
 def test_cuda_smoke_main_writes_output_json(tmp_path, monkeypatch, capsys):
     cuda_smoke = _load_smoke_module()
     output = tmp_path / "smoke.json"
