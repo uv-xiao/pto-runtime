@@ -354,40 +354,42 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
 
 def render_svg(payload: dict[str, Any]) -> str:
-    results = list(payload["results"])
-    max_device_ns = max((int(row.get("device_wall_ns", 0)) for row in results), default=1)
+    summary_rows = _median_summary_rows(list(payload["results"]))
+    max_device_ns = max((float(row.get("median_device_wall_ns", 0)) for row in summary_rows), default=1)
     width = 900
     row_height = 28
-    height = 80 + max(1, len(results)) * row_height
+    height = 96 + max(1, len(summary_rows)) * row_height
     title = html.escape(payload["metadata"]["label"])
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         '<rect width="100%" height="100%" fill="#ffffff"/>',
         f'<text x="24" y="32" font-family="monospace" font-size="16">{title}</text>',
+        '<text x="24" y="54" font-family="monospace" font-size="12">Median device ns</text>',
     ]
-    bar_x = 250
-    bar_max = 560
+    bar_x = 340
+    bar_max = 480
     colors = {
         "pto_persistent_dag_tensor": "#2a9d8f",
         "pto_persistent_dag_tensor_core": "#d1495b",
         "cublas_sgemm": "#006d77",
     }
-    for idx, row in enumerate(results):
-        y = 64 + idx * row_height
-        value = int(row.get("device_wall_ns", 0))
+    for idx, row in enumerate(summary_rows):
+        y = 76 + idx * row_height
+        value = float(row.get("median_device_wall_ns", 0))
         bar_width = int(bar_max * value / max_device_ns) if max_device_ns else 0
         baseline = row.get("baseline", "-")
         color = colors.get(baseline, "#2a9d8f")
         label = (
-            f'{row.get("artifact", "-")} {baseline} '
-            f'{row.get("shape", "-")} r{row.get("repeat", "-")}'
+            f'{row.get("artifact", "-")} {baseline} {row.get("shape", "-")} '
+            f'samples={row.get("samples", "-")}'
         )
         lines.append(
             f'<text x="24" y="{y + 16}" font-family="monospace" font-size="12">{html.escape(label)}</text>'
         )
         lines.append(f'<rect x="{bar_x}" y="{y}" width="{bar_width}" height="18" fill="{color}"/>')
         lines.append(
-            f'<text x="{bar_x + bar_width + 8}" y="{y + 14}" font-family="monospace" font-size="12">{value}</text>'
+            f'<text x="{bar_x + bar_width + 8}" y="{y + 14}" font-family="monospace" font-size="12">'
+            f'{_format_number(value)}</text>'
         )
     lines.append("</svg>")
     return "\n".join(lines) + "\n"

@@ -1177,8 +1177,11 @@ def test_cuda_tensor_shape_sweep_parses_shapes_and_renders_report():
     assert "| a100 | hina | pto_persistent_dag_tensor | 8x4x12 | 1000 | 1500 | 1 |" in markdown
     assert "| h200 | h200 | cublas_sgemm | 8x4x12 | 800 | 1200 | 1 |" in markdown
     assert "tensor-shape-sweep-abc123" in svg
+    assert "Median device ns" in svg
+    assert "samples=1" in svg
     assert "8x4x12" in svg
     assert "cublas_sgemm" in svg
+    assert "r0" not in svg
 
 
 def test_cuda_pair_benchmark_can_reuse_remote_checkout(tmp_path):

@@ -256,10 +256,11 @@ A100/H200 sweep can compare scalar tensor DAG, WMMA tensor-core DAG, and
 cuBLAS SGEMM rows. The compact comparison report at commit `c4ee08eb` uses
 `16x16x16` and `16x16x64` descriptors with `N=256` and three repeats. The
 artifact under `tmp/cuda-backend/tensor-shape-sweep-c4ee08eb/` writes raw
-rows, a median summary table, and an SVG chart. Median device times are:
-A100 `16x16x16` scalar/tensor-core/cuBLAS `37888/35840/43007 ns`, A100
-`16x16x64` `40960/38912/46080 ns`, H200 `16x16x16`
-`30784/33056/56960 ns`, and H200 `16x16x64` `45664/34176/52639 ns`.
+rows, a median summary table, and a median-device-time SVG chart with sample
+counts. Median device times are: A100 `16x16x16` scalar/tensor-core/cuBLAS
+`37888/35840/43007 ns`, A100 `16x16x64` `40960/38912/46080 ns`, H200
+`16x16x16` `30784/33056/56960 ns`, and H200 `16x16x64`
+`45664/34176/52639 ns`.
 `cuda_validate_tensor_sweep.py --preset compact-tensor-baselines` now checks
 that this artifact has the expected A100/H200 rows, baselines, shapes, three
 repeats, report files, and PTO dispatch sequences before the numbers are
