@@ -10,7 +10,7 @@ local A100 runs, and remote H200 runs.
 
 The latest full paired A100/H200 benchmark capture was taken at commit
 `61cf96cd`, and the latest compact current-head paired gate uses artifact
-label `06b8c0c6`. Supplemental tensor-shape and tensor-core captures were
+label `dbb01406`. Supplemental tensor-shape and tensor-core captures were
 taken at commits `c0ada3ad` and `0879aa9e`. The first cuBLAS library baseline
 capture uses the `343924df` artifact label. The first multi-baseline tensor
 shape sweep used the `6f9a0b78` artifact label, and the latest multi-size
@@ -34,6 +34,9 @@ tensor baseline sweep uses `e79edba2`:
   paired gate that validates the default `16x16x16` tensor descriptor with
   scalar tensor DAG, WMMA tensor-core DAG, and cuBLAS rows in one current-head
   A100/H200 report.
+- [Current capture](evaluation-current.md) records the compact `dbb01406`
+  paired gate that promotes the explicit graph-descriptor scratch-reuse DAG
+  into the selected benchmark path.
 - The supplemental graph tensor-tile sample under
   `tmp/cuda-backend/combined-graph-tensor-current-working/` validates
   `pto_persistent_dag_graph_tensor`, the explicit graph-descriptor variant of
@@ -70,6 +73,9 @@ committed:
 - `tmp/cuda-backend/a100-current-06b8c0c6/`
 - `tmp/cuda-backend/h200-current-06b8c0c6/`
 - `tmp/cuda-backend/combined-current-06b8c0c6/`
+- `tmp/cuda-backend/a100-current-dbb01406/`
+- `tmp/cuda-backend/h200-current-dbb01406/`
+- `tmp/cuda-backend/combined-current-dbb01406/`
 - `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/persistent-scalar_scale-smoke-e9c9f5f2/`
 - `tmp/cuda-backend/persistent-generic_args-repeat2-smoke-6574c43b/`
@@ -181,6 +187,9 @@ does not get copied into the current-evaluation tables.
 - `pto_persistent_dag_graph_chain`: explicit graph-descriptor variant of the
   five-task chain DAG, validating that the benchmark path can time the chain
   shape from graph metadata rather than a fixed DAG adapter.
+- `pto_persistent_dag_graph_scratch_reuse`: explicit graph-descriptor
+  variant of the six-task scratch-reuse DAG, validating the benchmark path
+  can time scratch-buffer reuse after the last consumer from graph metadata.
 - `pto_persistent_dag_unary_square`: generated-dispatch DAG with a one-input
   square task body before downstream fan-in.
 - `pto_persistent_dag_tensor`: four-task generated-dispatch DAG with a tiled

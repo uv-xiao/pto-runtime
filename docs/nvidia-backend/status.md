@@ -260,18 +260,21 @@ H200 reported
 `16992/31264/40320/30592/27520/48992/32480/34304/31872 ns`. All PTO
 persistent DAG rows reported zero device scheduler errors.
 
-The latest compact paired validation at artifact label `06b8c0c6` adds
-`pto_persistent_dag_graph_chain` to the selected benchmark path. It uses the
-same `N=1024`, one repeat, `batch_tasks=2`, `worker_blocks_per_task=4`, and
-default `16x16x16` tensor descriptor shape as the compact gate, producing
-`62` combined rows under `tmp/cuda-backend/combined-current-06b8c0c6/`. The
-validator checked source-paper provenance, sanitized command examples, report
-files, tensor descriptor metadata, dispatch sequences, zero scheduler errors,
-and the new graph-chain row. The graph-chain row reported
-`graph_descriptor.fanin=[0,0,2,1,1]`,
-`graph_descriptor.dependents=[2,2,3,4]`, dispatch `[1,2,1,2,1]`,
-completed count `5`, A100 `device_wall_ns=43008`, and H200
-`device_wall_ns=37344`.
+The latest compact paired validation at artifact label `dbb01406` adds
+`pto_persistent_dag_graph_scratch_reuse` to the selected benchmark path after
+the previous `06b8c0c6` graph-chain gate. It uses the same `N=1024`, one
+repeat, `batch_tasks=2`, `worker_blocks_per_task=4`, and default `16x16x16`
+tensor descriptor shape as the compact gate, producing `64` combined rows
+under `tmp/cuda-backend/combined-current-dbb01406/`. The validator checked
+source-paper provenance, sanitized command examples, report files, tensor
+descriptor metadata, dispatch sequences, zero scheduler errors, and the new
+graph-scratch-reuse row. That row reported
+`graph_descriptor.fanin=[0,0,2,1,1,2]`,
+`graph_descriptor.dependents=[2,2,3,4,5,5]`, dispatch `[1,2,1,2,1,1]`,
+`scratch_reuse.reused_buffer=tmp0`, `scratch_reuse.reuse_task=4`, completed
+count `6`, A100 `device_wall_ns=36864`, and H200 `device_wall_ns=38240`.
+The graph-chain row remains in the same compact gate and reported A100
+`device_wall_ns=35840` and H200 `device_wall_ns=34528`.
 
 The compact paired benchmark gate at artifact label `a46db551` promotes
 `pto_persistent_dag_scalar_scale` into the selected benchmark path. It uses
@@ -2237,9 +2240,9 @@ Result:
 A100 reported `device_wall_ns=43008` and `host_wall_ns=58143`; H200 reported
 `device_wall_ns=33664` and `host_wall_ns=43163`.
 
-After promoting `pto_persistent_dag_graph_chain` to a benchmark baseline, the
-paired-current validator now expects `864` full paired samples or `62`
-compact paired samples.
+After promoting `pto_persistent_dag_graph_scratch_reuse` to a benchmark
+baseline, the paired-current validator now expects `882` full paired samples
+or `64` compact paired samples.
 
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph
