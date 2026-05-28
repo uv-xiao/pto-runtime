@@ -1243,7 +1243,10 @@ class _CudaPersistentDagSceneBuffers:
         for task_spec in task_specs:
             out_name = task_spec.get("out")
             if out_name is not None:
-                add_temporary(out_name, output_nbytes)
+                storage_name = task_spec.get("out_storage", out_name)
+                add_temporary(storage_name, output_nbytes)
+                if str(out_name) != str(storage_name):
+                    ptrs[str(out_name)] = ptrs[str(storage_name)]
 
         graph_dependents = self._graph_dependents_from_task_specs(task_specs)
         dependents: list[int] = []

@@ -2367,11 +2367,31 @@ generated report files. A100 reported per-launch device times
 H200 reported per-launch device times `[36640,29504]`, total
 `device_wall_ns=66144`, and `host_wall_ns=84089`.
 
+The same scratch-reuse shape is now covered by the L2 `SceneTestCase`
+graph-descriptor adapter with logical-output and storage-output separation.
+The graph task uses `out="tmp4"` and `out_storage="tmp0"` for the reuse task,
+so tensor-flow inference still sees a unique logical producer while the task
+descriptor reuses the original `tmp0` buffer after its last consumer. Focused
+TDD first failed because the builder allocated a distinct buffer for `tmp4`;
+after adding `out_storage`, the local A100 selector passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py -q \
+  -k 'reused_output_storage or graph_scratch_reuse_with_ctypes' \
+  --platform cuda
+```
+
+Result: `2 passed, 62 deselected`. The same real-data ctypes scene selector
+passed on remote H200 after syncing the working tree:
+`1 passed, 63 deselected`.
+
 Needed:
 
 - broader CUDA scene-test argument builders beyond the current binary
   elementwise, unary square, scalar scale, axpy, affine, triad, quad,
-  host-schedule generic-args, and persistent scalar/DAG tracer bullets.
+  host-schedule generic-args, persistent scalar/DAG tracer bullets, and
+  explicit graph-descriptor scratch-storage reuse.
 
 ### Fourth-Tensor Persistent DAG Verification
 
@@ -2455,9 +2475,10 @@ Needed:
 - graph construction from normal PTO task graphs;
 - broader graph-lowering coverage beyond the current
   `persistent_dag_graph_f32` descriptor adapter, automatic default temporary
-  allocation, order-independent tensor-flow dependency-inference mode, and
-  five-task chain, five-task fan-out/fan-in, and six-task scratch-reuse graph
-  descriptor smokes;
+  allocation, logical-output/storage-output separation for scratch reuse,
+  order-independent tensor-flow dependency-inference mode, and five-task
+  chain, five-task fan-out/fan-in, and six-task scratch-reuse graph descriptor
+  smokes;
 - broader lifecycle validation beyond the current scratch-reuse,
   graph-descriptor and generic-argument repeat-run, and direct/queue/DAG
   prepared-callable repeat-run smokes. The paired lifecycle matrix runner now

@@ -378,6 +378,18 @@ PYTHONPATH=$PWD:$PWD/python \
     -q -k mixed_graph_with_ctypes --platform cuda
 ```
 
+Run the graph scratch-storage reuse SceneTestCase path after changing
+`persistent_dag_graph_f32` temporary allocation or tensor-flow inference. This
+selector checks that logical `out` names stay unique while `out_storage`
+aliases a later graph output onto an earlier scratch buffer:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k 'reused_output_storage or graph_scratch_reuse_with_ctypes' \
+    --platform cuda
+```
+
 Use `--dag-shape unary_square` to validate a generated-dispatch task body
 that reads only one tensor input from the persistent DAG descriptor. The
 first DAG task computes `tmp0 = a * a`, then downstream add tasks consume its
@@ -945,6 +957,10 @@ Graph tasks whose `out` names are not existing input/output tensors are
 allocated as temporary buffers automatically, so tests only need an explicit
 `temporaries` map when a temporary needs a size different from the output
 tensor size.
+Graph tasks may also pass `out_storage` when the logical graph output should
+reuse an existing scratch buffer. Keep `out` unique for tensor-flow dependency
+inference and set `out_storage` to the physical buffer name, for example
+`out="tmp4", out_storage="tmp0"`.
 Run the no-torch graph tensor-tile ctypes scene on A100 or H200 with:
 
 ```bash

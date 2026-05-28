@@ -315,6 +315,13 @@ them, while omitted task edges are inferred from tensor flow. It is a
 descriptor-level stepping stone toward PTO graph lowering, not yet automatic
 construction from normal PTO task graphs.
 
+Graph descriptors also separate logical task outputs from physical scratch
+storage through optional `out_storage`. The logical `out` name remains the
+producer key used for tensor-flow dependency inference, while `out_storage`
+selects the device buffer used by that output. This lets a scene-test graph
+model scratch-buffer reuse after the last consumer without reusing a logical
+tensor name and confusing later edge inference.
+
 Graph task descriptors can also carry the tensor-tile metadata fields used by
 the fixed tile adapters: `rows`, `cols`, `inner`, `lda`, `ldb`, `ldc`,
 `a_batch_stride`, `b_batch_stride`, and `out_batch_stride`. This lets an
