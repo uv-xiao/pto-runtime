@@ -2,7 +2,7 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus the current-head compact validation capture from
-commit `d361006f`. The raw JSON, Markdown, and SVG reports are generated
+commit `0b3c1699`. The raw JSON, Markdown, and SVG reports are generated
 locally under `tmp/cuda-backend/` and intentionally remain uncommitted.
 
 The capture uses `nvcc` for target-specific PTX on both machines:
@@ -35,10 +35,15 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/combined-current-d361006f/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-current-d361006f/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-d361006f/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.json`
+- `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.md`
+- `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.svg`
+- `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark-dag-deltas.svg`
 
 ## Current-Head Compact Paired Gate
 
-The compact current-head paired gate at commit `d361006f` uses a
+The compact current-head paired gate at commit `0b3c1699` uses a
 WMMA-compatible `16x16x16` tensor descriptor, `N=1024`, one repeat,
 `batch_tasks=2`, and `worker_blocks_per_task=4`. The paired runner synced the
 local tree to `bizhaoh200`, captured A100 and H200 reports, merged them, and
@@ -50,7 +55,7 @@ Validation command:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/combined-current-d361006f/cuda-benchmark.json \
+    tmp/cuda-backend/combined-current-0b3c1699/cuda-benchmark.json \
     --require-size 1024 --expected-repeats 1 --expected-result-count 50 \
     --require-baseline pto_persistent_dag_tensor_core \
     --require-baseline cublas_sgemm --require-report-files \
@@ -61,13 +66,15 @@ Selected rows:
 
 | GPU | Host schedule ns | Base DAG ns | Tensor DAG ns | Tensor-core ns | cuBLAS ns | Grid batch ns |
 | --- | ---------------- | ----------- | ------------- | -------------- | --------- | ------------- |
-| A100 | 23552 | 46080 | 41984 | 38912 | 53247 | 50176 |
-| H200 | 5600 | 18880 | 46496 | 30400 | 8671 | 6112 |
+| A100 | 33792 | 61440 | 44032 | 59392 | 60416 | 41984 |
+| H200 | 14848 | 31936 | 44576 | 36096 | 40959 | 28768 |
 
 This capture is a gate for command construction, validation coverage, and
 real A100/H200 execution at the current commit. It is intentionally smaller
 than the full `61cf96cd` capture and should not replace the three-size,
-three-repeat rows below for broad trend reading.
+three-repeat rows below for broad trend reading. The `0b3c1699` gate was
+captured after adding scheduler no-progress diagnostics; all PTO persistent
+DAG rows reported zero device scheduler errors.
 
 ## Launch Baselines
 
