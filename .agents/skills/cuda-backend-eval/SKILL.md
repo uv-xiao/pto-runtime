@@ -1037,7 +1037,7 @@ JSON:
 ```bash
 PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py \
-    tmp/cuda-backend/tensor-shape-sweep-c4ee08eb/cuda-tensor-shape-sweep.json \
+    tmp/cuda-backend/tensor-shape-sweep-47d857e1/cuda-tensor-shape-sweep.json \
     --section tensor-sweep
 ```
 

@@ -162,21 +162,21 @@ work, so the result should not be read as tensor-core throughput.
 ## Supplemental Tensor Baseline Sweep
 
 The current multi-baseline tensor shape sweep was captured at commit
-`c4ee08eb` under `tmp/cuda-backend/tensor-shape-sweep-c4ee08eb/`. It runs
+`47d857e1` under `tmp/cuda-backend/tensor-shape-sweep-47d857e1/`. It runs
 three repeats for two WMMA-compatible descriptors and compares the scalar
 tensor DAG, `pto_persistent_dag_tensor_core`, and `cublas_sgemm` in one
 Markdown/SVG report. The Markdown keeps raw repeat rows plus medians, while
-new reports also record VDCores/MPK source-paper provenance and per-baseline
-workload descriptions. The SVG plots median device time with sample counts.
-Each row uses `N=256`; the table below reports median device time across the
-three samples.
+the refreshed report also records VDCores/MPK source-paper provenance and
+per-baseline workload descriptions. The SVG plots median device time with
+sample counts. Each row uses `N=256`; the table below reports median device
+time across the three samples.
 
 | GPU | Shape | Scalar tensor ns | Tensor-core ns | cuBLAS ns | Tensor-core/scalar | cuBLAS/scalar |
 | --- | ----- | ---------------- | -------------- | --------- | ------------------ | ------------- |
-| A100 | 16x16x16 | 37888 | 35840 | 43007 | 0.95x | 1.14x |
-| A100 | 16x16x64 | 40960 | 38912 | 46080 | 0.95x | 1.12x |
-| H200 | 16x16x16 | 30784 | 33056 | 56960 | 1.07x | 1.85x |
-| H200 | 16x16x64 | 45664 | 34176 | 52639 | 0.75x | 1.15x |
+| A100 | 16x16x16 | 47104 | 47104 | 73728 | 1.00x | 1.57x |
+| A100 | 16x16x64 | 51200 | 50176 | 74752 | 0.98x | 1.46x |
+| H200 | 16x16x16 | 31328 | 26848 | 51456 | 0.86x | 1.64x |
+| H200 | 16x16x64 | 41088 | 34144 | 55711 | 0.83x | 1.36x |
 
 The tensor-core rows use dispatch `10,1,2,1`, while the scalar tensor rows use
 `3,1,2,1`. cuBLAS rows have no PTO dispatch sequence because they run through
