@@ -1918,7 +1918,23 @@ def _source_paper_summary(metadata: dict[str, Any]) -> str:
     return "; ".join(parts)
 
 
-def merge_payloads(payloads: list[dict[str, Any]], label: str) -> dict[str, Any]:
+def _command_example_lines(metadata: dict[str, Any]) -> list[str]:
+    examples = metadata.get("command_examples")
+    if not isinstance(examples, dict):
+        return []
+    labels = {
+        "local_sample": "Local sample command",
+        "remote_sample": "Remote sample command",
+        "sync_remote_tree": "Remote tree sync command",
+    }
+    return [f"- {label}: `{examples[key]}`" for key, label in labels.items() if isinstance(examples.get(key), str)]
+
+
+def merge_payloads(
+    payloads: list[dict[str, Any]],
+    label: str,
+    command_examples: dict[str, str] | None = None,
+) -> dict[str, Any]:
     source_labels = [payload.get("metadata", {}).get("label", "unknown") for payload in payloads]
     git_commits = sorted(
         {
@@ -1956,6 +1972,8 @@ def merge_payloads(payloads: list[dict[str, Any]], label: str) -> dict[str, Any]
     }
     if common_tensor_tile is not None:
         metadata["tensor_tile"] = common_tensor_tile
+    if command_examples:
+        metadata["command_examples"] = dict(command_examples)
 
     return {
         "metadata": metadata,
@@ -2142,6 +2160,7 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     source_papers = _source_paper_summary(metadata)
     if source_papers:
         lines.append(f"- Source papers: {source_papers}")
+    lines.extend(_command_example_lines(metadata))
     if metadata.get("source_labels"):
         lines.append(f"- Source reports: `{', '.join(metadata['source_labels'])}`")
     if tensor_tile_shape is not None:
@@ -2367,6 +2386,19 @@ def _parse_tensor_tile(rows: int, cols: int, inner: int) -> dict[str, int]:
     return {"rows": rows, "cols": cols, "inner": inner}
 
 
+def _parse_command_examples(values: list[str] | None) -> dict[str, str]:
+    examples: dict[str, str] = {}
+    for value in values or ():
+        if "=" not in value:
+            raise ValueError(f"invalid --command-example {value!r}; expected KEY=COMMAND")
+        key, command = value.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise ValueError(f"invalid --command-example {value!r}; expected KEY=COMMAND")
+        examples[key] = command
+    return examples
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=int, default=0)
@@ -2408,6 +2440,7 @@ def main() -> None:
         default=None,
     )
     parser.add_argument("--merge-json", type=Path, nargs="*", default=None)
+    parser.add_argument("--command-example", action="append")
     parser.add_argument("--stream-concurrency", action="store_true")
     parser.add_argument("--include-persistent", action="store_true")
     parser.add_argument(
@@ -2430,7 +2463,18 @@ def main() -> None:
 
     if args.merge_json:
         payloads = [json.loads(path.read_text()) for path in args.merge_json]
-        write_report(merge_payloads(payloads, label=args.label), args.output_dir)
+        try:
+            command_examples = _parse_command_examples(args.command_example)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        write_report(
+            merge_payloads(
+                payloads,
+                label=args.label,
+                command_examples=command_examples,
+            ),
+            args.output_dir,
+        )
         print(f"merged {len(payloads)} reports into {args.output_dir}")
         return
 

@@ -183,6 +183,38 @@ def _validate_source_papers(payload: dict[str, Any], *, source_root: Path) -> li
     return errors
 
 
+def _validate_command_examples(payload: dict[str, Any]) -> list[str]:
+    metadata = payload.get("metadata")
+    examples = metadata.get("command_examples") if isinstance(metadata, dict) else None
+    errors: list[str] = []
+    if not isinstance(examples, dict):
+        return [
+            "missing metadata.command_examples.local_sample",
+            "missing metadata.command_examples.remote_sample",
+        ]
+
+    local_sample = examples.get("local_sample")
+    remote_sample = examples.get("remote_sample")
+    if not isinstance(local_sample, str) or not local_sample:
+        errors.append("missing metadata.command_examples.local_sample")
+    else:
+        if str(Path.cwd()) in local_sample:
+            errors.append("metadata.command_examples.local_sample contains local checkout path")
+        if "$PWD" not in local_sample:
+            errors.append("metadata.command_examples.local_sample must use $PWD")
+
+    if not isinstance(remote_sample, str) or not remote_sample:
+        errors.append("missing metadata.command_examples.remote_sample")
+    elif "ssh" not in remote_sample.split():
+        errors.append("metadata.command_examples.remote_sample must use ssh")
+
+    sync_sample = examples.get("sync_remote_tree")
+    if isinstance(sync_sample, str) and str(Path.cwd()) in sync_sample:
+        errors.append("metadata.command_examples.sync_remote_tree contains local checkout path")
+
+    return errors
+
+
 def validate_capture(
     payload: dict[str, Any],
     *,
@@ -193,8 +225,8 @@ def validate_capture(
     expected_repeats: int | None = None,
     expected_result_count: int | None = None,
     require_report_files: bool = False,
-    require_source_papers: bool = False,
-    source_root: Path | None = None,
+    require_command_examples: bool = False,
+    source_paper_root: Path | None = None,
 ) -> list[str]:
     rows = _results(payload)
     errors: list[str] = []
@@ -219,8 +251,11 @@ def validate_capture(
     if require_report_files:
         errors.extend(_validate_report_files(artifact_dir))
 
-    if require_source_papers:
-        errors.extend(_validate_source_papers(payload, source_root=source_root or Path.cwd()))
+    if require_command_examples:
+        errors.extend(_validate_command_examples(payload))
+
+    if source_paper_root is not None:
+        errors.extend(_validate_source_papers(payload, source_root=source_paper_root))
 
     return errors
 
@@ -251,6 +286,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-repeats", type=int)
     parser.add_argument("--expected-result-count", type=int)
     parser.add_argument("--require-report-files", action="store_true")
+    parser.add_argument("--require-command-examples", action="store_true")
     parser.add_argument("--require-source-papers", action="store_true")
     return parser.parse_args(argv)
 
@@ -268,7 +304,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         expected_repeats=args.expected_repeats,
         expected_result_count=args.expected_result_count,
         require_report_files=args.require_report_files,
-        require_source_papers=args.require_source_papers,
+        require_command_examples=args.require_command_examples,
+        source_paper_root=Path.cwd() if args.require_source_papers else None,
     )
     if errors:
         for error in errors:

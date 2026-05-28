@@ -806,7 +806,7 @@ def test_cuda_capture_validator_requires_source_papers(tmp_path):
     source_dir = source_root / "tmp" / "sources"
     source_dir.mkdir(parents=True)
 
-    errors = cuda_validate_capture.validate_capture(payload, require_source_papers=True, source_root=source_root)
+    errors = cuda_validate_capture.validate_capture(payload, source_paper_root=source_root)
 
     assert "missing metadata.paper_setup" in errors
     assert "missing metadata.source_papers arXiv:2605.03190" in errors
@@ -826,12 +826,12 @@ def test_cuda_capture_validator_requires_source_papers(tmp_path):
         },
     ]
 
-    errors = cuda_validate_capture.validate_capture(payload, require_source_papers=True, source_root=source_root)
+    errors = cuda_validate_capture.validate_capture(payload, source_paper_root=source_root)
 
     assert "metadata.source_papers arXiv:2605.03190 path must stay under tmp/sources/" in errors
 
     payload["metadata"]["source_papers"][0]["path"] = "tmp/sources/arxiv-2605.03190-vdcores.txt"
-    errors = cuda_validate_capture.validate_capture(payload, require_source_papers=True, source_root=source_root)
+    errors = cuda_validate_capture.validate_capture(payload, source_paper_root=source_root)
 
     assert ("missing metadata.source_papers arXiv:2605.03190 file tmp/sources/arxiv-2605.03190-vdcores.txt") in errors
     assert (
@@ -842,7 +842,34 @@ def test_cuda_capture_validator_requires_source_papers(tmp_path):
     (source_dir / "arxiv-2605.03190-vdcores.txt").write_text("vdcores\n")
     (source_dir / "arxiv-2512.22219v1-mirage-persistent-kernel.txt").write_text("mpk\n")
 
-    assert cuda_validate_capture.validate_capture(payload, require_source_papers=True, source_root=source_root) == []
+    assert cuda_validate_capture.validate_capture(payload, source_paper_root=source_root) == []
+
+
+def test_cuda_capture_validator_requires_sanitized_command_examples():
+    cuda_validate_capture = _load_capture_validator_module()
+    payload = _paired_capture_payload()
+
+    errors = cuda_validate_capture.validate_capture(payload, require_command_examples=True)
+
+    assert "missing metadata.command_examples.local_sample" in errors
+    assert "missing metadata.command_examples.remote_sample" in errors
+
+    payload["metadata"]["command_examples"] = {
+        "local_sample": f"env PYTHONPATH={Path.cwd()}:{Path.cwd() / 'python'} cuda_benchmark.py",
+        "remote_sample": "python3 cuda_benchmark.py",
+    }
+
+    errors = cuda_validate_capture.validate_capture(payload, require_command_examples=True)
+
+    assert "metadata.command_examples.local_sample contains local checkout path" in errors
+    assert "metadata.command_examples.remote_sample must use ssh" in errors
+
+    payload["metadata"]["command_examples"] = {
+        "local_sample": "env PYTHONPATH=$PWD:$PWD/python .venv/bin/python cuda_benchmark.py",
+        "remote_sample": "ssh bizhaoh200 'cd /remote/pto-cu && cuda_benchmark.py'",
+    }
+
+    assert cuda_validate_capture.validate_capture(payload, require_command_examples=True) == []
 
 
 def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
@@ -1270,6 +1297,28 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert str(tmp_path / "cuda-backend" / "h200-current-abc123" / "cuda-benchmark.json") in merge
     assert "combined-current-abc123" in merge
     assert index[-2:] == ["--root", str(tmp_path / "cuda-backend")]
+
+
+def test_cuda_pair_benchmark_merge_command_records_sanitized_examples(tmp_path):
+    cuda_pair_benchmark = _load_pair_benchmark_module()
+    config = cuda_pair_benchmark.PairedBenchmarkConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        branch="design/nvidia-backend",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        sync_remote_tree=True,
+    )
+
+    merge = cuda_pair_benchmark.build_merge_command(config, "abc123")
+    examples = [merge[index + 1] for index, part in enumerate(merge) if part == "--command-example"]
+
+    assert len(examples) == 3
+    assert all(str(Path.cwd()) not in example for example in examples)
+    assert any(example.startswith("local_sample=env PYTHONPATH=$PWD:$PWD/python") for example in examples)
+    assert any(example.startswith("remote_sample=ssh") and "--arch compute_90" in example for example in examples)
+    assert any(example.startswith("sync_remote_tree=rsync") for example in examples)
 
 
 def test_cuda_tensor_shape_sweep_builds_single_baseline_commands(tmp_path):
@@ -4274,6 +4323,37 @@ def test_merge_payloads_preserves_results_and_records_sources():
         "arXiv:2512.22219v1",
     ]
     assert len(merged["results"]) == 2
+
+
+def test_merge_payloads_records_command_examples():
+    cuda_benchmark = _load_benchmark_module()
+    payloads = [
+        {
+            "metadata": {"label": "a100", "git_commit": "abc123"},
+            "results": [{"machine": "a100-local", "baseline": "direct_driver", "n": 1024, "device_wall_ns": 500}],
+        },
+        {
+            "metadata": {"label": "h200", "git_commit": "abc123"},
+            "results": [{"machine": "h200-remote", "baseline": "direct_driver", "n": 1024, "device_wall_ns": 300}],
+        },
+    ]
+
+    merged = cuda_benchmark.merge_payloads(
+        payloads,
+        label="combined",
+        command_examples={
+            "local_sample": "env PYTHONPATH=$PWD:$PWD/python .venv/bin/python cuda_benchmark.py",
+            "remote_sample": "ssh h200-box 'cd /remote/pto-cu && cuda_benchmark.py'",
+        },
+    )
+    report = cuda_benchmark.render_markdown_report(merged)
+
+    assert merged["metadata"]["command_examples"] == {
+        "local_sample": "env PYTHONPATH=$PWD:$PWD/python .venv/bin/python cuda_benchmark.py",
+        "remote_sample": "ssh h200-box 'cd /remote/pto-cu && cuda_benchmark.py'",
+    }
+    assert "- Local sample command: `env PYTHONPATH=$PWD:$PWD/python .venv/bin/python cuda_benchmark.py`" in report
+    assert "- Remote sample command: `ssh h200-box 'cd /remote/pto-cu && cuda_benchmark.py'`" in report
 
 
 def test_run_benchmark_uses_in_process_samples(monkeypatch):

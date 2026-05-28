@@ -278,13 +278,15 @@ metadata before publishing with `--require-command-examples` and
 `--require-source-papers`; the source-paper gate verifies the referenced
 files exist under `tmp/sources/`.
 Benchmark captures now use the same VDCores/MPK `source_papers` metadata
-contract and can be gated with
-`cuda_validate_capture.py --require-source-papers` before new paired-current
-numbers are published.
+contract and sanitized command-example metadata contract as tensor sweeps.
+They can be gated with `cuda_validate_capture.py` plus
+`--require-command-examples` and `--require-source-papers` before new
+paired-current numbers are published.
 The existing real-data paired A100/H200 capture from commit `61cf96cd` was
 re-rendered through the updated report path under
-`tmp/cuda-backend/combined-current-61cf96cd-source-gate/`, and the
-paired-current validator passed with `--require-source-papers`.
+`tmp/cuda-backend/combined-current-61cf96cd-command-source-gate/`, and the
+paired-current validator passed with `--require-command-examples` and
+`--require-source-papers`.
 
 A current-HEAD one-repeat compact tensor sweep at commit `a5fd4bfd` validated
 that gate against real local A100 and remote H200 data. The artifact under
@@ -308,7 +310,8 @@ Evidence:
   counters, resource-policy metadata, tensor-core metadata, and scalar and
   tensor task arguments when present.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py` automates
-  the local A100 run, remote H200 run, artifact copy, merge, and index refresh.
+  the local A100 run, remote H200 run, artifact copy, merge, command-example
+  metadata capture, and index refresh.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_pair_smoke.py` automates the
   no-torch host-schedule Worker smoke on local A100 and remote H200, then
   renders the compact smoke report and refreshes the artifact index.
@@ -327,8 +330,8 @@ Evidence:
   by [evaluation-current.md](evaluation-current.md) from raw JSON artifacts.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py`
   checks paired benchmark captures for expected machines, selected baselines,
-  sizes, repeats, sample count, and generated report files before docs are
-  refreshed.
+  sizes, repeats, sample count, generated report files, source-paper
+  metadata, and sanitized command examples before docs are refreshed.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py` checks
   paired smoke captures for required A100/H200 artifacts, pass status, zero
   scheduler errors, expected runtime/mode, dispatch IDs, repeat-run lifecycle

@@ -199,6 +199,26 @@ def build_scp_command(config: PairedBenchmarkConfig, remote_commit: str) -> list
     ]
 
 
+def _display_command(command: Sequence[str]) -> str:
+    return shlex.join(command).replace(str(Path.cwd()), "$PWD")
+
+
+def build_command_examples(
+    config: PairedBenchmarkConfig,
+    local_commit: str,
+    remote_commit: str | None = None,
+) -> dict[str, str]:
+    if remote_commit is None:
+        remote_commit = local_commit
+    examples = {
+        "local_sample": _display_command(build_local_benchmark_command(config, local_commit)),
+        "remote_sample": _display_command(build_remote_benchmark_command(config, remote_commit)),
+    }
+    if config.sync_remote_tree:
+        examples["sync_remote_tree"] = _display_command(build_remote_sync_command(config))
+    return examples
+
+
 def build_merge_command(
     config: PairedBenchmarkConfig, local_commit: str, remote_commit: str | None = None
 ) -> list[str]:
@@ -207,6 +227,10 @@ def build_merge_command(
     combined_label = f"combined-current-{local_commit}"
     if remote_commit != local_commit:
         combined_label = f"{combined_label}-{remote_commit}"
+    command_examples = build_command_examples(config, local_commit, remote_commit)
+    command_example_args = [
+        part for key, value in command_examples.items() for part in ("--command-example", f"{key}={value}")
+    ]
     return [
         "env",
         f"PYTHONPATH={Path.cwd()}:{Path.cwd() / 'python'}",
@@ -215,6 +239,7 @@ def build_merge_command(
         "--merge-json",
         str(config.output_root / f"a100-current-{local_commit}" / "cuda-benchmark.json"),
         str(config.output_root / f"h200-current-{remote_commit}" / "cuda-benchmark.json"),
+        *command_example_args,
         "--label",
         combined_label,
         "--output-dir",
