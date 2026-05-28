@@ -1333,7 +1333,9 @@ PYTHONPATH=$PWD:$PWD/python \
     --require-baseline pto_persistent_dag_tensor_core \
     --require-baseline cublas_sgemm --require-report-files \
     --require-command-examples --require-zero-scheduler-errors \
-    --require-source-papers
+    --require-source-papers \
+    --require-dispatch pto_persistent_dag_graph_diamond=9,2,1,2,1 \
+    --require-dispatch pto_persistent_dag_tensor_core=10,1,2,1
 ```
 
 The compact current-head gate checks the expected A100/H200 machines,
@@ -1346,6 +1348,10 @@ paths. `--require-source-papers` checks that the report records the
 VDCores/MPK source IDs and that the referenced files exist under
 `tmp/sources/`. `--require-zero-scheduler-errors` checks that PTO persistent
 DAG rows include device scheduler counters and that each counter set is zero.
+`--require-dispatch` checks that generated-dispatch benchmark rows ran the
+expected device `func_id` sequence. The paired benchmark runner now adds these
+dispatch requirements automatically for known persistent DAG baselines,
+including scalar, graph-descriptor, tensor-tile, and tensor-core rows.
 
 Use `cuda_validate_smoke.py` for paired smoke artifacts. It checks required
 artifacts, pass status, zero device scheduler errors, expected runtime/mode,

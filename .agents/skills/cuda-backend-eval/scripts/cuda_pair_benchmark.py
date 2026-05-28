@@ -53,6 +53,23 @@ BATCH_ROWS: tuple[str, ...] = (
     "pto_persistent_queue_batch",
 )
 GRID_BATCH_ROW: str = "pto_persistent_device_grid_batch"
+EXPECTED_DISPATCH_BY_BASELINE: dict[str, str] = {
+    "pto_persistent_dag": "1,2,1",
+    "pto_persistent_dag_chain": "1,2,1,2,1",
+    "pto_persistent_dag_reuse": "1,2,1,2,1,1",
+    "pto_persistent_dag_scalar_axpy": "4,2,1",
+    "pto_persistent_dag_scalar_scale": "11,2,1",
+    "pto_persistent_dag_scalar_affine": "5,2,1",
+    "pto_persistent_dag_triad": "6,2,1",
+    "pto_persistent_dag_quad": "8,2,1",
+    "pto_persistent_dag_generic_args": "9,2,1",
+    "pto_persistent_dag_graph": "9,2,1",
+    "pto_persistent_dag_graph_diamond": "9,2,1,2,1",
+    "pto_persistent_dag_unary_square": "7,1,1",
+    "pto_persistent_dag_tensor": "3,1,2,1",
+    "pto_persistent_dag_graph_tensor": "3,1,2,1",
+    "pto_persistent_dag_tensor_core": "10,1,2,1",
+}
 
 
 @dataclass(frozen=True)
@@ -312,6 +329,12 @@ def build_validate_command(
 ) -> list[str]:
     combined_label = _combined_label(local_commit, remote_commit)
     baseline_args = [part for baseline in _selected_baselines(config) for part in ("--require-baseline", baseline)]
+    dispatch_args = [
+        part
+        for baseline in _selected_baselines(config)
+        if baseline in EXPECTED_DISPATCH_BY_BASELINE
+        for part in ("--require-dispatch", f"{baseline}={EXPECTED_DISPATCH_BY_BASELINE[baseline]}")
+    ]
     return [
         "env",
         f"PYTHONPATH={Path.cwd()}:{Path.cwd() / 'python'}",
@@ -325,6 +348,7 @@ def build_validate_command(
         "--expected-result-count",
         str(_expected_result_count(config)),
         *baseline_args,
+        *dispatch_args,
         "--require-report-files",
         "--require-command-examples",
         "--require-zero-scheduler-errors",

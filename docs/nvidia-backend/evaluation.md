@@ -116,6 +116,9 @@ local/remote command examples for reconstructing the run. Tensor sweeps also
 include a workload description for each selected tensor baseline.
 Validate a refreshed paired-current capture before updating committed docs
 with `.agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py`.
+The paired benchmark runner wires that validator with expected generated
+`dispatch_func_ids` for known persistent DAG rows, so a numerically passing
+capture is still rejected if it ran the wrong CUDA device task sequence.
 
 ## Baselines
 

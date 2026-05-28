@@ -20,6 +20,7 @@ from typing import Any
 
 PAIRED_CURRENT_MACHINES = ("hina", "dasys-h200x8")
 PAIRED_CURRENT_BASELINES = (
+    "cublas_sgemm",
     "direct_driver",
     "direct_driver_graph",
     "pto_host_schedule",
@@ -34,6 +35,7 @@ PAIRED_CURRENT_BASELINES = (
     "pto_persistent_dag_scalar_axpy",
     "pto_persistent_dag_scalar_scale",
     "pto_persistent_dag_tensor",
+    "pto_persistent_dag_tensor_core",
     "pto_persistent_dag_triad",
     "pto_persistent_dag_quad",
     "pto_persistent_dag_generic_args",
@@ -55,6 +57,23 @@ REPORT_FILES = (
     "cuda-benchmark-ratios.svg",
     "cuda-benchmark-dag-deltas.svg",
 )
+PAIRED_CURRENT_DISPATCH = {
+    "pto_persistent_dag": "1,2,1",
+    "pto_persistent_dag_chain": "1,2,1,2,1",
+    "pto_persistent_dag_reuse": "1,2,1,2,1,1",
+    "pto_persistent_dag_scalar_axpy": "4,2,1",
+    "pto_persistent_dag_scalar_scale": "11,2,1",
+    "pto_persistent_dag_scalar_affine": "5,2,1",
+    "pto_persistent_dag_triad": "6,2,1",
+    "pto_persistent_dag_quad": "8,2,1",
+    "pto_persistent_dag_generic_args": "9,2,1",
+    "pto_persistent_dag_graph": "9,2,1",
+    "pto_persistent_dag_graph_diamond": "9,2,1,2,1",
+    "pto_persistent_dag_unary_square": "7,1,1",
+    "pto_persistent_dag_tensor": "3,1,2,1",
+    "pto_persistent_dag_graph_tensor": "3,1,2,1",
+    "pto_persistent_dag_tensor_core": "10,1,2,1",
+}
 
 
 def _as_list(values: Sequence[str] | None) -> list[str]:
@@ -85,6 +104,13 @@ def _row_matches(row: dict[str, Any], *, machine: str, baseline: str, size: int 
 
 def _unique_repeats(rows: Iterable[dict[str, Any]]) -> set[Any]:
     return {row.get("repeat") for row in rows if "repeat" in row}
+
+
+def _dispatch_text(row: dict[str, Any]) -> str:
+    dispatch = row.get("dispatch_func_ids")
+    if not isinstance(dispatch, list):
+        return "-"
+    return ",".join(str(value) for value in dispatch)
 
 
 def _validate_required_machines(rows: list[dict[str, Any]], required_machines: Sequence[str]) -> list[str]:
@@ -244,6 +270,23 @@ def _validate_zero_scheduler_errors(rows: list[dict[str, Any]]) -> list[str]:
     return errors
 
 
+def _validate_dispatch(rows: list[dict[str, Any]], required_dispatch: dict[str, str]) -> list[str]:
+    errors: list[str] = []
+    for row in rows:
+        baseline = row.get("baseline")
+        expected = required_dispatch.get(str(baseline))
+        if expected is None:
+            continue
+        found = _dispatch_text(row)
+        if found != expected:
+            machine = row.get("machine", "unknown")
+            n = row.get("n", "unknown")
+            errors.append(
+                f"expected dispatch {expected} for machine={machine} baseline={baseline} n={n}, found {found}"
+            )
+    return errors
+
+
 def validate_capture(  # noqa: PLR0913
     payload: dict[str, Any],
     *,
@@ -256,6 +299,7 @@ def validate_capture(  # noqa: PLR0913
     require_report_files: bool = False,
     require_command_examples: bool = False,
     require_zero_scheduler_errors: bool = False,
+    required_dispatch: dict[str, str] | None = None,
     source_paper_root: Path | None = None,
 ) -> list[str]:
     rows = _results(payload)
@@ -287,6 +331,8 @@ def validate_capture(  # noqa: PLR0913
     if require_zero_scheduler_errors:
         errors.extend(_validate_zero_scheduler_errors(rows))
 
+    errors.extend(_validate_dispatch(rows, required_dispatch or {}))
+
     if source_paper_root is not None:
         errors.extend(_validate_source_papers(payload, source_root=source_paper_root))
 
@@ -305,9 +351,21 @@ def _apply_preset(args: argparse.Namespace) -> None:
     if args.expected_repeats is None:
         args.expected_repeats = 3
     if args.expected_result_count is None:
-        args.expected_result_count = 738
+        args.expected_result_count = 810
+    if not args.require_dispatch:
+        args.require_dispatch = [f"{baseline}={dispatch}" for baseline, dispatch in PAIRED_CURRENT_DISPATCH.items()]
     args.require_report_files = True
     args.require_zero_scheduler_errors = True
+
+
+def _parse_required_dispatch(values: Sequence[str] | None) -> dict[str, str]:
+    required: dict[str, str] = {}
+    for value in values or ():
+        if "=" not in value:
+            raise ValueError(f"invalid --require-dispatch {value!r}; expected BASELINE=ID,ID")
+        baseline, dispatch = value.split("=", 1)
+        required[baseline.strip()] = dispatch.strip()
+    return required
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -322,6 +380,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--require-report-files", action="store_true")
     parser.add_argument("--require-command-examples", action="store_true")
     parser.add_argument("--require-zero-scheduler-errors", action="store_true")
+    parser.add_argument("--require-dispatch", action="append")
     parser.add_argument("--require-source-papers", action="store_true")
     return parser.parse_args(argv)
 
@@ -330,6 +389,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     _apply_preset(args)
     payload = json.loads(args.json_path.read_text())
+    try:
+        required_dispatch = _parse_required_dispatch(args.require_dispatch)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     errors = validate_capture(
         payload,
         artifact_dir=args.json_path.parent,
@@ -341,6 +405,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         require_report_files=args.require_report_files,
         require_command_examples=args.require_command_examples,
         require_zero_scheduler_errors=args.require_zero_scheduler_errors,
+        required_dispatch=required_dispatch,
         source_paper_root=Path.cwd() if args.require_source_papers else None,
     )
     if errors:

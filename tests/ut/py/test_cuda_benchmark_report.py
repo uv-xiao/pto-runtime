@@ -1006,6 +1006,41 @@ def test_cuda_capture_validator_requires_zero_scheduler_errors():
     assert cuda_validate_capture.validate_capture(payload, require_zero_scheduler_errors=True) == []
 
 
+def test_cuda_capture_validator_requires_dispatch_sequence():
+    cuda_validate_capture = _load_capture_validator_module()
+    payload = _paired_capture_payload()
+    payload["results"].append(
+        {
+            "machine": "hina",
+            "baseline": "pto_persistent_dag_graph_diamond",
+            "n": 1024,
+            "repeat": 0,
+            "status": "pass",
+            "device_wall_ns": 1024,
+            "dispatch_func_ids": [9, 2, 1],
+        }
+    )
+
+    errors = cuda_validate_capture.validate_capture(
+        payload,
+        required_dispatch={"pto_persistent_dag_graph_diamond": "9,2,1,2,1"},
+    )
+
+    assert (
+        "expected dispatch 9,2,1,2,1 for machine=hina baseline=pto_persistent_dag_graph_diamond n=1024, found 9,2,1"
+    ) in errors
+
+    payload["results"][-1]["dispatch_func_ids"] = [9, 2, 1, 2, 1]
+
+    assert (
+        cuda_validate_capture.validate_capture(
+            payload,
+            required_dispatch={"pto_persistent_dag_graph_diamond": "9,2,1,2,1"},
+        )
+        == []
+    )
+
+
 def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     cuda_validate_capture = _load_capture_validator_module()
     args = cuda_validate_capture.parse_args(["capture.json", "--preset", "paired-current"])
@@ -1017,7 +1052,11 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_generic_args" in args.require_baseline
     assert "pto_persistent_dag_graph" in args.require_baseline
     assert "pto_persistent_dag_graph_tensor" in args.require_baseline
-    assert args.expected_result_count == 738
+    assert "pto_persistent_dag_tensor_core" in args.require_baseline
+    assert "cublas_sgemm" in args.require_baseline
+    assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in args.require_dispatch
+    assert "pto_persistent_dag_tensor_core=10,1,2,1" in args.require_dispatch
+    assert args.expected_result_count == 810
 
 
 def _tensor_sweep_payload():
@@ -1500,6 +1539,11 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert "pto_persistent_dag_graph_tensor" in validate
     assert "pto_persistent_dag_tensor_core" in validate
     assert "cublas_sgemm" in validate
+    assert "--require-dispatch" in validate
+    assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in validate
+    assert "pto_persistent_dag_tensor=3,1,2,1" in validate
+    assert "pto_persistent_dag_graph_tensor=3,1,2,1" in validate
+    assert "pto_persistent_dag_tensor_core=10,1,2,1" in validate
     assert "--require-command-examples" in validate
     assert "--require-source-papers" in validate
     assert "--require-zero-scheduler-errors" in validate
@@ -1532,6 +1576,9 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_tensor" in baselines
     assert "pto_host_schedule_batch" in baselines
     assert "pto_persistent_device_grid_batch" in baselines
+    dispatch = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-dispatch"]
+    assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in dispatch
+    assert "pto_persistent_dag_tensor_core=10,1,2,1" in dispatch
 
 
 def test_cuda_pair_benchmark_merge_command_records_sanitized_examples(tmp_path):

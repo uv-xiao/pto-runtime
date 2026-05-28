@@ -234,8 +234,9 @@ default `16x16x16` tensor descriptor for tensor rows, and writes raw JSON,
 Markdown, and SVG reports under
 `tmp/cuda-backend/combined-current-945016c3/`. The validator checked `48`
 combined rows, required command examples, source-paper provenance, report
-files, and zero scheduler errors. The graph-diamond row reported dispatch
-`[9,2,1,2,1]`, five completed tasks, A100 `device_wall_ns=36864`, and H200
+files, zero scheduler errors, and the graph-diamond generated-dispatch
+sequence. The graph-diamond row reported dispatch `[9,2,1,2,1]`, five
+completed tasks, A100 `device_wall_ns=36864`, and H200
 `device_wall_ns=31744`.
 
 The latest current-head compact paired validation at commit `0b3c1699` uses
@@ -244,8 +245,9 @@ the default `16x16x16` tensor descriptor so the scalar tensor DAG,
 the same paired report. It runs `N=1024`, one repeat, `batch_tasks=2`, and
 `worker_blocks_per_task=4`, producing `50` combined rows under
 `tmp/cuda-backend/combined-current-0b3c1699/`. The paired runner validated
-required baselines, command examples, source-paper provenance, and Markdown
-and SVG report files. Selected device times were A100
+required baselines, expected generated-dispatch sequences, command examples,
+source-paper provenance, and Markdown and SVG report files. Selected device
+times were A100
 host/base-DAG/tensor/tensor-core/cuBLAS/grid-batch
 `33792/61440/44032/59392/60416/41984 ns` and H200
 `14848/31936/44576/36096/40959/28768 ns`. The capture was run after adding
