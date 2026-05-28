@@ -8,7 +8,7 @@ local A100 runs, and remote H200 runs.
 
 ## Current Evidence
 
-The latest paired A100/H200 capture was taken at commit `764a2420`:
+The latest paired A100/H200 capture was taken at commit `61cf96cd`:
 
 - [Current capture](evaluation-current.md) summarizes the latest
   `8x4x12` tensor-descriptor sweep, selected baselines, host-schedule unary
@@ -22,9 +22,9 @@ The latest paired A100/H200 capture was taken at commit `764a2420`:
 The latest raw artifacts remain under `tmp/` and are intentionally not
 committed:
 
-- `tmp/cuda-backend/a100-current-764a2420/`
-- `tmp/cuda-backend/h200-current-764a2420/`
-- `tmp/cuda-backend/combined-current-764a2420/`
+- `tmp/cuda-backend/a100-current-61cf96cd/`
+- `tmp/cuda-backend/h200-current-61cf96cd/`
+- `tmp/cuda-backend/combined-current-61cf96cd/`
 - `tmp/cuda-backend/persistent-scalar_affine-smoke-469f55cd/`
 - `tmp/cuda-backend/worker-square-smoke-4cdde399/`
 - `tmp/cuda-backend/worker-quad-smoke-4327698e/`
@@ -164,7 +164,7 @@ Validate the current paired capture before copying numbers into
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/combined-current-764a2420/cuda-benchmark.json \
+    tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.json \
     --preset paired-current
 ```
 

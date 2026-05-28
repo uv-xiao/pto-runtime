@@ -769,7 +769,7 @@ local commit. It syncs `.git` so the remote benchmark metadata reports the
 same commit as the synced source tree.
 
 Use `--dry-run` to print the commands without launching benchmarks. The current
-committed summary uses the `764a2420` artifact names in
+committed summary uses the `61cf96cd` artifact names in
 `docs/nvidia-backend/evaluation-current.md`.
 
 For a lighter no-torch real-data check, run the paired Worker smoke instead of
@@ -930,7 +930,7 @@ directly from a combined benchmark JSON payload:
 ```bash
 PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py \
-    tmp/cuda-backend/combined-current-764a2420/cuda-benchmark.json
+    tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.json
 ```
 
 Use `--section launch`, `--section unary-square`, `--section worker-grid`, or
@@ -942,7 +942,7 @@ Validate the paired-current capture before copying numbers into docs:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/combined-current-764a2420/cuda-benchmark.json \
+    tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.json \
     --preset paired-current
 ```
 

@@ -196,7 +196,7 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - same-work batch rows;
 - worker-grid batch rows.
 
-The latest paired capture at commit `764a2420` uses the `8x4x12` tensor
+The latest paired capture at commit `61cf96cd` uses the `8x4x12` tensor
 descriptor, sizes `1024,65536,1048576`, three repeats, task counts `2,6,12`,
 and worker-grid values `32,64,128,256`. It includes the compiler-backed
 host-schedule row, unary square host-schedule row, quad host-schedule row, and
@@ -1220,7 +1220,7 @@ The same command was run on H200 with `--arch compute_90`. Result:
 `status=pass`, `ptx_source=nvcc-persistent-generated-dispatch-compute_90`,
 `dispatch_func_ids=[9,2,1]`, and `device_wall_ns=33600`.
 
-The full paired current benchmark was then refreshed at commit `764a2420`:
+The full paired current benchmark was then refreshed at commit `61cf96cd`:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
@@ -1229,17 +1229,17 @@ PYTHONPATH=$PWD:$PWD/python \
     --sync-remote-tree
 ```
 
-Result: `tmp/cuda-backend/combined-current-764a2420/` contains
+Result: `tmp/cuda-backend/combined-current-61cf96cd/` contains
 `cuda-benchmark.json`, `cuda-benchmark.md`, `cuda-benchmark.svg`, and
 `cuda-benchmark-ratios.svg`. The combined JSON has `720` samples, including
 `18` `pto_persistent_dag_generic_args` samples and `18`
 `pto_persistent_dag_graph` samples. All rows reported pass
 status. The paired-current validator reported:
-`validated tmp/cuda-backend/combined-current-764a2420/cuda-benchmark.json`.
+`validated tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.json`.
 The compact DAG table now includes `Graph Descriptor/DAG`; the H200 graph
-descriptor ratios versus `pto_persistent_dag` are `0.96x`, `1.08x`, and
-`1.00x` for `N=1024,65536,1048576`, while the A100 ratios are `0.68x`,
-`1.09x`, and `1.12x`. Treat the DAG-shape rows as correctness and scheduler
+descriptor ratios versus `pto_persistent_dag` are `0.95x`, `1.05x`, and
+`1.00x` for `N=1024,65536,1048576`, while the A100 ratios are `1.08x`,
+`1.19x`, and `1.05x`. Treat the DAG-shape rows as correctness and scheduler
 shape evidence rather than tuned throughput claims.
 
 ## Remaining Gaps
