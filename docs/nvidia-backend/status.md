@@ -277,6 +277,14 @@ can also require sanitized local/remote command examples and source-paper
 metadata before publishing with `--require-command-examples` and
 `--require-source-papers`; the source-paper gate verifies the referenced
 files exist under `tmp/sources/`.
+Benchmark captures now use the same VDCores/MPK `source_papers` metadata
+contract and can be gated with
+`cuda_validate_capture.py --require-source-papers` before new paired-current
+numbers are published.
+The existing real-data paired A100/H200 capture from commit `61cf96cd` was
+re-rendered through the updated report path under
+`tmp/cuda-backend/combined-current-61cf96cd-source-gate/`, and the
+paired-current validator passed with `--require-source-papers`.
 
 A current-HEAD one-repeat compact tensor sweep at commit `a5fd4bfd` validated
 that gate against real local A100 and remote H200 data. The artifact under

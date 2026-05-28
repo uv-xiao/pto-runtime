@@ -1091,9 +1091,10 @@ PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
     --section tensor-sweep
 ```
 
-New tensor-sweep artifacts include source-paper provenance for the VDCores and
-MPK notes in `tmp/sources/`, the paper-alignment statement for the current
-microbenchmark setup, and one workload description per selected baseline.
+New benchmark and tensor-sweep artifacts include source-paper provenance for
+the VDCores and MPK notes in `tmp/sources/`, plus the paper-alignment
+statement for the current microbenchmark setup. Tensor sweeps also include
+one workload description per selected baseline.
 
 Validate the paired-current capture before copying numbers into docs:
 
@@ -1101,12 +1102,15 @@ Validate the paired-current capture before copying numbers into docs:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
     tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.json \
-    --preset paired-current
+    --preset paired-current \
+    --require-source-papers
 ```
 
 The preset checks the expected A100/H200 machines, current selected
 baselines, sizes `1024,65536,1048576`, three repeats, `720` combined samples,
-and the Markdown/SVG report files.
+and the Markdown/SVG report files. `--require-source-papers` additionally
+checks that the report records the VDCores/MPK source IDs and that the
+referenced files exist under `tmp/sources/`.
 
 Use `cuda_validate_smoke.py` for paired smoke artifacts. It checks required
 artifacts, pass status, zero device scheduler errors, expected runtime/mode,

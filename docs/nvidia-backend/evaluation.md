@@ -84,9 +84,9 @@ per-artifact visual evidence and the local index agree.
 The compact benchmark and tensor-sweep tables in
 [Current capture](evaluation-current.md) can be regenerated from raw JSON with
 `.agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py`.
-New tensor-sweep Markdown reports also embed source-paper provenance for the
-VDCores and MPK notes kept under `tmp/sources/`, plus a workload description
-for each selected tensor baseline.
+New benchmark and tensor-sweep Markdown reports embed source-paper provenance
+for the VDCores and MPK notes kept under `tmp/sources/`. Tensor sweeps also
+include a workload description for each selected tensor baseline.
 Validate a refreshed paired-current capture before updating committed docs
 with `.agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py`.
 

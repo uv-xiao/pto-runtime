@@ -45,6 +45,7 @@ PAIRED_CURRENT_BASELINES = (
     "pto_persistent_queue_batch",
 )
 PAIRED_CURRENT_SIZES = (1024, 65536, 1048576)
+REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 REPORT_FILES = (
     "cuda-benchmark.md",
     "cuda-benchmark.svg",
@@ -152,6 +153,36 @@ def _validate_report_files(artifact_dir: Path | None) -> list[str]:
     return [f"missing report file {file_name}" for file_name in REPORT_FILES if not (artifact_dir / file_name).exists()]
 
 
+def _validate_source_papers(payload: dict[str, Any], *, source_root: Path) -> list[str]:
+    metadata = payload.get("metadata")
+    paper_setup = metadata.get("paper_setup") if isinstance(metadata, dict) else None
+    source_papers = metadata.get("source_papers") if isinstance(metadata, dict) else None
+    errors: list[str] = []
+    if not isinstance(paper_setup, str) or not paper_setup:
+        errors.append("missing metadata.paper_setup")
+    if not isinstance(source_papers, list):
+        return [
+            *errors,
+            *[f"missing metadata.source_papers {paper_id}" for paper_id in REQUIRED_SOURCE_PAPER_IDS],
+        ]
+
+    papers_by_id = {
+        paper.get("id"): paper for paper in source_papers if isinstance(paper, dict) and paper.get("id") is not None
+    }
+    for paper_id in REQUIRED_SOURCE_PAPER_IDS:
+        paper = papers_by_id.get(paper_id)
+        if not isinstance(paper, dict):
+            errors.append(f"missing metadata.source_papers {paper_id}")
+            continue
+        path = paper.get("path")
+        if not isinstance(path, str) or not path.startswith("tmp/sources/"):
+            errors.append(f"metadata.source_papers {paper_id} path must stay under tmp/sources/")
+            continue
+        if not (source_root / path).is_file():
+            errors.append(f"missing metadata.source_papers {paper_id} file {path}")
+    return errors
+
+
 def validate_capture(
     payload: dict[str, Any],
     *,
@@ -162,6 +193,8 @@ def validate_capture(
     expected_repeats: int | None = None,
     expected_result_count: int | None = None,
     require_report_files: bool = False,
+    require_source_papers: bool = False,
+    source_root: Path | None = None,
 ) -> list[str]:
     rows = _results(payload)
     errors: list[str] = []
@@ -185,6 +218,9 @@ def validate_capture(
 
     if require_report_files:
         errors.extend(_validate_report_files(artifact_dir))
+
+    if require_source_papers:
+        errors.extend(_validate_source_papers(payload, source_root=source_root or Path.cwd()))
 
     return errors
 
@@ -215,6 +251,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-repeats", type=int)
     parser.add_argument("--expected-result-count", type=int)
     parser.add_argument("--require-report-files", action="store_true")
+    parser.add_argument("--require-source-papers", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -231,6 +268,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         expected_repeats=args.expected_repeats,
         expected_result_count=args.expected_result_count,
         require_report_files=args.require_report_files,
+        require_source_papers=args.require_source_papers,
     )
     if errors:
         for error in errors:

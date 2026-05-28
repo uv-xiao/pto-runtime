@@ -411,6 +411,8 @@ def test_cuda_artifact_index_scans_benchmark_outputs(tmp_path):
             "baselines": ["direct_driver_graph"],
             "sizes": [1024],
             "tensor_tiles": [],
+            "source_papers": [],
+            "has_command_examples": False,
             "has_markdown": True,
             "has_svg": True,
             "has_throughput_svg": False,
@@ -475,6 +477,31 @@ def test_cuda_artifact_index_records_benchmark_tensor_tiles(tmp_path):
 
     assert entries[0]["tensor_tiles"] == ["8x4x12"]
     assert "| combined-tensorflags | benchmark | tensorflags | combined | abc123 | 1 | 64 | 8x4x12 |" in report
+
+
+def test_cuda_artifact_index_records_benchmark_source_papers(tmp_path):
+    cuda_artifact_index = _load_artifact_index_module()
+    artifact_dir = tmp_path / "combined-provenance"
+    artifact_dir.mkdir()
+    payload = {
+        "metadata": {
+            "label": "provenance",
+            "git_commit": "abc123",
+            "machine": "combined",
+            "source_papers": [
+                {"id": "arXiv:2605.03190", "label": "VDCores"},
+                {"id": "arXiv:2512.22219v1", "label": "MPK persistent kernel"},
+            ],
+        },
+        "results": [{"baseline": "pto_host_schedule", "n": 1024, "device_wall_ns": 10}],
+    }
+    (artifact_dir / "cuda-benchmark.json").write_text(json.dumps(payload) + "\n")
+
+    entries = cuda_artifact_index.scan_artifacts(tmp_path)
+    report = cuda_artifact_index.render_markdown(entries)
+
+    assert entries[0]["source_papers"] == ["arXiv:2512.22219v1", "arXiv:2605.03190"]
+    assert "arXiv:2512.22219v1, arXiv:2605.03190 | no |" in report
 
 
 def test_cuda_artifact_index_scans_tensor_shape_sweep_outputs(tmp_path):
@@ -772,6 +799,52 @@ def test_cuda_capture_validator_reports_missing_baseline_and_artifact(tmp_path):
     assert "missing report file cuda-benchmark-dag-deltas.svg" in errors
 
 
+def test_cuda_capture_validator_requires_source_papers(tmp_path):
+    cuda_validate_capture = _load_capture_validator_module()
+    payload = _paired_capture_payload()
+    source_root = tmp_path / "repo"
+    source_dir = source_root / "tmp" / "sources"
+    source_dir.mkdir(parents=True)
+
+    errors = cuda_validate_capture.validate_capture(payload, require_source_papers=True, source_root=source_root)
+
+    assert "missing metadata.paper_setup" in errors
+    assert "missing metadata.source_papers arXiv:2605.03190" in errors
+    assert "missing metadata.source_papers arXiv:2512.22219v1" in errors
+
+    payload["metadata"]["paper_setup"] = "paired A100/H200 microbenchmark"
+    payload["metadata"]["source_papers"] = [
+        {
+            "id": "arXiv:2605.03190",
+            "label": "VDCores",
+            "path": "/tmp/arxiv-2605.03190-vdcores.txt",
+        },
+        {
+            "id": "arXiv:2512.22219v1",
+            "label": "MPK persistent kernel",
+            "path": "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt",
+        },
+    ]
+
+    errors = cuda_validate_capture.validate_capture(payload, require_source_papers=True, source_root=source_root)
+
+    assert "metadata.source_papers arXiv:2605.03190 path must stay under tmp/sources/" in errors
+
+    payload["metadata"]["source_papers"][0]["path"] = "tmp/sources/arxiv-2605.03190-vdcores.txt"
+    errors = cuda_validate_capture.validate_capture(payload, require_source_papers=True, source_root=source_root)
+
+    assert ("missing metadata.source_papers arXiv:2605.03190 file tmp/sources/arxiv-2605.03190-vdcores.txt") in errors
+    assert (
+        "missing metadata.source_papers arXiv:2512.22219v1 file "
+        "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt"
+    ) in errors
+
+    (source_dir / "arxiv-2605.03190-vdcores.txt").write_text("vdcores\n")
+    (source_dir / "arxiv-2512.22219v1-mirage-persistent-kernel.txt").write_text("mpk\n")
+
+    assert cuda_validate_capture.validate_capture(payload, require_source_papers=True, source_root=source_root) == []
+
+
 def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     cuda_validate_capture = _load_capture_validator_module()
     args = cuda_validate_capture.parse_args(["capture.json", "--preset", "paired-current"])
@@ -888,8 +961,7 @@ def test_cuda_tensor_sweep_validator_reports_missing_rows_and_metadata(tmp_path)
     assert "expected 24 results, found 22" in errors
     assert "non-pass row artifact=a100 baseline=pto_persistent_dag_tensor n=256 shape=16x16x16" in errors
     assert (
-        "expected tensor tile 16x16x16 for artifact=a100 baseline=pto_persistent_dag_tensor n=256, "
-        "found 16x16x32"
+        "expected tensor tile 16x16x16 for artifact=a100 baseline=pto_persistent_dag_tensor n=256, found 16x16x32"
     ) in errors
     assert "expected dispatch 3,1,2,1 for artifact=a100 baseline=pto_persistent_dag_tensor n=256, found 9" in errors
     assert "missing baseline pto_persistent_dag_tensor_core artifact=h200 n=256 shape=16x16x64" in errors
@@ -911,10 +983,7 @@ def test_cuda_tensor_sweep_validator_requires_sanitized_command_examples():
     assert "missing metadata.command_examples.remote_sample" in errors
 
     payload["metadata"]["command_examples"] = {
-        "local_sample": (
-            f"env PYTHONPATH={Path.cwd()}:{Path.cwd() / 'python'} "
-            "cuda_benchmark.py"
-        ),
+        "local_sample": (f"env PYTHONPATH={Path.cwd()}:{Path.cwd() / 'python'} cuda_benchmark.py"),
         "remote_sample": "python3 cuda_benchmark.py",
     }
 
@@ -977,14 +1046,9 @@ def test_cuda_tensor_sweep_validator_requires_source_papers(tmp_path):
         source_root=source_root,
     )
 
-    assert (
-        "metadata.source_papers arXiv:2605.03190 path must stay under tmp/sources/"
-        in errors
-    )
+    assert "metadata.source_papers arXiv:2605.03190 path must stay under tmp/sources/" in errors
 
-    payload["metadata"]["source_papers"][0]["path"] = (
-        "tmp/sources/arxiv-2605.03190-vdcores.txt"
-    )
+    payload["metadata"]["source_papers"][0]["path"] = "tmp/sources/arxiv-2605.03190-vdcores.txt"
 
     errors = cuda_validate_tensor_sweep.validate_tensor_sweep(
         payload,
@@ -992,10 +1056,7 @@ def test_cuda_tensor_sweep_validator_requires_source_papers(tmp_path):
         source_root=source_root,
     )
 
-    assert (
-        "missing metadata.source_papers arXiv:2605.03190 file "
-        "tmp/sources/arxiv-2605.03190-vdcores.txt"
-    ) in errors
+    assert ("missing metadata.source_papers arXiv:2605.03190 file tmp/sources/arxiv-2605.03190-vdcores.txt") in errors
     assert (
         "missing metadata.source_papers arXiv:2512.22219v1 file "
         "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt"
@@ -1020,11 +1081,7 @@ def test_cuda_tensor_sweep_validator_requires_each_size():
     payload["results"] = [
         row
         for row in payload["results"]
-        if not (
-            row["artifact"] == "h200"
-            and row["baseline"] == "cublas_sgemm"
-            and row["shape"] == "16x16x64"
-        )
+        if not (row["artifact"] == "h200" and row["baseline"] == "cublas_sgemm" and row["shape"] == "16x16x64")
     ]
 
     errors = cuda_validate_tensor_sweep.validate_tensor_sweep(
@@ -3151,8 +3208,7 @@ def test_cuda_current_summary_renders_worker_and_dag_tables():
 
     assert "| A100 | 65536 | 6 | 128 | 3000 | 0.30x |" in worker_table
     assert (
-        "| A100 | 65536 | 1.50x | 2.00x | 1.25x | 1.30x | 1.35x | 1.40x | "
-        "1.10x | 1.15x | 1.20x | 2.50x |"
+        "| A100 | 65536 | 1.50x | 2.00x | 1.25x | 1.30x | 1.35x | 1.40x | 1.10x | 1.15x | 1.20x | 2.50x |"
     ) in dag_table
 
 
@@ -3275,8 +3331,7 @@ def test_cuda_current_summary_renders_tensor_sweep_table():
 
     assert (
         "| GPU | N | Shape | Scalar tensor ns | Tensor-core ns | cuBLAS ns | Scalar GF/s | Tensor-core GF/s | "
-        "cuBLAS GF/s | Tensor-core/scalar | cuBLAS/scalar |"
-        in table
+        "cuBLAS GF/s | Tensor-core/scalar | cuBLAS/scalar |" in table
     )
     assert "| A100 | 256 | 16x16x16 | 1100 | 900 | 1500 | 7.45 | 9.10 | 5.46 | 0.82x | 1.36x |" in table
     assert "| H200 | 256 | 16x16x16 | 800 | 1000 | 1600 | 10.24 | 8.19 | 5.12 | 1.25x | 2.00x |" in table
@@ -3385,6 +3440,10 @@ def test_render_report_contains_table_and_svg():
             "label": "unit",
             "git_commit": "abc123",
             "paper_setup": "microbenchmarks only",
+            "source_papers": [
+                {"id": "arXiv:2605.03190", "label": "VDCores"},
+                {"id": "arXiv:2512.22219v1", "label": "MPK persistent kernel"},
+            ],
         },
         "results": [
             {"machine": "a100-local", "baseline": "pto_host_schedule", "n": 1024, "device_wall_ns": 1000},
@@ -3396,6 +3455,7 @@ def test_render_report_contains_table_and_svg():
     svg = cuda_benchmark.render_svg(cuda_benchmark.summarize_results(payload))
 
     assert "CUDA Backend Microbenchmark Report" in report
+    assert "- Source papers: `arXiv:2605.03190` VDCores; `arXiv:2512.22219v1` MPK persistent kernel" in report
     expected_header = (
         "| Machine | Baseline | N | Tasks | Worker blocks/task | Samples | Median device ns | "
         "Median host ns | Device vs matched reference |"
@@ -4093,15 +4153,10 @@ def test_render_report_highlights_dag_shape_rows():
     assert ("| a100-local | 4096 | pto_persistent_dag_tensor | 4 | 4200 | 4.20x |") in report
     assert "## DAG Increment Rows" in report
     assert (
-        "| Machine | N | Baseline | Tasks | Base DAG ns | Median device ns | Increment ns | "
-        "Increment vs base |"
+        "| Machine | N | Baseline | Tasks | Base DAG ns | Median device ns | Increment ns | Increment vs base |"
     ) in report
-    assert (
-        "| a100-local | 4096 | pto_persistent_dag_tensor | 4 | 1000 | 4200 | 3200 | 3.20x |"
-    ) in report
-    assert (
-        "| a100-local | 4096 | pto_persistent_dag_graph | 3 | 1000 | 900 | -100 | -0.10x |"
-    ) in report
+    assert ("| a100-local | 4096 | pto_persistent_dag_tensor | 4 | 1000 | 4200 | 3200 | 3.20x |") in report
+    assert ("| a100-local | 4096 | pto_persistent_dag_graph | 3 | 1000 | 900 | -100 | -0.10x |") in report
     assert "![DAG increment chart](cuda-benchmark-dag-deltas.svg)" in report
 
 
@@ -4214,6 +4269,10 @@ def test_merge_payloads_preserves_results_and_records_sources():
     assert merged["metadata"]["source_labels"] == ["a100", "h200"]
     assert merged["metadata"]["git_commits"] == ["abc123"]
     assert merged["metadata"]["tensor_tile"] == {"rows": 8, "cols": 4, "inner": 12}
+    assert [paper["id"] for paper in merged["metadata"]["source_papers"]] == [
+        "arXiv:2605.03190",
+        "arXiv:2512.22219v1",
+    ]
     assert len(merged["results"]) == 2
 
 
@@ -4256,6 +4315,48 @@ def test_run_benchmark_uses_in_process_samples(monkeypatch):
         ("direct_driver_graph", 3, 1024, 128, "compute_80"),
     ]
     assert len(payload["results"]) == 6
+
+
+def test_run_benchmark_records_source_paper_metadata(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+
+    def fake_compile_ptx(work_dir, arch):
+        return b"ptx", f"fake-{arch}"
+
+    def fake_run_single_sample(baseline, device, n, block_dim, arch):
+        return {
+            "baseline": baseline,
+            "n": n,
+            "block_dim": block_dim,
+            "host_wall_ns": 20,
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    monkeypatch.setattr(cuda_benchmark, "_compile_ptx", fake_compile_ptx)
+    monkeypatch.setattr(cuda_benchmark, "run_single_sample", fake_run_single_sample)
+
+    payload = cuda_benchmark.run_benchmark(
+        device=3,
+        sizes=[1024],
+        repeats=1,
+        block_dim=128,
+        arch="compute_80",
+        label="unit",
+    )
+
+    assert payload["metadata"]["source_papers"] == [
+        {
+            "id": "arXiv:2605.03190",
+            "label": "VDCores",
+            "path": "tmp/sources/arxiv-2605.03190-vdcores.txt",
+        },
+        {
+            "id": "arXiv:2512.22219v1",
+            "label": "MPK persistent kernel",
+            "path": "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt",
+        },
+    ]
 
 
 def test_run_single_sample_dispatches_compiler_host_schedule(monkeypatch):

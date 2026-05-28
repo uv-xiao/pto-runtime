@@ -64,11 +64,7 @@ def _source_paper_ids(metadata: dict[str, Any]) -> list[str]:
     if not isinstance(papers, list):
         return []
     return _sorted_unique(
-        {
-            str(paper["id"])
-            for paper in papers
-            if isinstance(paper, dict) and isinstance(paper.get("id"), str)
-        }
+        {str(paper["id"]) for paper in papers if isinstance(paper, dict) and isinstance(paper.get("id"), str)}
     )
 
 
@@ -161,6 +157,8 @@ def _read_artifact(path: Path, root: Path) -> dict[str, Any]:
         "baselines": _sorted_unique({row.get("baseline", "unknown") for row in results}),
         "sizes": _sorted_unique({row.get("n", "unknown") for row in results}),
         "tensor_tiles": _tensor_tile_shapes([payload]),
+        "source_papers": _source_paper_ids(metadata),
+        "has_command_examples": _has_command_examples(metadata),
         "has_markdown": (path / "cuda-benchmark.md").exists(),
         "has_svg": (path / "cuda-benchmark.svg").exists(),
         "has_throughput_svg": False,
