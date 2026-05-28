@@ -655,12 +655,17 @@ path can build
 `arg_builder: persistent_dag_scalar_axpy_f32`,
 `arg_builder: persistent_dag_scalar_affine_f32`,
 `arg_builder: persistent_dag_tensor_tile_f32`,
+`arg_builder: persistent_dag_tensor_core_tile_f32`,
 `arg_builder: persistent_dag_triad_f32`,
 `arg_builder: persistent_dag_quad_f32`,
 `arg_builder: persistent_dag_generic_args_f32`,
 `arg_builder: persistent_dag_graph_f32`, and
 `arg_builder: persistent_dag_unary_square_f32` adapters through the L2
 `Worker`.
+Use `persistent_dag_tensor_core_tile_f32` for the normal L2 scene-test path
+when the first DAG task should be a block-wide WMMA
+`m16n16k8:tf32->f32` task. It requires a `16x16xK` tensor descriptor with
+`K` divisible by `8`.
 Use `persistent_dag_graph_f32` when a test should pass an explicit runtime
 graph descriptor with per-task `func_id`, `a`/`b`/`c`/`d`/`out`,
 `dependents`, optional `initial_fanin`, `tensor_args`, and `scalar_args`

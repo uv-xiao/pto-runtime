@@ -275,14 +275,14 @@ DAG specs. The current adapters construct `vector_add_f32`,
 `persistent_dag_reuse_f32`, `persistent_dag_scalar_axpy_f32`,
 `persistent_dag_tensor_tile_f32`, `persistent_dag_triad_f32`,
 `persistent_dag_quad_f32`, `persistent_dag_generic_args_f32`,
-`persistent_dag_graph_f32`, and `persistent_dag_unary_square_f32` raw
-argument/state structs from `TaskArgsBuilder` CPU tensors and scalars. This
-covers the current tracer-bullet argument families: unary, binary, triad,
-quad, fixed scalar fields, bounded generic tensor/scalar slots, graph
-descriptors, scalar tensor tiles, and a WMMA tensor-core tile. The remaining
-work is general lowering from normal PTO task graphs into those CUDA descriptor
-families, plus broader tuned tensor kernels beyond the current smoke and
-microbenchmark bodies.
+`persistent_dag_graph_f32`, `persistent_dag_unary_square_f32`, and
+`persistent_dag_tensor_core_tile_f32` raw argument/state structs from
+`TaskArgsBuilder` CPU tensors and scalars. This covers the current
+tracer-bullet argument families: unary, binary, triad, quad, fixed scalar
+fields, bounded generic tensor/scalar slots, graph descriptors, scalar tensor
+tiles, and a WMMA tensor-core tile. The remaining work is general lowering
+from normal PTO task graphs into those CUDA descriptor families, plus broader
+tuned tensor kernels beyond the current smoke and microbenchmark bodies.
 
 The descriptor now also carries bounded generic argument slots:
 `tensor_args[4]`, `scalar_args[4]`, `tensor_arg_count`, and

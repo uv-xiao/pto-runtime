@@ -304,6 +304,29 @@ for (unsigned long long k = 0; k < inner; ++k) {
 task->out[out_base + row * task->ldc + col] = acc;
 """.strip()
 
+_PERSISTENT_WMMA_TILE_BODY = """
+if (task->rows != 16U || task->cols != 16U || task->inner == 0U || (task->inner % 8U) != 0U) {
+  return;
+}
+using namespace nvcuda;
+unsigned long long tile_count = task->n / task->out_batch_stride;
+for (unsigned long long tile_id = 0; tile_id < tile_count; ++tile_id) {
+  wmma::fragment<wmma::matrix_a, 16, 16, 8, wmma::precision::tf32, wmma::row_major> a_frag;
+  wmma::fragment<wmma::matrix_b, 16, 16, 8, wmma::precision::tf32, wmma::row_major> b_frag;
+  wmma::fragment<wmma::accumulator, 16, 16, 8, float> acc_frag;
+  wmma::fill_fragment(acc_frag, 0.0f);
+  unsigned long long a_base = tile_id * task->a_batch_stride;
+  unsigned long long b_base = tile_id * task->b_batch_stride;
+  unsigned long long out_base = tile_id * task->out_batch_stride;
+  for (unsigned int k = 0; k < task->inner; k += 8U) {
+    wmma::load_matrix_sync(a_frag, task->a + a_base + k, task->lda);
+    wmma::load_matrix_sync(b_frag, task->b + b_base + k * task->ldb, task->ldb);
+    wmma::mma_sync(acc_frag, a_frag, b_frag, acc_frag);
+  }
+  wmma::store_matrix_sync(task->out + out_base, acc_frag, task->ldc, wmma::mem_row_major);
+}
+""".strip()
+
 
 class _FakeTensor:
     def __init__(self, n):
@@ -579,6 +602,45 @@ def _cuda_persistent_tensor_tile_spec(matmul_source, add_source, mul_source, *, 
             "shared_mem_bytes": 0,
             "signature": [ArgDirection.IN, ArgDirection.IN, ArgDirection.OUT],
             "arg_builder": "persistent_dag_tensor_tile_f32",
+            "args": ["a", "b", "out"],
+            "queue_capacity": 2,
+            "tensor_tile": {"rows": 16, "cols": 16, "inner": 16},
+        }
+    }
+
+
+def _cuda_persistent_tensor_core_tile_spec(wmma_source, add_source, mul_source, *, arch="compute_80", block_dim=256):
+    return {
+        "cuda": {
+            "runtime": "persistent_device",
+            "arch": arch,
+            "task_sources": [
+                {
+                    "func_id": 10,
+                    "task_name": "wmma_m16n16k8_f32",
+                    "source_path": str(wmma_source),
+                    "threading": "block",
+                },
+                {
+                    "func_id": 1,
+                    "task_name": "add_f32",
+                    "source_path": str(add_source),
+                    "body_style": "task_body",
+                    "context_definition": _PERSISTENT_CONTEXT,
+                },
+                {
+                    "func_id": 2,
+                    "task_name": "mul_f32",
+                    "source_path": str(mul_source),
+                    "body_style": "task_body",
+                    "context_definition": _PERSISTENT_CONTEXT,
+                },
+            ],
+            "grid_dim": 5,
+            "block_dim": block_dim,
+            "shared_mem_bytes": 0,
+            "signature": [ArgDirection.IN, ArgDirection.IN, ArgDirection.OUT],
+            "arg_builder": "persistent_dag_tensor_core_tile_f32",
             "args": ["a", "b", "out"],
             "queue_capacity": 2,
             "tensor_tile": {"rows": 16, "cols": 16, "inner": 16},
@@ -1372,6 +1434,35 @@ def test_scene_test_builds_cuda_persistent_unary_square_args():
     assert buffers.host_tasks[2].a == buffers.host_tasks[1].out
     assert buffers.host_tasks[2].b == buffers.tensor_buffers.ptrs["a"]
     assert buffers.host_tasks[2].out == buffers.tensor_buffers.ptrs["out"]
+
+
+def test_scene_test_builds_cuda_persistent_tensor_core_tile_args():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(256)),
+        Tensor("b", _FakeTensor(256)),
+        Tensor("out", _FakeTensor(256)),
+    )
+    cuda_spec = {
+        "arg_builder": "persistent_dag_tensor_core_tile_f32",
+        "args": ["a", "b", "out"],
+        "queue_capacity": 2,
+        "tensor_tile": {"rows": 16, "cols": 16, "inner": 16},
+    }
+    buffers = _CudaPersistentDagSceneBuffers(_FakeWorker(), test_args, cuda_spec)
+
+    assert len(buffers.host_tasks) == 4
+    assert list(buffers.host_fanin) == [0, 1, 1, 2]
+    assert list(buffers.host_dependents) == [1, 2, 3, 3]
+    assert [(task.func_id, task.dependent_begin, task.dependent_count) for task in buffers.host_tasks] == [
+        (10, 0, 2),
+        (1, 2, 1),
+        (2, 3, 1),
+        (1, 4, 0),
+    ]
+    assert buffers.host_tasks[0].rows == 16
+    assert buffers.host_tasks[0].cols == 16
+    assert buffers.host_tasks[0].inner == 16
+    assert buffers.host_tasks[3].out == buffers.tensor_buffers.ptrs["out"]
 
 
 @requires_cuda
@@ -2292,5 +2383,123 @@ def test_scene_test_runs_cuda_persistent_device_tensor_tile_with_real_data(tmp_p
     try:
         callable_obj = scene.build_callable("cuda")
         scene._run_and_validate_l2(worker, callable_obj, CudaPersistentTensorTileScene.CASES[0])
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_persistent_device_tensor_core_tile_with_real_data(tmp_path):
+    torch = pytest.importorskip("torch")
+
+    wmma_source = tmp_path / "wmma.pto.cu"
+    add_source = tmp_path / "add.pto.cu"
+    mul_source = tmp_path / "mul.pto.cu"
+    wmma_source.write_text(_PERSISTENT_WMMA_TILE_BODY)
+    add_source.write_text(_PERSISTENT_ADD_BODY)
+    mul_source.write_text(_PERSISTENT_MUL_BODY)
+
+    @scene_test(level=2, runtime="persistent_device")
+    class CudaPersistentTensorCoreTileScene(SceneTestCase):
+        RTOL = 1e-4
+        ATOL = 1e-4
+        CALLABLE = _cuda_persistent_tensor_core_tile_spec(wmma_source, add_source, mul_source)
+        CASES = [
+            {
+                "name": "tile16",
+                "platforms": ["cuda"],
+                "params": {"rows": 16, "cols": 16, "inner": 16},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            rows = params["rows"]
+            cols = params["cols"]
+            inner = params["inner"]
+            return TaskArgsBuilder(
+                Tensor("a", (torch.arange(rows * inner, dtype=torch.float32) % 5.0) + 1.0),
+                Tensor("b", (torch.arange(inner * cols, dtype=torch.float32) % 3.0) + 1.0),
+                Tensor("out", torch.zeros(rows * cols, dtype=torch.float32)),
+            )
+
+        def compute_golden(self, args, params):
+            rows = params["rows"]
+            cols = params["cols"]
+            inner = params["inner"]
+            matmul = args.a.reshape(rows, inner) @ args.b.reshape(inner, cols)
+            flat = matmul.reshape(rows * cols)
+            args.out[:] = flat + args.a[: rows * cols] + flat * args.b[: rows * cols]
+
+    scene = CudaPersistentTensorCoreTileScene()
+    worker = CudaPersistentTensorCoreTileScene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(worker, callable_obj, CudaPersistentTensorCoreTileScene.CASES[0])
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_persistent_device_tensor_core_tile_with_ctypes_data(tmp_path):
+    wmma_source = tmp_path / "wmma.pto.cu"
+    add_source = tmp_path / "add.pto.cu"
+    mul_source = tmp_path / "mul.pto.cu"
+    wmma_source.write_text(_PERSISTENT_WMMA_TILE_BODY)
+    add_source.write_text(_PERSISTENT_ADD_BODY)
+    mul_source.write_text(_PERSISTENT_MUL_BODY)
+
+    @scene_test(level=2, runtime="persistent_device")
+    class CudaPersistentTensorCoreTileCtypesScene(SceneTestCase):
+        CALLABLE = _cuda_persistent_tensor_core_tile_spec(wmma_source, add_source, mul_source)
+        CASES = [
+            {
+                "name": "tile16",
+                "platforms": ["cuda"],
+                "params": {"rows": 16, "cols": 16, "inner": 16},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            rows = params["rows"]
+            cols = params["cols"]
+            inner = params["inner"]
+            args = TaskArgsBuilder(
+                Tensor("a", _CtypesFloatTensor(float((i % 5) + 1) for i in range(rows * inner))),
+                Tensor("b", _CtypesFloatTensor(float((i % 3) + 1) for i in range(inner * cols))),
+                Tensor("out", _CtypesFloatTensor(0.0 for _ in range(rows * cols))),
+            )
+            self.last_args = args
+            return args
+
+        def compute_golden(self, args, params):
+            raise AssertionError("ctypes scene uses explicit post-run validation")
+
+    scene = CudaPersistentTensorCoreTileCtypesScene()
+    worker = CudaPersistentTensorCoreTileCtypesScene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(
+            worker,
+            callable_obj,
+            CudaPersistentTensorCoreTileCtypesScene.CASES[0],
+            skip_golden=True,
+        )
+        params = CudaPersistentTensorCoreTileCtypesScene.CASES[0]["params"]
+        rows = params["rows"]
+        cols = params["cols"]
+        inner = params["inner"]
+        a_values = scene.last_args.a.to_list()
+        b_values = scene.last_args.b.to_list()
+        actual = scene.last_args.out.to_list()
+        matmul = []
+        for row in range(rows):
+            for col in range(cols):
+                acc = 0.0
+                for k in range(inner):
+                    acc += a_values[row * inner + k] * b_values[k * cols + col]
+                matmul.append(acc)
+        expected = [matmul[i] + a_values[i] + matmul[i] * b_values[i] for i in range(rows * cols)]
+        assert actual == pytest.approx(expected, rel=1e-4, abs=1e-4)
     finally:
         worker.close()

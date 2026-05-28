@@ -133,8 +133,10 @@ tensor/scalar descriptors, `persistent_dag_tensor_tile_f32` state objects,
 `persistent_dag_quad_f32` fourth-tensor descriptors,
 `persistent_dag_generic_args_f32` generic tensor/scalar argument descriptors,
 `persistent_dag_graph_f32` explicit graph descriptors, and
-`persistent_dag_unary_square_f32` unary descriptors from normal `TaskArgsBuilder`
-CPU tensors, and validates real copied-back CUDA output data. The no-torch
+`persistent_dag_unary_square_f32` unary descriptors, and
+`persistent_dag_tensor_core_tile_f32` WMMA tensor-core descriptors from normal
+`TaskArgsBuilder` CPU tensors, and validates real copied-back CUDA output
+data. The no-torch
 persistent smoke path also validates a generated-dispatch triad descriptor
 with a third tensor pointer field, a quad descriptor with third and fourth
 tensor pointer fields, a generic-argument descriptor, and a generated-dispatch
@@ -1421,6 +1423,39 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
 
 Result: `1 passed, 37 deselected`. The remote command also printed the known
 PTO-ISA SSH refresh warning before the selected CUDA test passed.
+
+The tensor-core tile descriptor was then added to the same normal L2
+`SceneTestCase` path as `persistent_dag_tensor_core_tile_f32`. Its first task
+uses block-wide generated dispatch with `func_id=10`, while the remaining
+residual, gate, and fan-in tasks reuse the scalar tensor DAG shape. Focused
+local A100 coverage:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k 'tensor_core_tile_args or tensor_core_tile_with_ctypes_data' \
+    --platform cuda
+```
+
+Result: `2 passed, 39 deselected`. The full local CUDA scene-test file was
+then rerun and reported `41 passed`.
+
+The no-torch ctypes tensor-core scene test was also run on H200 after syncing
+the working tree:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && \
+   CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH \
+   PYTHONPATH=$PWD:$PWD/python \
+   .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+     -q -rs -k "tensor_core_tile_with_ctypes_data" --platform cuda'
+```
+
+Result: `1 passed, 40 deselected`. The H200 venv lacks `torch`, so the
+torch-backed tensor-core scene test is local-only there; the ctypes version
+validates the same L2 `Worker` and `TaskArgsBuilder` path with real CUDA data.
+The command also printed the known PTO-ISA SSH refresh warning before passing.
 
 The explicit graph-descriptor path has now been promoted into the benchmark
 scripts as `pto_persistent_dag_graph`, using `dag_shape=graph_descriptor`.

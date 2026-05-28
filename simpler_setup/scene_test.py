@@ -517,19 +517,22 @@ class _CudaPersistentDagSceneBuffers:
         )
 
         arg_builder = self.cuda_spec.get("arg_builder")
+        tensor_tile_builders = {
+            "persistent_dag_tensor_tile_f32",
+            "persistent_dag_tensor_core_tile_f32",
+        }
         persistent_builders = {
             "persistent_dag_fork_join_f32",
             "persistent_dag_chain_f32",
             "persistent_dag_reuse_f32",
             "persistent_dag_scalar_affine_f32",
             "persistent_dag_scalar_axpy_f32",
-            "persistent_dag_tensor_tile_f32",
             "persistent_dag_triad_f32",
             "persistent_dag_quad_f32",
             "persistent_dag_generic_args_f32",
             "persistent_dag_unary_square_f32",
             "persistent_dag_graph_f32",
-        }
+        } | tensor_tile_builders
         if arg_builder not in persistent_builders:
             raise NotImplementedError(f"Unsupported CUDA persistent scene-test arg_builder: {arg_builder}")
         if arg_builder == "persistent_dag_graph_f32":
@@ -997,6 +1000,13 @@ class _CudaPersistentDagSceneBuffers:
             self._setup_graph_descriptor(ctypes, CudaPersistentDagTask, n, output_nbytes)
         else:
             descriptor = self._tensor_tile_descriptor(n)
+            if arg_builder == "persistent_dag_tensor_core_tile_f32" and (
+                descriptor["rows"] != 16 or descriptor["cols"] != 16 or descriptor["inner"] % 8 != 0
+            ):
+                raise ValueError(
+                    "CUDA persistent_dag_tensor_core_tile_f32 requires rows=16, cols=16, and inner divisible by 8"
+                )
+            tensor_func_id = 10 if arg_builder == "persistent_dag_tensor_core_tile_f32" else 3
             self.dev_tmp2 = self._malloc(output_nbytes)
             dependents_t = ctypes.c_uint32 * 4
             self.host_dependents = dependents_t(1, 2, 3, 3)
@@ -1005,7 +1015,7 @@ class _CudaPersistentDagSceneBuffers:
                 self._make_tensor_tile_task(
                     CudaPersistentDagTask,
                     descriptor,
-                    func_id=3,
+                    func_id=tensor_func_id,
                     a=self.tensor_buffers.ptrs[a_name],
                     b=self.tensor_buffers.ptrs[b_name],
                     out=self.dev_tmp0,
