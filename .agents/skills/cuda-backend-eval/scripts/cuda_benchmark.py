@@ -1706,6 +1706,15 @@ def run_single_sample(  # noqa: PLR0912
             baseline=baseline,
             dag_shape="graph_descriptor_diamond",
         )
+    if baseline == "pto_persistent_dag_graph_tagged_inout":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="graph_descriptor_tagged_inout",
+        )
     if baseline == "pto_persistent_dag_unary_square":
         return run_persistent_sample(
             device=device,
@@ -1923,6 +1932,7 @@ def run_benchmark(
                     "pto_persistent_dag_graph_chain",
                     "pto_persistent_dag_graph_scratch_reuse",
                     "pto_persistent_dag_graph_diamond",
+                    "pto_persistent_dag_graph_tagged_inout",
                     "pto_persistent_dag_unary_square",
                     "pto_persistent_dag_tensor",
                     "pto_persistent_dag_graph_tensor",
@@ -2498,6 +2508,7 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
         "pto_persistent_dag_graph_chain": "#6d4c41",
         "pto_persistent_dag_graph_scratch_reuse": "#795548",
         "pto_persistent_dag_graph_diamond": "#5d4037",
+        "pto_persistent_dag_graph_tagged_inout": "#4e342e",
         "pto_persistent_dag_unary_square": "#e3a857",
         "pto_persistent_dag_tensor": "#e76f51",
         "pto_persistent_dag_graph_tensor": "#c7522a",
@@ -2889,6 +2900,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "  descriptor with scratch-buffer reuse after the last consumer.",
             "- `pto_persistent_dag_graph_diamond` uses a five-task explicit graph",
             "  descriptor with two roots, two fan-out consumers, and a final join.",
+            "- `pto_persistent_dag_graph_tagged_inout` uses explicit input, output,",
+            "  and inout task-argument tags over a three-task graph descriptor.",
             "- `pto_persistent_dag_unary_square` uses a one-input square task body",
             "  to validate unary persistent DAG arguments.",
             (
@@ -3039,6 +3052,7 @@ def main() -> None:
             "pto_persistent_dag_graph_chain",
             "pto_persistent_dag_graph_scratch_reuse",
             "pto_persistent_dag_graph_diamond",
+            "pto_persistent_dag_graph_tagged_inout",
             "pto_persistent_dag_unary_square",
             "pto_persistent_dag_tensor",
             "pto_persistent_dag_graph_tensor",

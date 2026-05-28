@@ -257,6 +257,7 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - `pto_persistent_dag_generic_args`;
 - `pto_persistent_dag_graph`;
 - `pto_persistent_dag_graph_diamond`;
+- `pto_persistent_dag_graph_tagged_inout`;
 - `pto_persistent_dag_unary_square`;
 - `pto_persistent_dag_tensor`;
 - `pto_persistent_dag_graph_tensor`;
@@ -319,6 +320,21 @@ graph-scratch-reuse row. That row reported
 count `6`, A100 `device_wall_ns=36864`, and H200 `device_wall_ns=38240`.
 The graph-chain row remains in the same compact gate and reported A100
 `device_wall_ns=35840` and H200 `device_wall_ns=34528`.
+
+The compact paired benchmark gate at artifact label `55a144de` now includes
+`pto_persistent_dag_graph_tagged_inout`, validating explicit `input`,
+`output`, `inout`, and `output_existing` task-argument tags in the selected
+benchmark path. It uses `N=1024`, one repeat, `batch_tasks=2`,
+`worker_blocks_per_task=4`, and the default `16x16x16` tensor descriptor,
+producing `68` combined rows under
+`tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/`.
+The validator checked required baselines, dispatch sequences, tensor
+descriptor metadata, source-paper provenance, command examples, generated
+Markdown/SVG reports, and zero scheduler errors. The tagged-inout row reported
+dispatch `[1,1,1]`, `graph_descriptor.fanin=[0,1,1]`,
+`graph_descriptor.dependents=[1,2]`, completed count `3`,
+`graph_task_args.task1=inout:tmp1,input:b`, A100
+`device_wall_ns=35840`, and H200 `device_wall_ns=30080`.
 
 The compact paired benchmark gate at artifact label `a46db551` promotes
 `pto_persistent_dag_scalar_scale` into the selected benchmark path. It uses
@@ -2447,9 +2463,9 @@ Result:
 A100 reported `device_wall_ns=43008` and `host_wall_ns=58143`; H200 reported
 `device_wall_ns=33664` and `host_wall_ns=43163`.
 
-After promoting the cuBLAS CUDA Graph baseline to the selected benchmark
-matrix, the paired-current validator now expects `900` full paired samples or
-`66` compact paired samples.
+After promoting the graph tagged-inout baseline to the selected benchmark
+matrix, the paired-current validator now expects `918` full paired samples or
+`68` compact paired samples.
 
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph

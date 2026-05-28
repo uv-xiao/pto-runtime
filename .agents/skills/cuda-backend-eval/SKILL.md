@@ -1361,6 +1361,18 @@ The current compact paired benchmark capture with this row is under
 `batch_tasks=2`, `worker_blocks_per_task=4`, validates source-paper
 provenance and zero scheduler errors, and includes Markdown plus SVG reports.
 
+Use `--single-baseline pto_persistent_dag_graph_tagged_inout` for a quick
+benchmark path check of explicit graph task-argument tags. This path validates
+`input`, `output`, `inout`, and `output_existing` mappings through the
+persistent DAG benchmark row with dispatch `1,1,1`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_tagged_inout \
+    --sizes 1024 --arch compute_80
+```
+
 Use `--single-baseline pto_persistent_dag_unary_square` for a quick
 benchmark path check of the unary persistent DAG on one GPU:
 
@@ -1614,8 +1626,8 @@ PYTHONPATH=$PWD:$PWD/python \
 The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the host-schedule generic-args baseline, graph
 generic-args4 baseline, graph-chain baseline, graph-scratch-reuse baseline,
-size `1024`, one repeat, `66` combined samples, and the Markdown/SVG report
-files.
+graph-tagged-inout baseline, size `1024`, one repeat, `68` combined samples,
+and the Markdown/SVG report files.
 The current compact gate artifact with graph-scratch-reuse benchmark coverage
 is under `tmp/cuda-backend/combined-current-dbb01406/`.
 New paired-runner captures use a dynamic validator command because the

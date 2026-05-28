@@ -46,6 +46,7 @@ PAIRED_CURRENT_BASELINES = (
     "pto_persistent_dag_graph_chain",
     "pto_persistent_dag_graph_scratch_reuse",
     "pto_persistent_dag_graph_diamond",
+    "pto_persistent_dag_graph_tagged_inout",
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_unary_square",
     "pto_persistent_device",
@@ -57,7 +58,8 @@ PAIRED_CURRENT_BASELINES = (
 PAIRED_CURRENT_SIZES = (1024, 65536, 1048576)
 COMPACT_CURRENT_SIZES = (1024,)
 COMPACT_CURRENT_EXPECTED_REPEATS = 1
-COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 66
+COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 68
+PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 918
 REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 REPORT_FILES = (
     "cuda-benchmark.md",
@@ -81,6 +83,7 @@ PAIRED_CURRENT_DISPATCH = {
     "pto_persistent_dag_graph_chain": "1,2,1,2,1",
     "pto_persistent_dag_graph_scratch_reuse": "1,2,1,2,1,1",
     "pto_persistent_dag_graph_diamond": "9,2,1,2,1",
+    "pto_persistent_dag_graph_tagged_inout": "1,1,1",
     "pto_persistent_dag_unary_square": "7,1,1",
     "pto_persistent_dag_tensor": "3,1,2,1",
     "pto_persistent_dag_graph_tensor": "3,1,2,1",
@@ -402,7 +405,11 @@ def _apply_preset(args: argparse.Namespace) -> None:
     if args.expected_repeats is None:
         args.expected_repeats = COMPACT_CURRENT_EXPECTED_REPEATS if args.preset == "compact-current" else 3
     if args.expected_result_count is None:
-        args.expected_result_count = COMPACT_CURRENT_EXPECTED_RESULT_COUNT if args.preset == "compact-current" else 900
+        args.expected_result_count = (
+            COMPACT_CURRENT_EXPECTED_RESULT_COUNT
+            if args.preset == "compact-current"
+            else PAIRED_CURRENT_EXPECTED_RESULT_COUNT
+        )
     if not args.require_dispatch:
         args.require_dispatch = [f"{baseline}={dispatch}" for baseline, dispatch in PAIRED_CURRENT_DISPATCH.items()]
     if not args.require_tensor_tile:

@@ -2,7 +2,7 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus the compact current-head validation capture with
-artifact label `dbb01406`. The raw JSON, Markdown, and SVG reports are
+artifact label `55a144de`. The raw JSON, Markdown, and SVG reports are
 generated locally under `tmp/cuda-backend/` and intentionally remain
 uncommitted.
 
@@ -101,6 +101,14 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/combined-current-945016c3/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/tagged-inout-benchmark-working/a100-current-55a144de/cuda-benchmark.json`
+- `tmp/cuda-backend/tagged-inout-benchmark-working/h200-current-55a144de/cuda-benchmark.json`
+- `tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/cuda-benchmark.json`
+- `tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/cuda-benchmark.md`
+- `tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/cuda-benchmark.svg`
+- `tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.json`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-current-a46db551/cuda-benchmark.json`
@@ -150,6 +158,41 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/h200.json`
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/cuda-smoke-report.svg`
+
+## Latest Tagged-Inout Compact Gate
+
+The compact paired gate at artifact label `55a144de` adds
+`pto_persistent_dag_graph_tagged_inout` to the selected benchmark matrix. It
+uses the default `16x16x16` tensor descriptor, `N=1024`, one repeat,
+`batch_tasks=2`, and `worker_blocks_per_task=4`. The paired runner synced the
+local tree to `bizhaoh200`, captured local A100 and remote H200 reports,
+merged them, and validated the combined JSON.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/tagged-inout-benchmark-working/combined-current-55a144de/cuda-benchmark.json \
+    --preset compact-current
+```
+
+The combined JSON has `68` samples. The validator checked A100/H200 machine
+names, size `1024`, one repeat, selected tensor baselines, the tagged-inout
+graph baseline, source-paper provenance, sanitized command examples, generated
+Markdown/SVG reports, expected generated-dispatch sequences, tensor descriptor
+metadata, and zero scheduler errors for PTO persistent DAG rows.
+
+Tagged-inout rows:
+
+| GPU | Dispatch | Fan-in | Dependents | Tagged inout task | Device ns | Host ns | Status |
+| --- | -------- | ------ | ---------- | ----------------- | --------- | ------- | ------ |
+| A100 | `1,1,1` | `0,1,1` | `1,2` | `inout:tmp1,input:b` | 35840 | 48679 | pass |
+| H200 | `1,1,1` | `0,1,1` | `1,2` | `inout:tmp1,input:b` | 30080 | 40316 | pass |
+
+The report directory contains `cuda-benchmark.json`, `cuda-benchmark.md`,
+`cuda-benchmark.svg`, `cuda-benchmark-ratios.svg`,
+`cuda-benchmark-dag-deltas.svg`, and `cuda-benchmark-throughput.svg`.
 
 ## Previous Graph-Generic Compact Gate
 
