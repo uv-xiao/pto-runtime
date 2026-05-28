@@ -666,6 +666,9 @@ Use `persistent_dag_tensor_core_tile_f32` for the normal L2 scene-test path
 when the first DAG task should be a block-wide WMMA
 `m16n16k8:tf32->f32` task. It requires a `16x16xK` tensor descriptor with
 `K` divisible by `8`.
+CUDA `persistent_device` scene-test specs can pass `stream_id` in the
+`CALLABLE["cuda"]` spec; this is forwarded to the prepared callable manifest
+and selects the CUDA runtime stream used by `Worker.run`.
 Use `persistent_dag_graph_f32` when a test should pass an explicit runtime
 graph descriptor with per-task `func_id`, `a`/`b`/`c`/`d`/`out`,
 `dependents`, optional `initial_fanin`, `tensor_args`, and `scalar_args`

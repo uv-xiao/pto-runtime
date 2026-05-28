@@ -136,7 +136,9 @@ tensor/scalar descriptors, `persistent_dag_tensor_tile_f32` state objects,
 `persistent_dag_unary_square_f32` unary descriptors, and
 `persistent_dag_tensor_core_tile_f32` WMMA tensor-core descriptors from normal
 `TaskArgsBuilder` CPU tensors, and validates real copied-back CUDA output
-data. The no-torch
+data. The scene-test persistent-device compiler path also forwards callable
+`stream_id` into the prepared CUDA manifest, so these L2 tests can run on a
+selected non-default runtime stream. The no-torch
 persistent smoke path also validates a generated-dispatch triad descriptor
 with a third tensor pointer field, a quad descriptor with third and fourth
 tensor pointer fields, a generic-argument descriptor, and a generated-dispatch
@@ -1456,6 +1458,24 @@ Result: `1 passed, 40 deselected`. The H200 venv lacks `torch`, so the
 torch-backed tensor-core scene test is local-only there; the ctypes version
 validates the same L2 `Worker` and `TaskArgsBuilder` path with real CUDA data.
 The command also printed the known PTO-ISA SSH refresh warning before passing.
+
+The persistent-device scene-test compiler path now also forwards
+`CALLABLE["cuda"]["stream_id"]` into the prepared callable manifest. A focused
+local A100 check used `stream_id=1` in the compile/plumbing test and the
+no-torch tensor-core ctypes scene test:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k 'compiles_cuda_persistent_device_callable or tensor_core_tile_with_ctypes_data' \
+    --platform cuda
+```
+
+Result: `2 passed, 39 deselected`.
+
+The same non-default-stream tensor-core ctypes scene test was then run on H200
+after syncing the working tree. Result: `1 passed, 40 deselected`; the command
+printed the known PTO-ISA SSH refresh warning before passing.
 
 The explicit graph-descriptor path has now been promoted into the benchmark
 scripts as `pto_persistent_dag_graph`, using `dag_shape=graph_descriptor`.

@@ -537,7 +537,7 @@ def _cuda_elementwise_quad_spec(source, *, task_name, arch="compute_80", grid_di
     }
 
 
-def _cuda_persistent_dag_spec(add_source, mul_source, *, arch="compute_80", block_dim=256):
+def _cuda_persistent_dag_spec(add_source, mul_source, *, arch="compute_80", block_dim=256, stream_id=0):
     return {
         "cuda": {
             "runtime": "persistent_device",
@@ -560,6 +560,7 @@ def _cuda_persistent_dag_spec(add_source, mul_source, *, arch="compute_80", bloc
             ],
             "grid_dim": 4,
             "block_dim": block_dim,
+            "stream_id": stream_id,
             "shared_mem_bytes": 0,
             "signature": [ArgDirection.IN, ArgDirection.IN, ArgDirection.OUT],
             "arg_builder": "persistent_dag_fork_join_f32",
@@ -609,7 +610,15 @@ def _cuda_persistent_tensor_tile_spec(matmul_source, add_source, mul_source, *, 
     }
 
 
-def _cuda_persistent_tensor_core_tile_spec(wmma_source, add_source, mul_source, *, arch="compute_80", block_dim=256):
+def _cuda_persistent_tensor_core_tile_spec(
+    wmma_source,
+    add_source,
+    mul_source,
+    *,
+    arch="compute_80",
+    block_dim=256,
+    stream_id=0,
+):
     return {
         "cuda": {
             "runtime": "persistent_device",
@@ -638,6 +647,7 @@ def _cuda_persistent_tensor_core_tile_spec(wmma_source, add_source, mul_source, 
             ],
             "grid_dim": 5,
             "block_dim": block_dim,
+            "stream_id": stream_id,
             "shared_mem_bytes": 0,
             "signature": [ArgDirection.IN, ArgDirection.IN, ArgDirection.OUT],
             "arg_builder": "persistent_dag_tensor_core_tile_f32",
@@ -979,7 +989,7 @@ def test_scene_test_compiles_cuda_persistent_device_callable(tmp_path, monkeypat
     )
 
     prepared = _compile_chip_callable_from_spec(
-        _cuda_persistent_dag_spec(add_source, mul_source),
+        _cuda_persistent_dag_spec(add_source, mul_source, stream_id=1),
         "cuda",
         "persistent_device",
         ("cuda-persistent-scene-compile", "cuda", "persistent_device"),
@@ -990,6 +1000,7 @@ def test_scene_test_compiles_cuda_persistent_device_callable(tmp_path, monkeypat
     assert prepared.manifest.op == 1003
     assert prepared.manifest.grid_dim == 4
     assert prepared.manifest.block_dim == 256
+    assert prepared.manifest.stream_id == 1
     assert seen["platform"] == "cuda"
     assert [item["func_id"] for item in seen["task_sources"]] == [1, 2]
     assert [item["task_name"] for item in seen["task_sources"]] == ["add_f32", "mul_f32"]
@@ -2450,7 +2461,7 @@ def test_scene_test_runs_cuda_persistent_device_tensor_core_tile_with_ctypes_dat
 
     @scene_test(level=2, runtime="persistent_device")
     class CudaPersistentTensorCoreTileCtypesScene(SceneTestCase):
-        CALLABLE = _cuda_persistent_tensor_core_tile_spec(wmma_source, add_source, mul_source)
+        CALLABLE = _cuda_persistent_tensor_core_tile_spec(wmma_source, add_source, mul_source, stream_id=1)
         CASES = [
             {
                 "name": "tile16",

@@ -264,9 +264,11 @@ lower those files through the same `CudaTaskBody` wrapper contract as
 the persistent-device callable cache, and is used by the DAG smoke/evaluation
 path. `prepare_cuda_persistent_device_callable()` turns the compiled artifact
 into the ctypes manifest consumed by the current host runtime
-`prepare_callable` C API, L2 `Worker.register(...)` can stage that raw manifest
-blob, and L2 `Worker.run(...)` can launch backend-specific raw argument
-structs. The normal scene-test compiler and run path can now consume
+`prepare_callable` C API, including the callable `stream_id`. L2
+`Worker.register(...)` can stage that raw manifest blob, and L2
+`Worker.run(...)` can launch backend-specific raw argument structs on the
+selected CUDA runtime stream. The normal scene-test compiler and run path can
+now consume
 host-schedule CUDA callable specs and persistent-device generated-dispatch
 DAG specs. The current adapters construct `vector_add_f32`,
 `elementwise_binary_f32`, `elementwise_unary_f32`,

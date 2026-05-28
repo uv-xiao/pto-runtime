@@ -1753,6 +1753,7 @@ def _compile_cuda_callable_from_spec(spec, runtime):
             grid_dim=int(cuda["grid_dim"]),
             block_dim=int(cuda.get("block_dim", 256)),
             shared_mem_bytes=int(cuda.get("shared_mem_bytes", 0)),
+            stream_id=int(cuda.get("stream_id", 0)),
             op=int(cuda.get("op", 1003)),
         )
     if runtime != "host_schedule":
