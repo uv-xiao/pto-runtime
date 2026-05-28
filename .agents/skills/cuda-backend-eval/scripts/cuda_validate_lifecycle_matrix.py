@@ -22,10 +22,11 @@ REPORT_FILES = (
     "cuda-lifecycle-matrix.md",
     "cuda-lifecycle-matrix.svg",
 )
-DEFAULT_SCENARIOS = ("direct", "queue", "dag-chain")
+DEFAULT_SCENARIOS = ("direct", "queue", "dag-chain", "graph-scratch-reuse")
 DEFAULT_ARTIFACTS = ("a100", "h200")
 DEFAULT_DISPATCH = {
     "dag-chain": "1,2,1,2,1",
+    "graph-scratch-reuse": "1,2,1,2,1,1",
 }
 
 

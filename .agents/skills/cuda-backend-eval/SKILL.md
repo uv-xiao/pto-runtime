@@ -811,12 +811,12 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode queue --queue-capacity 2 --repeat-runs 2
 ```
 
-Use `cuda_persistent_lifecycle_matrix.py` when direct, queue, and DAG
-prepared-callable lifecycle evidence should be captured together on local A100
-and remote H200. The default matrix uses `repeat_runs=2`, `stream_id=1`,
-direct `worker_blocks_per_task=2`, and queue/DAG `worker_blocks=2`, then
-validates each paired smoke and the combined matrix report before refreshing
-the artifact index:
+Use `cuda_persistent_lifecycle_matrix.py` when direct, queue, DAG-chain, and
+graph-descriptor scratch-reuse prepared-callable lifecycle evidence should be
+captured together on local A100 and remote H200. The default matrix uses
+`repeat_runs=2`, `stream_id=1`, direct `worker_blocks_per_task=2`, and
+queue/DAG `worker_blocks=2`, then validates each paired smoke and the combined
+matrix report before refreshing the artifact index:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
@@ -830,13 +830,13 @@ This writes per-scenario smoke artifacts plus
 Use `--dry-run` to print every paired smoke command plus the final matrix
 validator and artifact-index commands without writing the matrix report.
 The current paired lifecycle matrix capture is under
-`tmp/cuda-backend/persistent-lifecycle-matrix-d9082288/`.
+`tmp/cuda-backend/lifecycle-graph-working/persistent-lifecycle-matrix-b50a80dd/`.
 Validate a lifecycle matrix before copying its fields into docs:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_validate_lifecycle_matrix.py \
-    tmp/cuda-backend/persistent-lifecycle-matrix-d9082288/cuda-lifecycle-matrix.json \
+    tmp/cuda-backend/lifecycle-graph-working/persistent-lifecycle-matrix-b50a80dd/cuda-lifecycle-matrix.json \
     --preset default
 ```
 

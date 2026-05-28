@@ -2557,13 +2557,17 @@ Needed:
 - broader lifecycle validation beyond the current scratch-reuse,
   graph-descriptor and generic-argument repeat-run, and direct/queue/DAG
   prepared-callable repeat-run smokes. The paired lifecycle matrix runner now
-  captures direct, queue, and DAG-chain repeat-run evidence across A100 and
-  H200 in one artifact set
-  (`tmp/cuda-backend/persistent-lifecycle-matrix-d9082288/`). The lifecycle
-  matrix validator checks required scenarios, A100/H200 artifacts, repeat-run
-  completion counts, DAG-chain dispatch, report files, and zero device
-  scheduler errors, so the remaining lifecycle gap is normal PTO graph breadth
-  rather than prepared-callable reset coverage;
+  captures direct, queue, DAG-chain, and graph-descriptor scratch-reuse
+  repeat-run evidence across A100 and H200 in one artifact set
+  (`tmp/cuda-backend/lifecycle-graph-working/persistent-lifecycle-matrix-b50a80dd/`).
+  The lifecycle matrix validator checks required scenarios, A100/H200
+  artifacts, repeat-run completion counts, DAG-chain dispatch,
+  graph-scratch-reuse dispatch, report files, and zero device scheduler
+  errors. In the current capture, graph-scratch-reuse validates
+  `launch_completed_counts=[6,6]`, dispatch `1,2,1,2,1,1`, graph fan-in
+  `0,0,2,1,1,2`, dependents `2,2,3,4,5,5`, and device times of `76800 ns`
+  on A100 and `63552 ns` on H200, so the remaining lifecycle gap is normal
+  PTO graph breadth rather than prepared-callable reset coverage;
 - broader resource policy beyond the current single scheduler block,
   configurable queue/DAG worker blocks, direct worker-blocks-per-task,
   callable stream id tracer bullet, and configurable block dimension. The

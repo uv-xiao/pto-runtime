@@ -60,7 +60,17 @@ SCENARIOS: dict[str, LifecycleScenario] = {
         queue_capacity=3,
         worker_blocks=2,
     ),
+    "graph-scratch-reuse": LifecycleScenario(
+        name="graph-scratch-reuse",
+        mode="dag",
+        dag_shape="graph_descriptor_scratch_reuse",
+        task_count=6,
+        queue_capacity=3,
+        worker_blocks=2,
+    ),
 }
+
+DEFAULT_SCENARIO_NAMES = ("direct", "queue", "dag-chain", "graph-scratch-reuse")
 
 
 @dataclass(frozen=True)
@@ -74,7 +84,7 @@ class LifecycleMatrixConfig:
     n: int = 1024
     repeat_runs: int = 2
     stream_id: int = 1
-    scenario_names: tuple[str, ...] = ("direct", "queue", "dag-chain")
+    scenario_names: tuple[str, ...] = DEFAULT_SCENARIO_NAMES
     local_arch: str = "compute_80"
     remote_arch: str = "compute_90"
     local_python: str = sys.executable
@@ -89,7 +99,7 @@ class LifecycleMatrixConfig:
 
 def _scenario_names(raw: Sequence[str] | None) -> tuple[str, ...]:
     if raw is None:
-        return ("direct", "queue", "dag-chain")
+        return DEFAULT_SCENARIO_NAMES
     names: list[str] = []
     for value in raw:
         names.extend(part.strip() for part in value.split(",") if part.strip())

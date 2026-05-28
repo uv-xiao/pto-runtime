@@ -1734,6 +1734,28 @@ def test_cuda_lifecycle_matrix_validator_accepts_default_matrix(tmp_path):
                 "grid_dim": 3,
             },
         },
+        {
+            "scenario": "graph-scratch-reuse",
+            "artifact": "h200",
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": "dag",
+            "dag_shape": "graph_descriptor_scratch_reuse",
+            "n": 1024,
+            "repeat_runs": 2,
+            "launch_completed_counts": [6, 6],
+            "completed_count": 6,
+            "dispatch_func_ids": [1, 2, 1, 2, 1, 1],
+            "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+            "resource_policy": {
+                "scheduler_blocks": 1,
+                "worker_blocks": 2,
+                "worker_blocks_per_task": 1,
+                "stream_id": 1,
+                "block_dim": 256,
+                "grid_dim": 3,
+            },
+        },
     ]
     (artifact_dir / "cuda-lifecycle-matrix.json").write_text(json.dumps({"label": "test", "rows": rows}) + "\n")
     (artifact_dir / "cuda-lifecycle-matrix.md").write_text("# matrix\n")
@@ -1743,7 +1765,7 @@ def test_cuda_lifecycle_matrix_validator_accepts_default_matrix(tmp_path):
         cuda_validate_lifecycle.load_lifecycle_matrix(artifact_dir / "cuda-lifecycle-matrix.json"),
         artifact_dir=artifact_dir,
         expected_repeat_runs=2,
-        required_scenarios=["direct", "queue", "dag-chain"],
+        required_scenarios=["direct", "queue", "dag-chain", "graph-scratch-reuse"],
         require_artifacts=["a100", "h200"],
         require_report_files=True,
     )
@@ -3378,9 +3400,11 @@ def test_cuda_persistent_lifecycle_matrix_builds_default_workflow(tmp_path):
     assert "persistent-direct-repeat2-smoke-abc123/a100.json" in command_text
     assert "persistent-queue-repeat2-smoke-abc123/a100.json" in command_text
     assert "persistent-chain-repeat2-smoke-abc123/a100.json" in command_text
+    assert "persistent-graph_descriptor_scratch_reuse-repeat2-smoke-abc123/a100.json" in command_text
     assert "--mode direct" in command_text
     assert "--mode queue" in command_text
     assert "--mode dag" in command_text
+    assert "--dag-shape graph_descriptor_scratch_reuse" in command_text
     assert "--worker-blocks-per-task 2" in command_text
     assert "--worker-blocks 2" in command_text
     assert "--stream-id 1" in command_text
@@ -3441,6 +3465,13 @@ def test_cuda_persistent_lifecycle_matrix_validates_written_report(tmp_path):
         mode="dag",
         dag_shape="chain",
         dispatch=[1, 2, 1, 2, 1],
+    )
+    write_payload(
+        output_root / "persistent-graph_descriptor_scratch_reuse-repeat2-smoke-abc123",
+        6,
+        mode="dag",
+        dag_shape="graph_descriptor_scratch_reuse",
+        dispatch=[1, 2, 1, 2, 1, 1],
     )
     config = cuda_lifecycle_matrix.LifecycleMatrixConfig(
         remote="h200-box",
@@ -3516,6 +3547,29 @@ def test_cuda_persistent_lifecycle_matrix_renders_report(tmp_path):
                 "grid_dim": 3,
             },
         },
+        {
+            "scenario": "graph-scratch-reuse",
+            "artifact": "a100",
+            "mode": "dag",
+            "dag_shape": "graph_descriptor_scratch_reuse",
+            "status": "pass",
+            "runtime": "persistent_device",
+            "n": 1024,
+            "device_wall_ns": 3072,
+            "host_wall_ns": 6144,
+            "repeat_runs": 2,
+            "launch_completed_counts": [6, 6],
+            "dispatch_func_ids": [1, 2, 1, 2, 1, 1],
+            "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+            "resource_policy": {
+                "scheduler_blocks": 1,
+                "worker_blocks": 2,
+                "worker_blocks_per_task": 1,
+                "stream_id": 1,
+                "block_dim": 256,
+                "grid_dim": 3,
+            },
+        },
     ]
 
     markdown_path, svg_path = cuda_lifecycle_matrix.write_lifecycle_report(
@@ -3531,6 +3585,8 @@ def test_cuda_persistent_lifecycle_matrix_renders_report(tmp_path):
     assert "`sched=0,workers=4,wp=2,stream=1,block=256,grid=4`" in report
     assert "| dag-chain | h200 | pass | persistent_device | dag/chain |" in report
     assert "`1,2,1,2,1`" in report
+    assert ("| graph-scratch-reuse | a100 | pass | persistent_device | dag/graph_descriptor_scratch_reuse |") in report
+    assert "`1,2,1,2,1,1`" in report
     assert "lifecycle-test" in svg_path.read_text()
 
 
