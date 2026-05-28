@@ -209,6 +209,14 @@ persistent DAG arguments in the full paired benchmark path. It also includes
 `pto_persistent_dag_graph`, validating the explicit runtime graph descriptor
 path in the full paired benchmark path.
 
+The supplemental tensor-shape sweep at commit `c0ada3ad` runs
+`pto_persistent_dag_tensor` on local A100 and remote H200 for `8x4x12`,
+`16x16x64`, and `32x16x64` descriptors with `N=4096` and two repeats. All
+12 rows passed with dispatch sequence `[3,1,2,1]`; the descriptor tile counts
+were `128`, `16`, and `8`, respectively. The raw JSON, Markdown, and SVG
+artifacts are under `tmp/cuda-backend/tensor-shape-sweep-c0ada3ad/`. This is
+still scalar tiled GEMM scheduler evidence, not tensor-core throughput.
+
 Evidence:
 
 - [evaluation.md](evaluation.md) is the evaluation landing page.
@@ -232,6 +240,10 @@ Evidence:
   remote H200, including optional remote tree sync, tensor-tile descriptor
   flags, compact report rendering, smoke artifact validation, and
   artifact-index refresh.
+- `.agents/skills/cuda-backend-eval/scripts/cuda_tensor_shape_sweep.py`
+  automates paired A100/H200 `pto_persistent_dag_tensor` sweeps over
+  model-shaped tensor descriptors and writes JSON, Markdown, and SVG
+  artifacts under `tmp/cuda-backend/`.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py`
   checks paired benchmark captures for expected machines, selected baselines,
   sizes, repeats, sample count, and generated report files before docs are
@@ -1457,12 +1469,15 @@ Needed:
 
 The tensor DAG row validates descriptor metadata and generated dispatch, but
 the GEMM body is a scalar microbenchmark rather than a tuned tensor-core
-kernel.
+kernel. The first paired tensor-shape sweep now covers `8x4x12`,
+`16x16x64`, and `32x16x64` descriptors on A100 and H200, so the remaining
+gap is tuned tensor execution rather than descriptor-shape plumbing.
 
 Needed:
 
 - tensor-core or library-backed callable body experiments;
-- shape families aligned with real model kernels;
+- broader model-kernel shape families once the tensor-core/library path
+  exists;
 - evaluation rows that distinguish scheduler overhead from compute throughput.
 
 ### CI Coverage

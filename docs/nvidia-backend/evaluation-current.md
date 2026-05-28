@@ -136,6 +136,29 @@ The tensor row also proves the descriptor metadata path for non-square
 `8x4x12` tiles. Treat these DAG-shape rows as correctness and scheduler-shape
 evidence first; throughput conclusions require a tuned tensor workload.
 
+## Supplemental Tensor Shape Sweep
+
+The tensor DAG also has a small model-shaped descriptor sweep at commit
+`c0ada3ad`. It runs only `pto_persistent_dag_tensor`, so it is shape and
+scheduler evidence rather than a replacement for the paired baseline capture.
+Each row uses `N=4096`, two repeats, and the generated-dispatch sequence
+`[3,1,2,1]` on both A100 and H200. The raw JSON, Markdown, and SVG artifacts
+are under `tmp/cuda-backend/tensor-shape-sweep-c0ada3ad/`.
+
+| GPU | Shape | Tiles | Median device ns | Median host ns | Status |
+| --- | ----- | ----- | ---------------- | -------------- | ------ |
+| A100 | 8x4x12 | 128 | 68096 | 83972.5 | pass |
+| A100 | 16x16x64 | 16 | 169472 | 185079 | pass |
+| A100 | 32x16x64 | 8 | 132608 | 148213 | pass |
+| H200 | 8x4x12 | 128 | 58336 | 68226 | pass |
+| H200 | 16x16x64 | 16 | 109936 | 120146 | pass |
+| H200 | 32x16x64 | 8 | 98064 | 107936.5 | pass |
+
+This extends the earlier non-square descriptor smoke from a single tile shape
+to three descriptor families that are closer to model-kernel tile shapes. The
+kernel body is still scalar tiled GEMM followed by elementwise residual/gate
+work, so the result should not be read as tensor-core throughput.
+
 ## Reproduction Commands
 
 Local A100:
@@ -156,6 +179,15 @@ Paired A100/H200:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
+    --sync-remote-tree
+```
+
+Tensor shape sweep:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_tensor_shape_sweep.py \
+    --shapes 8x4x12,16x16x64,32x16x64 --n 4096 --repeats 2 \
     --sync-remote-tree
 ```
 
