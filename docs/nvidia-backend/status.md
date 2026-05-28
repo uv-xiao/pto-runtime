@@ -2418,9 +2418,11 @@ Needed:
   prepared-callable repeat-run smokes. The paired lifecycle matrix runner now
   captures direct, queue, and DAG-chain repeat-run evidence across A100 and
   H200 in one artifact set
-  (`tmp/cuda-backend/persistent-lifecycle-matrix-d9082288/`), so the remaining
-  lifecycle gap is normal PTO graph breadth rather than prepared-callable reset
-  coverage;
+  (`tmp/cuda-backend/persistent-lifecycle-matrix-d9082288/`). The lifecycle
+  matrix validator checks required scenarios, A100/H200 artifacts, repeat-run
+  completion counts, DAG-chain dispatch, report files, and zero device
+  scheduler errors, so the remaining lifecycle gap is normal PTO graph breadth
+  rather than prepared-callable reset coverage;
 - broader resource policy beyond the current single scheduler block,
   configurable queue/DAG worker blocks, direct worker-blocks-per-task, and
   callable stream id tracer bullet. The current paired A100/H200 resource

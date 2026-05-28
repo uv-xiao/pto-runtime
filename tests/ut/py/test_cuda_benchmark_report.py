@@ -251,6 +251,26 @@ def _load_smoke_validator_module():
         sys.modules.pop(spec.name, None)
 
 
+def _load_lifecycle_matrix_validator_module():
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / ".agents"
+        / "skills"
+        / "cuda-backend-eval"
+        / "scripts"
+        / "cuda_validate_lifecycle_matrix.py"
+    )
+    spec = importlib.util.spec_from_file_location("cuda_validate_lifecycle_matrix", script_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.modules.pop(spec.name, None)
+
+
 def _load_smoke_report_module():
     script_path = (
         Path(__file__).resolve().parents[3]
@@ -1568,6 +1588,128 @@ def test_cuda_smoke_validator_reports_lifecycle_and_report_errors(tmp_path):
     assert "expected completed count 3 for artifact=a100 launch=1, found 2" in errors
     assert "missing report file cuda-smoke-report.md" in errors
     assert "missing report file cuda-smoke-report.svg" in errors
+
+
+def test_cuda_lifecycle_matrix_validator_accepts_default_matrix(tmp_path):
+    cuda_validate_lifecycle = _load_lifecycle_matrix_validator_module()
+    artifact_dir = tmp_path / "persistent-lifecycle-matrix-test"
+    artifact_dir.mkdir()
+    rows = [
+        {
+            "scenario": "direct",
+            "artifact": "a100",
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": "direct",
+            "n": 1024,
+            "repeat_runs": 2,
+            "launch_completed_counts": [2, 2],
+            "completed_count": 2,
+            "resource_policy": {
+                "scheduler_blocks": 0,
+                "worker_blocks": 4,
+                "worker_blocks_per_task": 2,
+                "stream_id": 1,
+                "block_dim": 256,
+                "grid_dim": 4,
+            },
+        },
+        {
+            "scenario": "queue",
+            "artifact": "h200",
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": "queue",
+            "n": 1024,
+            "repeat_runs": 2,
+            "launch_completed_counts": [4, 4],
+            "completed_count": 4,
+            "resource_policy": {
+                "scheduler_blocks": 1,
+                "worker_blocks": 2,
+                "worker_blocks_per_task": 1,
+                "stream_id": 1,
+                "block_dim": 256,
+                "grid_dim": 3,
+            },
+        },
+        {
+            "scenario": "dag-chain",
+            "artifact": "a100",
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": "dag",
+            "dag_shape": "chain",
+            "n": 1024,
+            "repeat_runs": 2,
+            "launch_completed_counts": [5, 5],
+            "completed_count": 5,
+            "dispatch_func_ids": [1, 2, 1, 2, 1],
+            "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+            "resource_policy": {
+                "scheduler_blocks": 1,
+                "worker_blocks": 2,
+                "worker_blocks_per_task": 1,
+                "stream_id": 1,
+                "block_dim": 256,
+                "grid_dim": 3,
+            },
+        },
+    ]
+    (artifact_dir / "cuda-lifecycle-matrix.json").write_text(json.dumps({"label": "test", "rows": rows}) + "\n")
+    (artifact_dir / "cuda-lifecycle-matrix.md").write_text("# matrix\n")
+    (artifact_dir / "cuda-lifecycle-matrix.svg").write_text("<svg></svg>\n")
+
+    errors = cuda_validate_lifecycle.validate_lifecycle_matrix(
+        cuda_validate_lifecycle.load_lifecycle_matrix(artifact_dir / "cuda-lifecycle-matrix.json"),
+        artifact_dir=artifact_dir,
+        expected_repeat_runs=2,
+        required_scenarios=["direct", "queue", "dag-chain"],
+        require_artifacts=["a100", "h200"],
+        require_report_files=True,
+    )
+
+    assert errors == []
+
+
+def test_cuda_lifecycle_matrix_validator_reports_contract_errors(tmp_path):
+    cuda_validate_lifecycle = _load_lifecycle_matrix_validator_module()
+    artifact_dir = tmp_path / "persistent-lifecycle-matrix-test"
+    artifact_dir.mkdir()
+    rows = [
+        {
+            "scenario": "dag-chain",
+            "artifact": "a100",
+            "status": "fail",
+            "runtime": "persistent_device",
+            "mode": "dag",
+            "dag_shape": "chain",
+            "n": 1024,
+            "repeat_runs": 2,
+            "launch_completed_counts": [5, 4],
+            "completed_count": 5,
+            "dispatch_func_ids": [1, 2, 1],
+            "device_scheduler_errors": {"count": 1, "code": 7, "task_id": 1},
+        }
+    ]
+    payload = {"label": "test", "rows": rows}
+
+    errors = cuda_validate_lifecycle.validate_lifecycle_matrix(
+        payload,
+        artifact_dir=artifact_dir,
+        expected_repeat_runs=2,
+        required_scenarios=["direct", "dag-chain"],
+        require_artifacts=["a100", "h200"],
+        require_report_files=True,
+    )
+
+    assert "missing scenario direct" in errors
+    assert "missing artifact h200" in errors
+    assert "missing report file cuda-lifecycle-matrix.md" in errors
+    assert "non-pass scenario=dag-chain artifact=a100 status=fail" in errors
+    assert "scheduler error scenario=dag-chain artifact=a100 count=1 code=7 task=1" in errors
+    assert "expected dispatch 1,2,1,2,1 for scenario=dag-chain artifact=a100, found 1,2,1" in errors
+    assert "expected completed count 5 for scenario=dag-chain artifact=a100 launch=1, found 4" in errors
 
 
 def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):

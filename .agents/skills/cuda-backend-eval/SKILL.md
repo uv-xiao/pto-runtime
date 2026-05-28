@@ -779,6 +779,14 @@ This writes per-scenario smoke artifacts plus
 `cuda-lifecycle-matrix.svg`, and `cuda-lifecycle-matrix.json`.
 The current paired lifecycle matrix capture is under
 `tmp/cuda-backend/persistent-lifecycle-matrix-d9082288/`.
+Validate a lifecycle matrix before copying its fields into docs:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_validate_lifecycle_matrix.py \
+    tmp/cuda-backend/persistent-lifecycle-matrix-d9082288/cuda-lifecycle-matrix.json \
+    --preset default
+```
 
 Run the six-task persistent DAG scratch-reuse smoke. This graph reuses `tmp0`
 after its last dependent has completed and validates the final reused-buffer
