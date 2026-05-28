@@ -59,6 +59,8 @@ class SmokeValidationExpectation:
     completed_count: int | None = None
     dispatch: str | None = None
     tensor_tile: str | None = None
+    graph_fanin: str | None = None
+    graph_dependents: str | None = None
     resource_policy: ResourcePolicyExpectation | None = None
     require_report_files: bool = False
 
@@ -98,6 +100,13 @@ def _tensor_tile_shape(row: dict[str, Any]) -> str | None:
     if rows is None or cols is None or inner is None:
         return None
     return f"{rows}x{cols}x{inner}"
+
+
+def _int_list(row: dict[str, Any], field_name: str) -> str | None:
+    values = row.get(field_name)
+    if not isinstance(values, list):
+        return None
+    return ",".join(str(value) for value in values)
 
 
 def load_smoke_payloads(paths: Sequence[Path]) -> list[dict[str, Any]]:
@@ -197,6 +206,35 @@ def _validate_resource_policy(
     return errors
 
 
+def _validate_graph_descriptor(
+    payloads: list[dict[str, Any]],
+    *,
+    expected_fanin: str | None,
+    expected_dependents: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if expected_fanin is None and expected_dependents is None:
+        return errors
+    for payload in payloads:
+        artifact = payload.get("_artifact", "unknown")
+        graph_descriptor = payload.get("graph_descriptor")
+        if not isinstance(graph_descriptor, dict):
+            errors.append(f"missing graph_descriptor for artifact={artifact}")
+            continue
+        for field_name, expected in (
+            ("fanin", expected_fanin),
+            ("dependents", expected_dependents),
+        ):
+            if expected is None:
+                continue
+            actual = _int_list(graph_descriptor, field_name)
+            if actual != expected:
+                errors.append(
+                    f"expected graph_descriptor.{field_name} {expected} for artifact={artifact}, found {actual}"
+                )
+    return errors
+
+
 def _validate_lifecycle(
     payloads: list[dict[str, Any]],
     *,
@@ -262,6 +300,13 @@ def validate_smoke(
         )
     )
     errors.extend(
+        _validate_graph_descriptor(
+            payloads,
+            expected_fanin=expectation.graph_fanin,
+            expected_dependents=expectation.graph_dependents,
+        )
+    )
+    errors.extend(
         _validate_lifecycle(
             payloads,
             expected_repeat_runs=expectation.repeat_runs,
@@ -284,6 +329,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-completed-count", type=int)
     parser.add_argument("--expected-dispatch")
     parser.add_argument("--expected-tensor-tile")
+    parser.add_argument("--expected-graph-fanin")
+    parser.add_argument("--expected-graph-dependents")
     parser.add_argument("--expected-scheduler-blocks", type=int)
     parser.add_argument("--expected-worker-blocks", type=int)
     parser.add_argument("--expected-worker-blocks-per-task", type=int)
@@ -321,6 +368,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             completed_count=args.expected_completed_count,
             dispatch=args.expected_dispatch,
             tensor_tile=args.expected_tensor_tile,
+            graph_fanin=args.expected_graph_fanin,
+            graph_dependents=args.expected_graph_dependents,
             resource_policy=_resource_policy_expectation(args),
             require_report_files=args.require_report_files,
         ),

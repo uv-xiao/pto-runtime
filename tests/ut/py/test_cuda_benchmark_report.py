@@ -1545,6 +1545,41 @@ def test_cuda_smoke_validator_checks_resource_policy(tmp_path):
     assert "expected resource_policy.scheduler_blocks 1 for artifact=a100" not in errors
 
 
+def test_cuda_smoke_validator_checks_graph_descriptor_metadata(tmp_path):
+    cuda_validate_smoke = _load_smoke_validator_module()
+    artifact_dir = tmp_path / "persistent-graph-descriptor-smoke"
+    artifact_dir.mkdir()
+    payload = {
+        "status": "pass",
+        "runtime": "persistent_device",
+        "mode": "dag",
+        "dag_shape": "graph_descriptor_diamond",
+        "n": 1024,
+        "repeat_runs": 2,
+        "launch_completed_counts": [5, 5],
+        "dispatch_func_ids": [9, 2, 1, 2, 1],
+        "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+        "graph_descriptor": {
+            "tasks": 5,
+            "fanin": [0, 0, 2, 2, 2],
+            "dependents": [2, 3, 2, 3, 4, 4],
+        },
+    }
+    (artifact_dir / "a100.json").write_text(json.dumps(payload) + "\n")
+
+    payloads = cuda_validate_smoke.load_smoke_payloads([artifact_dir / "a100.json"])
+    errors = cuda_validate_smoke.validate_smoke(
+        payloads,
+        expectation=cuda_validate_smoke.SmokeValidationExpectation(
+            graph_fanin="0,0,2,1,2",
+            graph_dependents="2,3,4",
+        ),
+    )
+
+    assert "expected graph_descriptor.fanin 0,0,2,1,2 for artifact=a100, found 0,0,2,2,2" in errors
+    assert "expected graph_descriptor.dependents 2,3,4 for artifact=a100, found 2,3,2,3,4,4" in errors
+
+
 def test_cuda_smoke_validator_reports_lifecycle_and_report_errors(tmp_path):
     cuda_validate_smoke = _load_smoke_validator_module()
     artifact_dir = tmp_path / "persistent-graph-smoke"
@@ -2976,6 +3011,10 @@ def test_cuda_pair_persistent_smoke_accepts_reordered_graph_descriptor(tmp_path)
     assert "--expected-repeat-runs" in validate
     assert "--expected-dispatch" in validate
     assert "1,9,2" in validate
+    assert "--expected-graph-fanin" in validate
+    assert "2,0,0" in validate
+    assert "--expected-graph-dependents" in validate
+    assert "0,0" in validate
 
 
 def test_cuda_pair_persistent_smoke_accepts_diamond_graph_descriptor(tmp_path):
@@ -3014,6 +3053,10 @@ def test_cuda_pair_persistent_smoke_accepts_diamond_graph_descriptor(tmp_path):
     assert "5" in validate
     assert "--expected-dispatch" in validate
     assert "9,2,1,2,1" in validate
+    assert "--expected-graph-fanin" in validate
+    assert "0,0,2,2,2" in validate
+    assert "--expected-graph-dependents" in validate
+    assert "2,3,2,3,4,4" in validate
 
 
 def test_cuda_pair_persistent_smoke_accepts_scratch_reuse_graph_descriptor(tmp_path):
@@ -3055,6 +3098,10 @@ def test_cuda_pair_persistent_smoke_accepts_scratch_reuse_graph_descriptor(tmp_p
     assert "6" in validate
     assert "--expected-dispatch" in validate
     assert "1,2,1,2,1,1" in validate
+    assert "--expected-graph-fanin" in validate
+    assert "0,0,2,1,1,2" in validate
+    assert "--expected-graph-dependents" in validate
+    assert "2,2,3,4,5,5" in validate
 
 
 def test_cuda_pair_persistent_smoke_builds_scalar_affine_workflow(tmp_path):

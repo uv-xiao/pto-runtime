@@ -291,6 +291,19 @@ def _expected_tensor_tile(config: PairedPersistentSmokeConfig) -> str | None:
     return None
 
 
+def _expected_graph_descriptor(config: PairedPersistentSmokeConfig) -> tuple[str, str] | None:
+    if config.mode != "dag":
+        return None
+    return {
+        "graph_descriptor": ("0,0,2", "2,2"),
+        "graph_descriptor_diamond": ("0,0,2,2,2", "2,3,2,3,4,4"),
+        "graph_descriptor_generic_args4": ("0,0,2", "2,2"),
+        "graph_descriptor_reordered": ("2,0,0", "0,0"),
+        "graph_descriptor_scratch_reuse": ("0,0,2,1,1,2", "2,2,3,4,5,5"),
+        "graph_tensor_tile": ("0,1,1,2", "1,2,3,3"),
+    }.get(config.dag_shape)
+
+
 def _expected_scheduler_blocks(config: PairedPersistentSmokeConfig) -> int:
     if config.mode == "direct":
         return 0
@@ -350,6 +363,10 @@ def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> 
     expected_tensor_tile = _expected_tensor_tile(config)
     if expected_tensor_tile is not None:
         command.extend(["--expected-tensor-tile", expected_tensor_tile])
+    expected_graph_descriptor = _expected_graph_descriptor(config)
+    if expected_graph_descriptor is not None:
+        fanin, dependents = expected_graph_descriptor
+        command.extend(["--expected-graph-fanin", fanin, "--expected-graph-dependents", dependents])
     return command
 
 

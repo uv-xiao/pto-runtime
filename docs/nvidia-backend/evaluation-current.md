@@ -413,6 +413,7 @@ PYTHONPATH=$PWD:$PWD/python \
     --expected-runtime persistent_device --expected-mode dag \
     --expected-dag-shape graph_descriptor_reordered --expected-repeat-runs 2 \
     --expected-completed-count 3 --expected-dispatch 1,9,2 \
+    --expected-graph-fanin 2,0,0 --expected-graph-dependents 0,0 \
     --require-report-files
 ```
 
@@ -443,7 +444,10 @@ PYTHONPATH=$PWD:$PWD/python \
     --expected-runtime persistent_device --expected-mode dag \
     --expected-dag-shape graph_descriptor_diamond \
     --expected-repeat-runs 2 --expected-completed-count 5 \
-    --expected-dispatch 9,2,1,2,1 --require-report-files
+    --expected-dispatch 9,2,1,2,1 \
+    --expected-graph-fanin 0,0,2,2,2 \
+    --expected-graph-dependents 2,3,2,3,4,4 \
+    --require-report-files
 ```
 
 | GPU | Dispatch | Fan-in | Dependents | Launch completions | Device ns | Host ns | Status |
@@ -475,7 +479,10 @@ PYTHONPATH=$PWD:$PWD/python \
     --expected-runtime persistent_device --expected-mode dag \
     --expected-dag-shape graph_descriptor_scratch_reuse \
     --expected-repeat-runs 2 --expected-completed-count 6 \
-    --expected-dispatch 1,2,1,2,1,1 --require-report-files
+    --expected-dispatch 1,2,1,2,1,1 \
+    --expected-graph-fanin 0,0,2,1,1,2 \
+    --expected-graph-dependents 2,2,3,4,5,5 \
+    --require-report-files
 ```
 
 | GPU | Dispatch | Fan-in | Dependents | Launch completions | Device ns | Host ns | Status |

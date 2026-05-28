@@ -446,6 +446,7 @@ PYTHONPATH=$PWD:$PWD/python \
     --expected-runtime persistent_device --expected-mode dag \
     --expected-dag-shape graph_descriptor --expected-repeat-runs 2 \
     --expected-completed-count 3 --expected-dispatch 9,2,1 \
+    --expected-graph-fanin 0,0,2 --expected-graph-dependents 2,2 \
     --expected-scheduler-blocks 1 --expected-worker-blocks 3 \
     --expected-worker-blocks-per-task 1 --expected-stream-id 0 \
     --expected-block-dim 256 --expected-grid-dim 4 \
@@ -466,6 +467,10 @@ For tensor-tile smokes, the paired runner also passes
 `--expected-tensor-tile ROWSxCOLSxINNER` so the validator rejects artifacts
 whose recorded descriptor shape does not match the requested
 `--tensor-rows`, `--tensor-cols`, and `--tensor-inner`.
+For explicit graph-descriptor smokes, it also passes
+`--expected-graph-fanin` and `--expected-graph-dependents`, so reordered,
+diamond, scratch-reuse, and graph tensor captures must prove the recorded
+runtime graph topology.
 
 The JSON payload and compact report include `resource_policy` fields for
 `scheduler_blocks`, `worker_blocks`, `worker_blocks_per_task`, `stream_id`,
@@ -1476,7 +1481,8 @@ requirements automatically from `--tensor-rows`, `--tensor-cols`, and
 Use `cuda_validate_smoke.py` for paired smoke artifacts. It checks required
 artifacts, pass status, zero device scheduler errors, expected runtime/mode,
 dispatch IDs, repeat-run lifecycle counts, tensor-tile descriptor shape when
-requested, and generated smoke report files.
+requested, graph-descriptor fan-in/dependent metadata when requested, and
+generated smoke report files.
 `cuda_pair_persistent_smoke.py` runs this validator automatically unless
 `--skip-validation` is set.
 
