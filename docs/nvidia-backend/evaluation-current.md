@@ -478,6 +478,38 @@ smoke reports. This capture is correctness evidence for the single-input
 scalar descriptor and generated-dispatch registration, not a benchmark
 replacement for the multi-baseline captures.
 
+## Supplemental Graph Scalar-Scale Smoke
+
+The graph scalar-scale persistent DAG smoke at artifact label `15e9038f`
+validates the same scalar-scale task body as explicit runtime graph descriptor
+metadata. It uses dispatch sequence `[11,2,1]`, graph fan-in `[0,0,2]`,
+dependents `[2,2]`, and `scalar0=2.0`, then repeats the prepared callable
+twice.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/graph-scalar-scale-working/persistent-graph_descriptor_scalar_scale-repeat2-smoke-15e9038f/a100.json \
+    tmp/cuda-backend/graph-scalar-scale-working/persistent-graph_descriptor_scalar_scale-repeat2-smoke-15e9038f/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-repeat-runs 2 --expected-completed-count 3 \
+    --expected-dag-shape graph_descriptor_scalar_scale \
+    --expected-dispatch 11,2,1 \
+    --expected-graph-fanin 0,0,2 --expected-graph-dependents 2,2 \
+    --require-report-files
+```
+
+| GPU | PTX arch | Dispatch | Fan-in | Dependents | Device ns | Host ns | Status |
+| --- | -------- | -------- | ------ | ---------- | --------- | ------- | ------ |
+| A100 | `compute_80` | `11,2,1` | `0,0,2` | `2,2` | 53248 | 82872 | pass |
+| H200 | `compute_90` | `11,2,1` | `0,0,2` | `2,2` | 59712 | 84805 | pass |
+
+Both rows reported zero device scheduler errors, scalar args `scalar0=2.0`,
+and launch completion counts `[3,3]`.
+
 ## Supplemental Generic-Args Repeat-Run Smoke
 
 The `generic_args` persistent DAG smoke at artifact label `6574c43b`

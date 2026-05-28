@@ -1423,7 +1423,7 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
-    if dag_shape == "scalar_scale":
+    if dag_shape in {"scalar_scale", "graph_descriptor_scalar_scale"}:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
         dependents_t = ctypes.c_uint32 * 2
@@ -2451,7 +2451,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             if config.dag_shape == "scalar_axpy":
                 expected_tmp0 = [_f32(_f32(1.5 * host_a[i]) + host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
-            if config.dag_shape == "scalar_scale":
+            if config.dag_shape in {"scalar_scale", "graph_descriptor_scalar_scale"}:
                 expected_tmp0 = [_f32(2.0 * host_a[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
             if config.dag_shape == "scalar_affine":
@@ -2605,7 +2605,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             result["tensor_core"] = {"api": "wmma", "mma_shape": "m16n16k8", "input": "tf32", "accumulator": "f32"}
         if config.dag_shape == "scalar_axpy":
             result["scalar_args"] = {"scalar0": 1.5}
-        if config.dag_shape == "scalar_scale":
+        if config.dag_shape in {"scalar_scale", "graph_descriptor_scalar_scale"}:
             result["scalar_args"] = {"scalar0": 2.0}
         if config.dag_shape == "scalar_affine":
             result["scalar_args"] = {"scalar0": 1.5, "scalar1": 0.5}
@@ -2631,6 +2631,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
             "graph_descriptor_reordered",
+            "graph_descriptor_scalar_scale",
             "graph_descriptor_scratch_reuse",
             "graph_descriptor_tagged",
             "graph_descriptor_tagged_inout",
@@ -2752,6 +2753,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "graph_descriptor_diamond",
         "graph_descriptor_generic_args4",
         "graph_descriptor_reordered",
+        "graph_descriptor_scalar_scale",
         "graph_descriptor_scratch_reuse",
         "graph_descriptor_tagged",
         "graph_descriptor_tagged_inout",
@@ -2807,6 +2809,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
             "graph_descriptor_reordered",
+            "graph_descriptor_scalar_scale",
             "graph_descriptor_tagged",
             "graph_descriptor_tagged_inout",
         }
@@ -2815,8 +2818,12 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
     if mode == "dag" and dag_shape == "unary_square" and ptx_source.startswith("embedded-"):
         raise RuntimeError("unary_square DAG shape requires nvcc-built generated-dispatch PTX")
-    if mode == "dag" and dag_shape == "scalar_scale" and ptx_source.startswith("embedded-"):
-        raise RuntimeError("scalar_scale DAG shape requires nvcc-built generated-dispatch PTX")
+    if (
+        mode == "dag"
+        and dag_shape in {"scalar_scale", "graph_descriptor_scalar_scale"}
+        and ptx_source.startswith("embedded-")
+    ):
+        raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
     ptx_buf = ctypes.create_string_buffer(ptx + b"\0")
 
     runtime, binaries = _load_persistent_runtime()
@@ -3013,6 +3020,7 @@ def main() -> None:
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
             "graph_descriptor_reordered",
+            "graph_descriptor_scalar_scale",
             "graph_descriptor_scratch_reuse",
             "graph_descriptor_tagged",
             "graph_descriptor_tagged_inout",

@@ -2176,6 +2176,34 @@ ctypes selector passed on remote H200 after syncing the tree:
 `1 passed, 65 deselected`, with the known PTO-ISA SSH refresh warning printed
 before pytest.
 
+The same scalar-scale graph shape is now covered by the no-torch paired
+persistent-smoke workflow as `graph_descriptor_scalar_scale`, so it can be
+validated outside `SceneTestCase` while still recording explicit runtime graph
+metadata:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_scalar_scale --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-scalar-scale-working
+```
+
+Result:
+`tmp/cuda-backend/graph-scalar-scale-working/persistent-graph_descriptor_scalar_scale-repeat2-smoke-15e9038f/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The paired validator required
+`runtime=persistent_device`, `mode=dag`,
+`dag_shape=graph_descriptor_scalar_scale`, `repeat_runs=2`,
+`launch_completed_counts=[3,3]`, dispatch `[11,2,1]`,
+`graph_descriptor.fanin=[0,0,2]`, `graph_descriptor.dependents=[2,2]`,
+`scalar0=2.0`, resource policy `scheduler_blocks=1`, `worker_blocks=3`,
+`block_dim=256`, `grid_dim=4`, and zero scheduler errors on both GPUs. A100
+reported per-launch device times `[33792,19456]`, total
+`device_wall_ns=53248`, and `host_wall_ns=82872`. H200 reported per-launch
+device times `[39616,20096]`, total `device_wall_ns=59712`, and
+`host_wall_ns=84805`.
+
 The tensor-core tile descriptor was then added to the same normal L2
 `SceneTestCase` path as `persistent_dag_tensor_core_tile_f32`. Its first task
 uses block-wide generated dispatch with `func_id=10`, while the remaining

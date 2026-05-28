@@ -865,6 +865,22 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape scratch_reuse
 ```
 
+Use `--dag-shape graph_descriptor_scalar_scale` when the scalar-scale
+three-task DAG should be represented as explicit runtime graph descriptor
+metadata instead of the fixed `scalar_scale` shape:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_scalar_scale --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-scalar-scale-working
+```
+
+The paired runner validates dispatch `11,2,1`, graph fan-in `0,0,2`,
+dependents `2,2`, repeat completions, zero scheduler errors, and generated
+Markdown/SVG report files.
+
 Run the tensor-tile persistent DAG smoke. This graph uses a generated-dispatch
 tiled GEMM task with rows/cols/inner/stride descriptor metadata, then residual,
 gate, and fan-in elementwise tasks. The default descriptor is 16x16x16:
