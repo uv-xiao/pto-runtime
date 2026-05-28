@@ -568,6 +568,63 @@ def test_persistent_smoke_builds_graph_descriptor_scalar_scale_dag_shape():
     assert tasks[2].out == 0x7000
 
 
+def test_persistent_smoke_builds_graph_descriptor_scalar_axpy_dag_shape():
+    cuda_persistent_smoke = _load_persistent_smoke_module()
+
+    fanin, dependents, tasks = cuda_persistent_smoke._make_dag_shape(
+        "graph_descriptor_scalar_axpy",
+        17,
+        0x1000,
+        0x2000,
+        0x3000,
+        0x4000,
+        0x5000,
+        0x6000,
+        0x7000,
+    )
+
+    assert list(fanin) == [0, 0, 2]
+    assert list(dependents) == [2, 2]
+    assert [task.func_id for task in tasks] == [4, 2, 1]
+    assert [task.initial_fanin for task in tasks] == [0, 0, 2]
+    assert tasks[0].a == 0x1000
+    assert tasks[0].b == 0x2000
+    assert tasks[0].out == 0x3000
+    assert tasks[0].scalar0 == 1.5
+    assert tasks[2].a == tasks[0].out
+    assert tasks[2].b == tasks[1].out
+    assert tasks[2].out == 0x7000
+
+
+def test_persistent_smoke_builds_graph_descriptor_scalar_affine_dag_shape():
+    cuda_persistent_smoke = _load_persistent_smoke_module()
+
+    fanin, dependents, tasks = cuda_persistent_smoke._make_dag_shape(
+        "graph_descriptor_scalar_affine",
+        17,
+        0x1000,
+        0x2000,
+        0x3000,
+        0x4000,
+        0x5000,
+        0x6000,
+        0x7000,
+    )
+
+    assert list(fanin) == [0, 0, 2]
+    assert list(dependents) == [2, 2]
+    assert [task.func_id for task in tasks] == [5, 2, 1]
+    assert [task.initial_fanin for task in tasks] == [0, 0, 2]
+    assert tasks[0].a == 0x1000
+    assert tasks[0].b == 0x2000
+    assert tasks[0].out == 0x3000
+    assert tasks[0].scalar0 == 1.5
+    assert tasks[0].scalar1 == 0.5
+    assert tasks[2].a == tasks[0].out
+    assert tasks[2].b == tasks[1].out
+    assert tasks[2].out == 0x7000
+
+
 def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
     cuda_smoke_report = _load_smoke_report_module()
     a100 = {
@@ -3298,6 +3355,66 @@ def test_cuda_pair_persistent_smoke_builds_graph_descriptor_scalar_scale_workflo
     assert "persistent-graph_descriptor_scalar_scale-smoke-abc123/h200.json" in remote[-1]
     assert "--expected-dispatch" in validate
     assert "11,2,1" in validate
+    assert "--expected-graph-fanin" in validate
+    assert "0,0,2" in validate
+    assert "--expected-graph-dependents" in validate
+    assert "2,2" in validate
+
+
+def test_cuda_pair_persistent_smoke_builds_graph_descriptor_scalar_axpy_workflow(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape="graph_descriptor_scalar_axpy",
+        task_count=3,
+        queue_capacity=2,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+    validate = cuda_pair_persistent_smoke.build_validate_command(config, "abc123")
+
+    assert "persistent-graph_descriptor_scalar_axpy-smoke-abc123" in str(local)
+    assert "--dag-shape" in local
+    assert "graph_descriptor_scalar_axpy" in local
+    assert "--dag-shape graph_descriptor_scalar_axpy" in remote[-1]
+    assert "persistent-graph_descriptor_scalar_axpy-smoke-abc123/h200.json" in remote[-1]
+    assert "--expected-dispatch" in validate
+    assert "4,2,1" in validate
+    assert "--expected-graph-fanin" in validate
+    assert "0,0,2" in validate
+    assert "--expected-graph-dependents" in validate
+    assert "2,2" in validate
+
+
+def test_cuda_pair_persistent_smoke_builds_graph_descriptor_scalar_affine_workflow(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape="graph_descriptor_scalar_affine",
+        task_count=3,
+        queue_capacity=2,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+    validate = cuda_pair_persistent_smoke.build_validate_command(config, "abc123")
+
+    assert "persistent-graph_descriptor_scalar_affine-smoke-abc123" in str(local)
+    assert "--dag-shape" in local
+    assert "graph_descriptor_scalar_affine" in local
+    assert "--dag-shape graph_descriptor_scalar_affine" in remote[-1]
+    assert "persistent-graph_descriptor_scalar_affine-smoke-abc123/h200.json" in remote[-1]
+    assert "--expected-dispatch" in validate
+    assert "5,2,1" in validate
     assert "--expected-graph-fanin" in validate
     assert "0,0,2" in validate
     assert "--expected-graph-dependents" in validate

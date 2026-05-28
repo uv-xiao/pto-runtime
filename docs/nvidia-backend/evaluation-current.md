@@ -510,6 +510,51 @@ PYTHONPATH=$PWD:$PWD/python \
 Both rows reported zero device scheduler errors, scalar args `scalar0=2.0`,
 and launch completion counts `[3,3]`.
 
+## Supplemental Graph Scalar Variant Smokes
+
+The graph scalar AXPY and affine persistent DAG smokes at artifact label
+`20af4fd9` validate the remaining fixed scalar task bodies as explicit runtime
+graph descriptor metadata. Both use graph fan-in `[0,0,2]`, dependents
+`[2,2]`, and repeat the prepared callable twice.
+
+Validation commands:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/graph-scalar-variants-working/persistent-graph_descriptor_scalar_axpy-repeat2-smoke-20af4fd9/a100.json \
+    tmp/cuda-backend/graph-scalar-variants-working/persistent-graph_descriptor_scalar_axpy-repeat2-smoke-20af4fd9/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-repeat-runs 2 --expected-completed-count 3 \
+    --expected-dag-shape graph_descriptor_scalar_axpy \
+    --expected-dispatch 4,2,1 \
+    --expected-graph-fanin 0,0,2 --expected-graph-dependents 2,2 \
+    --require-report-files
+
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/graph-scalar-variants-working/persistent-graph_descriptor_scalar_affine-repeat2-smoke-20af4fd9/a100.json \
+    tmp/cuda-backend/graph-scalar-variants-working/persistent-graph_descriptor_scalar_affine-repeat2-smoke-20af4fd9/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-repeat-runs 2 --expected-completed-count 3 \
+    --expected-dag-shape graph_descriptor_scalar_affine \
+    --expected-dispatch 5,2,1 \
+    --expected-graph-fanin 0,0,2 --expected-graph-dependents 2,2 \
+    --require-report-files
+```
+
+| Shape | GPU | PTX arch | Dispatch | Scalar args | Device ns | Host ns | Status |
+| ----- | --- | -------- | -------- | ----------- | --------- | ------- | ------ |
+| AXPY | A100 | `compute_80` | `4,2,1` | `scalar0=1.5` | 62464 | 93331 | pass |
+| AXPY | H200 | `compute_90` | `4,2,1` | `scalar0=1.5` | 59072 | 83500 | pass |
+| Affine | A100 | `compute_80` | `5,2,1` | `scalar0=1.5,scalar1=0.5` | 67584 | 99491 | pass |
+| Affine | H200 | `compute_90` | `5,2,1` | `scalar0=1.5,scalar1=0.5` | 59616 | 84826 | pass |
+
+All rows reported zero device scheduler errors, graph metadata
+`fanin=[0,0,2]`, `dependents=[2,2]`, and launch completion counts `[3,3]`.
+
 ## Supplemental Generic-Args Repeat-Run Smoke
 
 The `generic_args` persistent DAG smoke at artifact label `6574c43b`

@@ -881,6 +881,27 @@ The paired runner validates dispatch `11,2,1`, graph fan-in `0,0,2`,
 dependents `2,2`, repeat completions, zero scheduler errors, and generated
 Markdown/SVG report files.
 
+Use the graph descriptor scalar variants when fixed scalar AXPY/affine DAG
+logic needs to be validated as explicit runtime graph metadata:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_scalar_axpy --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-scalar-variants-working
+
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_scalar_affine --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-scalar-variants-working
+```
+
+The paired runner validates dispatch `4,2,1` for AXPY and `5,2,1` for
+affine, graph fan-in `0,0,2`, dependents `2,2`, scalar metadata, repeat
+completions, zero scheduler errors, and generated Markdown/SVG report files.
+
 Run the tensor-tile persistent DAG smoke. This graph uses a generated-dispatch
 tiled GEMM task with rows/cols/inner/stride descriptor metadata, then residual,
 gate, and fan-in elementwise tasks. The default descriptor is 16x16x16:

@@ -2204,6 +2204,38 @@ reported per-launch device times `[33792,19456]`, total
 device times `[39616,20096]`, total `device_wall_ns=59712`, and
 `host_wall_ns=84805`.
 
+The remaining fixed scalar variants now have the same no-torch graph
+descriptor coverage. The paired persistent-smoke runner captured
+`graph_descriptor_scalar_axpy` and `graph_descriptor_scalar_affine` under
+`tmp/cuda-backend/graph-scalar-variants-working/`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_scalar_axpy --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-scalar-variants-working
+```
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_scalar_affine --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-scalar-variants-working
+```
+
+Both captures validated `runtime=persistent_device`, `mode=dag`,
+`repeat_runs=2`, `launch_completed_counts=[3,3]`,
+`graph_descriptor.fanin=[0,0,2]`,
+`graph_descriptor.dependents=[2,2]`, resource policy
+`scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`, `grid_dim=4`, and
+zero scheduler errors. The AXPY descriptor reported dispatch `[4,2,1]`,
+`scalar0=1.5`, A100 `device_wall_ns=62464`, and H200
+`device_wall_ns=59072`. The affine descriptor reported dispatch `[5,2,1]`,
+`scalar0=1.5`, `scalar1=0.5`, A100 `device_wall_ns=67584`, and H200
+`device_wall_ns=59616`.
+
 The tensor-core tile descriptor was then added to the same normal L2
 `SceneTestCase` path as `persistent_dag_tensor_core_tile_f32`. Its first task
 uses block-wide generated dispatch with `func_id=10`, while the remaining

@@ -1381,7 +1381,7 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
-    if dag_shape == "scalar_axpy":
+    if dag_shape in {"scalar_axpy", "graph_descriptor_scalar_axpy"}:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
         dependents_t = ctypes.c_uint32 * 2
@@ -1465,7 +1465,7 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
-    if dag_shape == "scalar_affine":
+    if dag_shape in {"scalar_affine", "graph_descriptor_scalar_affine"}:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
         dependents_t = ctypes.c_uint32 * 2
@@ -2448,13 +2448,13 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             if config.dag_shape in {"scratch_reuse", "graph_descriptor_scratch_reuse"}:
                 expected_tmp0 = [_f32(expected_tmp2[i] + host_a[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp3[i]) for i in range(n)]
-            if config.dag_shape == "scalar_axpy":
+            if config.dag_shape in {"scalar_axpy", "graph_descriptor_scalar_axpy"}:
                 expected_tmp0 = [_f32(_f32(1.5 * host_a[i]) + host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
             if config.dag_shape in {"scalar_scale", "graph_descriptor_scalar_scale"}:
                 expected_tmp0 = [_f32(2.0 * host_a[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
-            if config.dag_shape == "scalar_affine":
+            if config.dag_shape in {"scalar_affine", "graph_descriptor_scalar_affine"}:
                 expected_tmp0 = [_f32(_f32(1.5 * host_a[i]) + _f32(0.5 * host_b[i])) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
             if config.dag_shape == "triad":
@@ -2603,11 +2603,11 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             }
         if config.dag_shape == "tensor_core_tile":
             result["tensor_core"] = {"api": "wmma", "mma_shape": "m16n16k8", "input": "tf32", "accumulator": "f32"}
-        if config.dag_shape == "scalar_axpy":
+        if config.dag_shape in {"scalar_axpy", "graph_descriptor_scalar_axpy"}:
             result["scalar_args"] = {"scalar0": 1.5}
         if config.dag_shape in {"scalar_scale", "graph_descriptor_scalar_scale"}:
             result["scalar_args"] = {"scalar0": 2.0}
-        if config.dag_shape == "scalar_affine":
+        if config.dag_shape in {"scalar_affine", "graph_descriptor_scalar_affine"}:
             result["scalar_args"] = {"scalar0": 1.5, "scalar1": 0.5}
         if config.dag_shape == "triad":
             result["tensor_args"] = {"c": "tmp0"}
@@ -2627,6 +2627,8 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             result["scalar_args"] = {f"scalar_args[{idx}]": value for idx, value in enumerate(scalar_args)}
         if config.dag_shape in {
             "graph_descriptor",
+            "graph_descriptor_scalar_affine",
+            "graph_descriptor_scalar_axpy",
             "graph_descriptor_chain",
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
@@ -2753,6 +2755,8 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "graph_descriptor_diamond",
         "graph_descriptor_generic_args4",
         "graph_descriptor_reordered",
+        "graph_descriptor_scalar_affine",
+        "graph_descriptor_scalar_axpy",
         "graph_descriptor_scalar_scale",
         "graph_descriptor_scratch_reuse",
         "graph_descriptor_tagged",
@@ -2809,6 +2813,8 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
             "graph_descriptor_reordered",
+            "graph_descriptor_scalar_affine",
+            "graph_descriptor_scalar_axpy",
             "graph_descriptor_scalar_scale",
             "graph_descriptor_tagged",
             "graph_descriptor_tagged_inout",
@@ -3020,6 +3026,8 @@ def main() -> None:
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
             "graph_descriptor_reordered",
+            "graph_descriptor_scalar_affine",
+            "graph_descriptor_scalar_axpy",
             "graph_descriptor_scalar_scale",
             "graph_descriptor_scratch_reuse",
             "graph_descriptor_tagged",
