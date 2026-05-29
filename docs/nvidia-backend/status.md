@@ -4215,6 +4215,46 @@ dependents `[2,2]`, graph-node ops
 `task0=op:add=1;task1=op:mul=2;task2=op:add=1`, A100 device time `45056 ns`,
 and H200 device time `43808 ns`.
 
+The dictionary-valued node-port graph descriptor spelling is now promoted into
+the paired persistent-smoke workflow as `graph_descriptor_node_port_dict`.
+The new TDD selector first failed because both smoke runners rejected the
+unknown DAG shape; after adding the direct-smoke task descriptor, paired
+runner expectations, graph-node op metadata, and report-visible port-task-arg
+metadata, the focused local tests passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest \
+    tests/ut/py/test_cuda_benchmark_report.py \
+    tests/ut/py/test_cuda_backend.py \
+    -q -k node_port_dict --platform cuda
+```
+
+That run reported `2 passed, 337 deselected`. The paired smoke then validated
+local A100 and remote H200 artifacts:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python \
+    .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_node_port_dict --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/persistent-node-port-dict-smoke-working
+```
+
+The capture under
+`tmp/cuda-backend/persistent-node-port-dict-smoke-working/persistent-graph_descriptor_node_port_dict-repeat2-smoke-b336f9ff/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. It validated repeat completions `[3,3]`, zero
+scheduler errors, dispatch `[1,2,1]`, graph fan-in `[0,0,2]`, graph
+dependents `[2,2]`, graph-node ops
+`task0=op:add=1;task1=op:mul=2;task2=op:add=1`, graph task arg key
+`node_port_dict`, and graph task args
+`task0=input.lhs:a,input.rhs:b,output.value:tmp0;`
+`task1=input.lhs:a,input.rhs:b,output.value:tmp1;`
+`task2=input.lhs:tmp0,input.rhs:tmp1,output.value:out`. Device times were
+`61440 ns` on A100 and `41408 ns` on H200.
+
 Needed:
 
 - full graph construction from normal PTO task graphs;
@@ -4229,7 +4269,7 @@ Needed:
   `data` payloads, node-style IO fields, dictionary-valued node IO port maps,
   node `op` callable aliases, callable metadata `callable_id` / `cid` aliases,
   and paired smoke including
-  node-link `links`,
+  node-link `links` and dictionary-valued node IO port maps,
   dictionary-keyed graph task descriptors,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, named graph-callable resolution, explicit unary square graph

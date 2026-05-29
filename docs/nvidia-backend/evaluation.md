@@ -121,6 +121,7 @@ committed:
 - `tmp/cuda-backend/persistent-graph_descriptor_chain-repeat2-smoke-b94b555d/`
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/`
 - `tmp/cuda-backend/persistent-node-io-smoke-working/persistent-graph_descriptor_node_io-repeat2-smoke-feddd21b/`
+- `tmp/cuda-backend/persistent-node-port-dict-smoke-working/persistent-graph_descriptor_node_port_dict-repeat2-smoke-b336f9ff/`
 - `tmp/cuda-backend/worker-square-smoke-4cdde399/`
 - `tmp/cuda-backend/worker-quad-smoke-4327698e/`
 - `tmp/cuda-backend/worker-mul-smoke-output-json/`
@@ -447,3 +448,9 @@ For node-IO graph smokes, it additionally passes
 `--expected-graph-task-arg-key node_io`, proving that graph node
 `input`/`output` fields are preserved separately from role-keyed or tagged
 task-argument spellings.
+For node-port-map graph smokes, it passes
+`--expected-graph-task-arg-key node_port_dict`,
+`--expected-graph-task-args`, `--expected-graph-node-ops`, and report
+requirements for both fields, so the A100/H200 JSON plus Markdown/SVG
+artifacts must show the lowered port names and generated add/mul/add
+dispatch.

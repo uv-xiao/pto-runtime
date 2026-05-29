@@ -1686,6 +1686,7 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
         "graph_descriptor_node_io",
         "graph_descriptor_node_link",
         "graph_descriptor_node_op",
+        "graph_descriptor_node_port_dict",
     }:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
@@ -2612,6 +2613,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 "graph_descriptor_node_io",
                 "graph_descriptor_node_link",
                 "graph_descriptor_node_op",
+                "graph_descriptor_node_port_dict",
             }:
                 expected_out = expected_tmp0
             if _is_tensor_tile_shape(config.dag_shape):
@@ -2761,6 +2763,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             "graph_descriptor_node_io",
             "graph_descriptor_node_link",
             "graph_descriptor_node_op",
+            "graph_descriptor_node_port_dict",
             "graph_descriptor_pair_inout",
             "graph_descriptor_quad",
             "graph_descriptor_reordered",
@@ -2796,11 +2799,22 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 result["scalar_args"] = scalar_args
             if config.dag_shape == "graph_descriptor_node_attrs":
                 result["graph_node_attrs"] = {"task0": "attrs:tensor_args,scalar_args"}
-            if config.dag_shape in {"graph_descriptor_node_link", "graph_descriptor_node_op"}:
+            if config.dag_shape in {
+                "graph_descriptor_node_link",
+                "graph_descriptor_node_op",
+                "graph_descriptor_node_port_dict",
+            }:
                 result["graph_node_ops"] = {
                     "task0": "op:add=1",
                     "task1": "op:mul=2",
                     "task2": "op:add=1",
+                }
+            if config.dag_shape == "graph_descriptor_node_port_dict":
+                result["graph_task_arg_key"] = "node_port_dict"
+                result["graph_task_args"] = {
+                    "task0": "input.lhs:a,input.rhs:b,output.value:tmp0",
+                    "task1": "input.lhs:a,input.rhs:b,output.value:tmp1",
+                    "task2": "input.lhs:tmp0,input.rhs:tmp1,output.value:out",
                 }
             if config.dag_shape == "graph_descriptor_node_io":
                 result["graph_task_arg_key"] = "node_io"
@@ -2924,6 +2938,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "graph_descriptor_node_io",
         "graph_descriptor_node_link",
         "graph_descriptor_node_op",
+        "graph_descriptor_node_port_dict",
         "graph_descriptor_pair_inout",
         "graph_descriptor_quad",
         "graph_descriptor_reordered",
@@ -2994,6 +3009,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
             "graph_descriptor_node_io",
             "graph_descriptor_node_link",
             "graph_descriptor_node_op",
+            "graph_descriptor_node_port_dict",
             "graph_descriptor_pair_inout",
             "graph_descriptor_reordered",
             "graph_descriptor_scalar_affine",
@@ -3221,6 +3237,7 @@ def main() -> None:
             "graph_descriptor_node_io",
             "graph_descriptor_node_link",
             "graph_descriptor_node_op",
+            "graph_descriptor_node_port_dict",
             "graph_descriptor_pair_inout",
             "graph_descriptor_quad",
             "graph_descriptor_reordered",
