@@ -1554,8 +1554,11 @@ PYTHONPATH=$PWD:$PWD/python \
     --sizes 1024 --arch compute_80
 ```
 
-The current compact paired benchmark capture with this row is under
-`tmp/cuda-backend/combined-current-dbb01406/`. It uses `N=1024`, one repeat,
+The historical compact paired benchmark capture with this row is under
+`tmp/cuda-backend/combined-current-dbb01406/`. The current compact selected
+baseline gate is under
+`tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/`
+and also includes the graph tensor-core row. It uses `N=1024`, one repeat,
 `batch_tasks=2`, `worker_blocks_per_task=4`, validates source-paper
 provenance and zero scheduler errors, requires
 `scratch_reuse=reused_buffer=tmp0,reuse_task=4`, and includes Markdown plus
@@ -1864,15 +1867,15 @@ PYTHONPATH=$PWD:$PWD/python \
 ```
 
 The compact current-head gate checks the expected A100/H200 machines,
-selected tensor baselines, the host-schedule generic-args baseline, graph
-generic-args4 baseline, graph-chain baseline, graph-scratch-reuse baseline,
-graph-tagged-inout baseline, graph descriptor fan-in/dependent metadata,
-graph-triad and graph-quad baselines, task-argument tags, size `1024`, one
-repeat, `72` combined samples, and the Markdown/SVG report files.
-A historical compact gate artifact with graph-scratch-reuse benchmark coverage
-is under `tmp/cuda-backend/combined-current-dbb01406/`; validate older
-captures with explicit `--require-*` checks if the current preset has gained
-new selected rows since that capture.
+selected tensor baselines, the graph tensor-core baseline, the host-schedule
+generic-args baseline, graph generic-args4 baseline, graph-chain baseline,
+graph-scratch-reuse baseline, graph-tagged-inout baseline, graph descriptor
+fan-in/dependent metadata, graph-triad and graph-quad baselines,
+task-argument tags, size `1024`, one repeat, `74` combined samples, and the
+Markdown/SVG report files. The current compact gate artifact is under
+`tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/`.
+Validate older captures with explicit `--require-*` checks if the current
+preset has gained new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the
 selected benchmark rows can change with runner flags.
 `--require-command-examples` checks that

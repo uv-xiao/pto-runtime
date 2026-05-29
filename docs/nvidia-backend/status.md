@@ -2877,6 +2877,46 @@ The combined report directory contains `cuda-benchmark.json`,
 `cuda-benchmark.md`, `cuda-benchmark.svg`, `cuda-benchmark-ratios.svg`,
 `cuda-benchmark-dag-deltas.svg`, and `cuda-benchmark-throughput.svg`.
 
+The selected paired benchmark gate now includes
+`pto_persistent_dag_graph_tensor_core`. The paired runner was first updated
+under TDD because it still omitted the row from its selected baseline list
+even though the benchmark and validator accepted it. The focused tests passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'pair_benchmark_builds_current_a100_h200_workflow or \
+      pair_benchmark_validate_command_matches_configured_capture'
+```
+
+Result: `2 passed, 221 deselected`.
+
+The current compact paired A100/H200 capture is:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
+    --sizes 1024 --repeats 1 --batch-tasks 2 \
+    --worker-blocks-per-task 4 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-tensor-core-compact-current-working
+```
+
+The paired runner wrote and validated
+`tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark.json`
+with the `compact-current` preset. It required 74 samples, source-paper
+provenance, sanitized command examples, generated Markdown/SVG reports, zero
+scheduler errors, graph tensor-core dispatch `[10,1,2,1]`, graph fan-in
+`[0,1,1,2]`, graph dependents `[1,2,3,3]`, and tensor tile `16x16x16`.
+
+| GPU | Scalar tensor ns | Graph tensor ns | Tensor-core ns | Graph tensor-core ns | cuBLAS Graph ns |
+| --- | ---------------- | --------------- | -------------- | -------------------- | --------------- |
+| A100 | 37888 | 36864 | 38912 | 38912 | 11264 |
+| H200 | 35616 | 34976 | 32192 | 32800 | 9344 |
+
+Both graph tensor-core rows report `wmma:m16n16k8:tf32->f32`, target-specific
+PTX (`compute_80` on A100 and `compute_90` on H200), graph fan-in
+`[0,1,1,2]`, dependents `[1,2,3,3]`, and zero scheduler errors.
+
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph
 adapter no longer requires topological task order. A focused unit test first

@@ -10,7 +10,7 @@ local A100 runs, and remote H200 runs.
 
 The latest full paired A100/H200 benchmark capture was taken at commit
 `61cf96cd`, and the latest compact current-head paired gate uses artifact
-label `dbb01406`. Supplemental tensor-shape and tensor-core captures were
+label `493ce832`. Supplemental tensor-shape and tensor-core captures were
 taken at commits `c0ada3ad` and `0879aa9e`. The first cuBLAS library baseline
 capture uses the `343924df` artifact label, and the first cuBLAS CUDA Graph
 baseline capture is under `cublas-graph-compact-working`. The first
@@ -50,6 +50,10 @@ latest multi-size tensor baseline sweep uses `e79edba2`:
 - [Current capture](evaluation-current.md) records the first
   `pto_persistent_dag_graph_tensor_core` benchmark row, the explicit
   graph-descriptor variant of the WMMA tensor-core DAG, on A100 and H200.
+- [Current capture](evaluation-current.md) records the compact `493ce832`
+  paired gate that includes scalar tensor, explicit graph tensor, fixed WMMA
+  tensor-core, explicit graph WMMA tensor-core, cuBLAS, and cuBLAS Graph rows
+  in one selected A100/H200 benchmark report.
 - [Current capture](evaluation-current.md) records the first
   `cublas_sgemm` library-backed tensor baseline row in the same compact
   selected-baseline report shape.
@@ -112,6 +116,9 @@ committed:
 - `tmp/cuda-backend/h200-tensor-core-current-0879aa9e/`
 - `tmp/cuda-backend/combined-tensor-core-current-0879aa9e/`
 - `tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/a100-current-493ce832/`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/h200-current-493ce832/`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/`
 - `tmp/cuda-backend/a100-cublas-current-343924df/`
 - `tmp/cuda-backend/h200-cublas-current-343924df/`
 - `tmp/cuda-backend/combined-cublas-current-343924df/`

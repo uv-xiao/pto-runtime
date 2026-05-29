@@ -2333,7 +2333,7 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert ".agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py" in validate
     assert str(tmp_path / "cuda-backend" / "combined-current-abc123" / "cuda-benchmark.json") in validate
     assert "--expected-result-count" in validate
-    assert "954" in validate
+    assert "972" in validate
     assert "--require-baseline" in validate
     assert "pto_host_schedule_generic_args" in validate
     assert "pto_persistent_dag_graph_generic_args4" in validate
@@ -2345,6 +2345,7 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert "pto_persistent_dag_graph_quad" in validate
     assert "pto_persistent_dag_graph_tensor" in validate
     assert "pto_persistent_dag_tensor_core" in validate
+    assert "pto_persistent_dag_graph_tensor_core" in validate
     assert "cublas_sgemm" in validate
     assert "cublas_sgemm_graph" in validate
     assert "--require-dispatch" in validate
@@ -2370,10 +2371,14 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert "pto_persistent_dag_tensor=3,1,2,1" in validate
     assert "pto_persistent_dag_graph_tensor=3,1,2,1" in validate
     assert "pto_persistent_dag_tensor_core=10,1,2,1" in validate
+    assert "pto_persistent_dag_graph_tensor_core=10,1,2,1" in validate
     assert "--require-tensor-tile" in validate
     assert "pto_persistent_dag_tensor=16x16x16" in validate
     assert "pto_persistent_dag_graph_tensor=16x16x16" in validate
     assert "pto_persistent_dag_tensor_core=16x16x16" in validate
+    assert "pto_persistent_dag_graph_tensor_core=16x16x16" in validate
+    assert "pto_persistent_dag_graph_tensor_core=0,1,1,2" in validate
+    assert "pto_persistent_dag_graph_tensor_core=1,2,3,3" in validate
     assert "cublas_sgemm=16x16x16" in validate
     assert "cublas_sgemm_graph=16x16x16" in validate
     assert "--require-command-examples" in validate
@@ -2401,7 +2406,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "--expected-repeats" in validate
     assert "2" in validate
     assert "--expected-result-count" in validate
-    assert "296" in validate
+    assert "304" in validate
     assert "--require-baseline" in validate
     baselines = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-baseline"]
     assert "pto_host_schedule_generic_args" in baselines
@@ -2413,6 +2418,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_triad" in baselines
     assert "pto_persistent_dag_graph_quad" in baselines
     assert "pto_persistent_dag_graph_tensor" in baselines
+    assert "pto_persistent_dag_graph_tensor_core" in baselines
     assert "cublas_sgemm_graph" in baselines
     assert "pto_host_schedule_batch" in baselines
     assert "pto_persistent_device_grid_batch" in baselines
@@ -2425,8 +2431,10 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_triad=6,2,1" in dispatch
     assert "pto_persistent_dag_graph_quad=8,2,1" in dispatch
     assert "pto_persistent_dag_tensor_core=10,1,2,1" in dispatch
+    assert "pto_persistent_dag_graph_tensor_core=10,1,2,1" in dispatch
     tensor_tiles = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-tensor-tile"]
     assert "pto_persistent_dag_tensor=16x16x16" in tensor_tiles
+    assert "pto_persistent_dag_graph_tensor_core=16x16x16" in tensor_tiles
     assert "cublas_sgemm=16x16x16" in tensor_tiles
     assert "cublas_sgemm_graph=16x16x16" in tensor_tiles
 

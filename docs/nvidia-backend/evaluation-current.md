@@ -2,10 +2,10 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus compact current-head validation captures. The
-latest compact gate is artifact label `943620bf`, which adds explicit graph
-triad and quad benchmark rows. The raw JSON, Markdown, and SVG reports are
-generated locally under `tmp/cuda-backend/` and intentionally remain
-uncommitted.
+latest compact gate is artifact label `493ce832`, which adds explicit graph
+tensor-core benchmark rows to the selected baseline matrix. The raw JSON,
+Markdown, and SVG reports are generated locally under `tmp/cuda-backend/` and
+intentionally remain uncommitted.
 
 The capture uses `nvcc` for target-specific PTX on both machines:
 
@@ -118,6 +118,14 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/graph-tensor-arity-benchmark-working/combined-current-943620bf/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/graph-tensor-arity-benchmark-working/combined-current-943620bf/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/graph-tensor-arity-benchmark-working/combined-current-943620bf/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/a100-current-493ce832/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/h200-current-493ce832/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark.md`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark.svg`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.json`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-current-a46db551/cuda-benchmark.json`
@@ -188,7 +196,46 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/cuda-tensor-shape-sweep.svg`
 - `tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/cuda-tensor-shape-throughput.svg`
 
-## Latest Tensor-Arity Graph Benchmark Gate
+## Latest Graph Tensor-Core Benchmark Gate
+
+The compact paired gate at artifact label `493ce832` adds
+`pto_persistent_dag_graph_tensor_core` to the selected benchmark matrix. It
+uses the default `16x16x16` tensor descriptor, `N=1024`, one repeat,
+`batch_tasks=2`, and `worker_blocks_per_task=4`. The paired runner synced the
+local tree to `bizhaoh200`, captured local A100 and remote H200 reports,
+merged them, and validated the combined JSON.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark.json \
+    --preset compact-current
+```
+
+The combined JSON has `74` samples. The validator checked A100/H200 machine
+names, size `1024`, one repeat, selected tensor baselines, source-paper
+provenance, sanitized command examples, generated Markdown/SVG reports,
+expected generated-dispatch sequences, tensor descriptor metadata, graph
+descriptor fan-in/dependent metadata, graph task-argument metadata, and zero
+scheduler errors for PTO persistent DAG rows.
+
+Selected tensor rows:
+
+| GPU | Scalar tensor ns | Graph tensor ns | Tensor-core ns | Graph tensor-core ns | cuBLAS ns | cuBLAS Graph ns |
+| --- | ---------------- | --------------- | -------------- | -------------------- | --------- | --------------- |
+| A100 | 37888 | 36864 | 38912 | 38912 | 50175 | 11264 |
+| H200 | 35616 | 34976 | 32192 | 32800 | 76895 | 9344 |
+
+The graph tensor-core row validates dispatch `10,1,2,1`, graph fan-in
+`0,1,1,2`, dependents `1,2,3,3`, tensor tile `16x16x16`,
+`wmma:m16n16k8:tf32->f32`, and target-specific PTX (`compute_80` on A100,
+`compute_90` on H200). The report directory contains `cuda-benchmark.json`,
+`cuda-benchmark.md`, `cuda-benchmark.svg`, `cuda-benchmark-ratios.svg`,
+`cuda-benchmark-dag-deltas.svg`, and `cuda-benchmark-throughput.svg`.
+
+## Previous Tensor-Arity Graph Benchmark Gate
 
 The compact paired gate at artifact label `943620bf` adds
 `pto_persistent_dag_graph_triad` and `pto_persistent_dag_graph_quad` to the
