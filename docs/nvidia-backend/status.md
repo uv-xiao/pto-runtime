@@ -14,7 +14,8 @@ design work so evaluation results are not mistaken for a complete backend.
 - `RuntimeBinaries` now exposes a role-keyed view through `role_paths` and
   `path_for_role(...)`. Ascend platforms map the existing `host`, `aicpu`,
   and `aicore` roles directly. CUDA build configs now declare native `host`
-  and `device` targets; the legacy `aicpu_path` and `aicore_path` fields are
+  and `device` targets, and `persistent_device` also declares a native
+  `scheduler` target. The legacy `aicpu_path` and `aicore_path` fields are
   compatibility aliases to the CUDA `device` artifact.
 
 Evidence:
@@ -25,6 +26,7 @@ Evidence:
 - `src/cuda/runtime/host_schedule/build_config.py`
 - `src/cuda/runtime/persistent_device/build_config.py`
 - `src/cuda/platform/onboard/device/CMakeLists.txt`
+- `src/cuda/platform/onboard/scheduler/CMakeLists.txt`
 - `src/cuda/platform/onboard/host/pto_runtime_c_api.cpp`
 
 ### Host-Schedule Runtime
@@ -2850,26 +2852,68 @@ Both A100 and H200 runs reported zero scheduler errors and tensor arguments
 
 ### Target Role Cleanup
 
-CUDA now builds native `host` and `device` target roles when a runtime build
-config declares `device`, and runtime consumers can read binaries through
-roles instead of direct hardware slot names. The current compatibility mapping
-is:
+CUDA now builds native `host`, optional `scheduler`, and `device` target roles
+when a runtime build config declares them, and runtime consumers can read
+binaries through roles instead of direct hardware slot names. The current
+compatibility mapping is:
 
 - Ascend: `host`, `aicpu`, and `aicore` map to their existing artifacts.
 - CUDA: `host` maps to `libhost_runtime.so`, `device` maps to
-  `libcuda_device_runtime.so`, and legacy `aicpu_path` / `aicore_path`
-  attributes alias the same CUDA device artifact.
+  `libcuda_device_runtime.so`, `scheduler` maps to
+  `libcuda_scheduler_runtime.so` when present, and legacy `aicpu_path` /
+  `aicore_path` attributes alias the CUDA device artifact.
 
 The Python `ChipWorker.init(...)` wrapper now resolves runtime binary paths
-through `path_for_role(...)` / `role_paths` first. A CUDA role-only binary map
-with `host` and `device` can initialize through the Python API while the
-underlying C++ nanobind call still receives its compatibility host,
-scheduler, and device path arguments.
+through `path_for_role(...)` / `role_paths` first. CUDA role-only binary maps
+with `host` / `device` or `host` / `scheduler` / `device` can initialize
+through the Python API while the underlying C++ nanobind call still receives
+its compatibility host, scheduler, and device path arguments.
+
+The scheduler-role build slice was verified with:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_runtime_builder.py tests/ut/py/test_chip_worker.py -q \
+  -k 'cuda_runtime_binaries or role_only_runtime_binaries or \
+      role_keyed_paths or scheduler_role'
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python - <<'PY'
+from simpler_setup.runtime_builder import RuntimeBuilder
+bins = RuntimeBuilder(platform="cuda").get_binaries("persistent_device", build=True)
+print(sorted(bins.role_paths))
+print(bins.path_for_role("scheduler"))
+PY
+```
+
+Result: the focused selector reported `4 passed, 38 deselected`; the runtime
+builder printed `['device', 'host', 'scheduler']` and the scheduler artifact
+path under `build/lib/cuda/onboard/persistent_device/`.
+
+The same source tree was synced to `bizhaoh200` and checked with a paired
+real-data persistent graph smoke:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor --task-count 3 --queue-capacity 2 \
+    --repeat-runs 1 --sync-remote-tree \
+    --output-root tmp/cuda-backend/scheduler-role-working
+```
+
+Result:
+`tmp/cuda-backend/scheduler-role-working/persistent-graph_descriptor-smoke-539a05b9/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The validator required runtime `persistent_device`,
+mode `dag`, `dag_shape=graph_descriptor`, dispatch `[9,2,1]`, graph fan-in
+`[0,0,2]`, graph dependents `[2,2]`, one repeat launch, resource policy
+`scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`, `grid_dim=4`, report
+files, and zero scheduler errors. A100 reported `device_wall_ns=41984`;
+H200 reported `device_wall_ns=56864`. Both hosts also built
+`libcuda_scheduler_runtime.so` beside `libhost_runtime.so` and
+`libcuda_device_runtime.so`.
 
 Needed:
 
-- optional `scheduler` role once `persistent_device` has a separately named
-  scheduler/runtime image;
 - removal of legacy `aicpu_path` and `aicore_path` attributes after all
   external and C++ binding boundaries accept role-keyed binaries directly.
 

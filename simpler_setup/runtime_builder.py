@@ -161,14 +161,18 @@ class RuntimeBuilder:
 
     def _target_names(self, build_config: dict) -> tuple[str, ...]:
         if self._arch == "cuda" and "device" in build_config:
-            return tuple(target for target in ("host", "device") if target in build_config)
+            return tuple(target for target in ("host", "scheduler", "device") if target in build_config)
         return TARGETS
 
     def _target_role_paths(self, paths: dict[str, Path]) -> dict[str, Path]:
         if self._arch == "cuda":
             device_path = paths.get("device", paths.get("aicpu"))
             if device_path is not None:
-                return {"host": paths["host"], "device": device_path}
+                role_paths = {"host": paths["host"]}
+                if "scheduler" in paths:
+                    role_paths["scheduler"] = paths["scheduler"]
+                role_paths["device"] = device_path
+                return role_paths
         return dict(paths)
 
     def _runtime_binaries_from_paths(

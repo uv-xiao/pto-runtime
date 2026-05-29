@@ -516,7 +516,8 @@ Required Python/build changes:
   assumption with per-runtime target discovery;
 - finish generalizing `RuntimeBinaries`; the current transitional
   `role_paths` map exposes Ascend's legacy roles and CUDA's native `host` /
-  `device` roles while preserving legacy path attributes;
+  optional `scheduler` / `device` roles while preserving legacy path
+  attributes;
 - add a CUDA callable compiler that owns wrapper generation and final device
   link;
 - add manifest fields to `ChipCallable` or introduce a CUDA callable payload

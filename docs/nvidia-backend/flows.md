@@ -435,7 +435,9 @@ for example `worker_blocks` for `block_dim` and `scheduler_lanes` for
   dispatch table.
 - `RuntimeBinaries` should eventually become target-role based. Until then,
   CUDA can temporarily provide compatibility paths for the old `aicpu`/`aicore`
-  slots, but that is migration debt.
+  slots. The CUDA `persistent_device` build now also publishes a
+  `scheduler` role so future scheduler/runtime artifacts do not have to pass
+  through AICPU naming.
 - The backend should use Driver API for module/context ownership because PTO
   is a dynamic plugin-like runtime loaded through `dlopen`.
 - TileLang validates the NVRTC + Driver API model for dynamic CUDA code, but

@@ -1029,6 +1029,19 @@ PYTHONPATH=$PWD:$PWD/python \
     --platform cuda
 ```
 
+After changing CUDA runtime role discovery or `persistent_device` build
+targets, rebuild the runtime and check that the role-keyed binary map includes
+the optional scheduler image:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python - <<'PY'
+from simpler_setup.runtime_builder import RuntimeBuilder
+bins = RuntimeBuilder(platform="cuda").get_binaries("persistent_device", build=True)
+print(sorted(bins.role_paths))
+print(bins.path_for_role("scheduler"))
+PY
+```
+
 Use `persistent_dag_tensor_core_tile_f32` for the normal L2 scene-test path
 when the first DAG task should be a block-wide WMMA
 `m16n16k8:tf32->f32` task. It requires rows and columns in multiples of `16`

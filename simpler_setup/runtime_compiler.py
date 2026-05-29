@@ -66,8 +66,9 @@ class RuntimeCompiler:
     Supports runtime target roles:
     1. aicore - AICore accelerator kernels
     2. aicpu - AICPU device task scheduler
-    3. device - CUDA device-side runtime placeholder or archive
-    4. host - Host runtime library
+    3. scheduler - optional CUDA persistent scheduler/runtime image
+    4. device - CUDA device-side runtime placeholder or archive
+    5. host - Host runtime library
 
     Platform determines which toolchains and CMake directories are used:
     - "a2a3": ccec for aicore, aarch64 cross-compiler for aicpu, gcc for host
@@ -199,6 +200,7 @@ class RuntimeCompiler:
 
         self.aicore_target = BuildTarget(gxx, str(self.platform_dir / "aicore"), "libaicore_kernel.so")
         self.aicpu_target = BuildTarget(gxx, str(self.platform_dir / "aicpu"), "libaicpu_kernel.so")
+        self.scheduler_target = BuildTarget(gxx, str(self.platform_dir / "scheduler"), "libcuda_scheduler_runtime.so")
         self.device_target = BuildTarget(gxx, str(self.platform_dir / "device"), "libcuda_device_runtime.so")
         self.host_target = BuildTarget(gxx, str(self.platform_dir / "host"), "libhost_runtime.so")
 
@@ -228,7 +230,7 @@ class RuntimeCompiler:
         Compile binary for the specified target platform.
 
         Args:
-            target_platform: Target platform ("aicore", "aicpu", "device", or "host")
+            target_platform: Target platform ("aicore", "aicpu", "scheduler", "device", or "host")
             include_dirs: List of include directory paths
             source_dirs: List of source directory paths
             build_dir: The directory path for compiling. When None, use a temporal path.
@@ -248,13 +250,16 @@ class RuntimeCompiler:
             target = self.aicore_target
         elif target_platform == "aicpu":
             target = self.aicpu_target
+        elif target_platform == "scheduler" and hasattr(self, "scheduler_target"):
+            target = self.scheduler_target
         elif target_platform == "device" and hasattr(self, "device_target"):
             target = self.device_target
         elif target_platform == "host":
             target = self.host_target
         else:
             raise ValueError(
-                f"Invalid target platform: {target_platform}. Must be 'aicore', 'aicpu', 'device', or 'host'."
+                f"Invalid target platform: {target_platform}. Must be 'aicore', 'aicpu', "
+                "'scheduler', 'device', or 'host'."
             )
 
         cmake_args = target.gen_cmake_args(include_dirs, source_dirs)

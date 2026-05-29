@@ -219,10 +219,10 @@ For a low-risk transition, `RuntimeBinaries` can keep `aicpu_path` and
 `aicore_path` temporarily as compatibility aliases. That transition has
 started with `RuntimeBinaries.role_paths` and
 `RuntimeBinaries.path_for_role(...)`: Ascend exposes `host`, `aicpu`, and
-`aicore`, while CUDA build configs now declare `host` and `device`. The
-cleaner end state is a target-binary map keyed only by runtime roles, with
-Ascend build configs declaring `host`, `aicpu`, `aicore` and CUDA declaring
-`host`, `device`.
+`aicore`, while CUDA build configs now declare `host`, optional `scheduler`,
+and `device`. The cleaner end state is a target-binary map keyed only by
+runtime roles, with Ascend build configs declaring `host`, `aicpu`, `aicore`
+and CUDA declaring `host`, optional `scheduler`, and `device`.
 
 Add a `CudaNvccToolchain`:
 

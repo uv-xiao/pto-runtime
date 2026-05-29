@@ -271,6 +271,56 @@ class TestRuntimeBuilderGetBinaries:
         assert result.aicore_path == result.path_for_role("device")
 
     @patch("simpler_setup.runtime_builder.RuntimeCompiler")
+    def test_cuda_runtime_binaries_exposes_optional_scheduler_role(self, MockCompiler, tmp_path, monkeypatch):
+        """CUDA runtimes can publish a separate scheduler/runtime role."""
+        import simpler_setup.runtime_builder as rb_module  # noqa: PLC0415
+        from simpler_setup.runtime_builder import RuntimeBuilder  # noqa: PLC0415
+
+        monkeypatch.setattr(rb_module, "PROJECT_ROOT", tmp_path)
+        rt_dir = tmp_path / "src" / "cuda" / "runtime" / "test_rt"
+        for sub in ["device", "host", "runtime", "scheduler"]:
+            (rt_dir / sub).mkdir(parents=True)
+        (rt_dir / "build_config.py").write_text(
+            textwrap.dedent("""\
+                BUILD_CONFIG = {
+                    "device": {
+                        "include_dirs": ["runtime"],
+                        "source_dirs": ["device", "runtime"]
+                    },
+                    "scheduler": {
+                        "include_dirs": ["runtime"],
+                        "source_dirs": ["scheduler", "runtime"]
+                    },
+                    "host": {
+                        "include_dirs": ["runtime"],
+                        "source_dirs": ["host", "runtime"]
+                    }
+                }
+            """)
+        )
+
+        mock_instance = MockCompiler.get_instance.return_value
+        mock_instance.compile.side_effect = lambda target, *a, **kw: (Path(kw["output_dir"]) / f"lib{target}.so")
+
+        builder = RuntimeBuilder(platform="cuda")
+        result = builder.get_binaries("test_rt", build=True)
+
+        assert sorted(call.args[0] for call in mock_instance.compile.call_args_list) == [
+            "device",
+            "host",
+            "scheduler",
+        ]
+        assert result.role_paths == {
+            "host": result.host_path,
+            "scheduler": result.path_for_role("scheduler"),
+            "device": result.path_for_role("device"),
+        }
+        assert result.path_for_role("scheduler").name == "libscheduler.so"
+        assert result.path_for_role("device").name == "libdevice.so"
+        assert result.aicpu_path == result.path_for_role("device")
+        assert result.aicore_path == result.path_for_role("device")
+
+    @patch("simpler_setup.runtime_builder.RuntimeCompiler")
     def test_calls_compiler_three_times(self, MockCompiler, tmp_path, default_test_platform, test_arch):
         """get_binaries(build=True) invokes compiler.compile() exactly 3 times."""
         from simpler_setup.runtime_builder import RuntimeBuilder  # noqa: PLC0415

@@ -7,8 +7,22 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-BUILD_CONFIG = {
-    "device": {"include_dirs": ["runtime"], "source_dirs": ["device", "runtime"]},
-    "scheduler": {"include_dirs": ["runtime"], "source_dirs": ["scheduler", "runtime"]},
-    "host": {"include_dirs": ["runtime"], "source_dirs": ["host", "runtime"]},
-}
+cmake_minimum_required(VERSION 3.18)
+project(cuda_scheduler_runtime LANGUAGES CXX)
+
+set(CUDA_SCHEDULER_RUNTIME_SOURCES "")
+if(DEFINED CUSTOM_SOURCE_DIRS)
+    foreach(SRC_DIR ${CUSTOM_SOURCE_DIRS})
+        file(GLOB_RECURSE DIR_SOURCES "${SRC_DIR}/*.cpp" "${SRC_DIR}/*.c")
+        list(APPEND CUDA_SCHEDULER_RUNTIME_SOURCES ${DIR_SOURCES})
+    endforeach()
+endif()
+
+add_library(cuda_scheduler_runtime SHARED ${CUDA_SCHEDULER_RUNTIME_SOURCES})
+set_target_properties(cuda_scheduler_runtime PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    OUTPUT_NAME "cuda_scheduler_runtime"
+    SUFFIX ".so"
+)
+target_compile_options(cuda_scheduler_runtime PRIVATE -Wall -Wextra -fPIC -O2)
