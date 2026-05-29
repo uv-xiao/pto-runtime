@@ -1701,6 +1701,15 @@ PYTHONPATH=$PWD:$PWD/python \
     --output-root tmp/cuda-backend/graph-node-attrs-benchmark-working
 ```
 
+The current `7191db4e` capture under
+`tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/`
+is the latest checked no-batch form of this gate. It validates 88 A100/H200
+samples and requires report-visible graph topology, scalar/tensor node-attrs
+descriptor args, selected tensor-throughput rows, sanitized command examples,
+source-paper metadata, and zero scheduler errors. The generated
+`cuda_current_summary.py --section graph-metadata` output includes a
+`Tensor args` column for copying descriptor payloads into evaluation docs.
+
 Use `--single-baseline pto_persistent_dag_graph_scalar_scale` for a quick
 benchmark path check of the explicit graph-descriptor scalar-scale DAG. This
 row validates dispatch `11,2,1`, graph fan-in `0,0,2`, dependents `2,2`, and
@@ -2310,15 +2319,15 @@ PYTHONPATH=$PWD:$PWD/python \
 The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the graph tensor-core baseline, the host-schedule
 generic-args baseline, graph generic-args4 baseline, graph-chain baseline,
-graph-depends-on baseline, graph-scratch-reuse baseline,
-graph-tagged-inout baseline, graph descriptor fan-in/dependent metadata,
-graph-triad and graph-quad baselines, the tagged scalar graph baseline, the
-graph unary-square baseline, task-argument tags, visible Markdown/SVG graph
-topology and task-argument metadata, visible Markdown/SVG tensor throughput
-rows for required tensor/cuBLAS descriptors, size `1024`, one repeat, `84`
-combined samples, and the Markdown/SVG report files. The current compact gate
-artifact is under
-`tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/`.
+graph-depends-on baseline, graph-node-attrs baseline, graph-node-op baseline,
+graph-scratch-reuse baseline, graph-tagged-inout baseline, graph descriptor
+fan-in/dependent metadata, graph-triad and graph-quad baselines, the tagged
+scalar graph baseline, the graph unary-square baseline, task-argument tags,
+visible Markdown/SVG graph topology and task-argument metadata, visible
+Markdown/SVG tensor throughput rows for required tensor/cuBLAS descriptors,
+size `1024`, one repeat, `88` combined samples, and the Markdown/SVG report
+files. The current compact gate artifact is under
+`tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/`.
 Validate older captures with explicit `--require-*` checks if the current
 preset has gained new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the

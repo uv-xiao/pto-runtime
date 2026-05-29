@@ -2038,6 +2038,17 @@ The compact `cuda_current_summary.py --section graph-metadata` table now
 renders those scalar/tensor descriptor maps as well, so copied evaluation
 tables keep the payload visible.
 Device times were `40960 ns` on A100 and `33152 ns` on H200 for `N=1024`.
+A current-head no-batch paired compact gate under
+`tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/`
+refreshes the selected benchmark matrix after that summary update. It
+validated `88` A100/H200 samples with source-paper provenance, sanitized
+command examples, Markdown/SVG reports, zero scheduler errors, visible graph
+topology, visible tensor throughput, and report-visible scalar/tensor
+descriptor payloads for `pto_persistent_dag_graph_node_attrs`. The same raw
+JSON reports A100/H200 graph-node-attrs device times of `29696/31072 ns`,
+graph tensor-core device times of `39936/31936 ns`, and cuBLAS Graph replay
+times of `13311/9088 ns` for the default `16x16x16`, `N=1024` compact
+descriptor.
 The graph-node callable-alias path is now also promoted into the selected
 benchmark matrix as `pto_persistent_dag_graph_node_op`. The compact paired
 A100/H200 capture under

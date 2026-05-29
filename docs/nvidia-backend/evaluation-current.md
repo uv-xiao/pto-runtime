@@ -2,12 +2,11 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus compact current-head validation captures. The
-latest compact graph gate is the working-tree capture under
-`tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/`,
-which promotes the reordered explicit graph descriptor into the selected
-benchmark matrix. The previous tensor-throughput gate at `a9d028de` remains
-the visible tensor-throughput report check, and the compact-role gate at
-`30a8974f` remains the task-argument spelling comparison for tagged,
+latest compact current-head gate is the working-tree capture under
+`tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/`,
+which validates the selected no-batch benchmark matrix after scalar/tensor
+descriptor args became visible in graph-metadata summaries. The compact-role
+gate at `30a8974f` remains the task-argument spelling comparison for tagged,
 role-keyed, and compact graph entries. The raw JSON, Markdown, and SVG reports
 are generated locally under `tmp/cuda-backend/` and intentionally remain
 uncommitted.
@@ -155,6 +154,14 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/a100-current-7191db4e/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/h200-current-7191db4e/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark.svg`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.json`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-current-a46db551/cuda-benchmark.json`
@@ -312,7 +319,77 @@ samples across A100 and H200. The combined report also validates generated
 Markdown/SVG files, source-paper provenance, sanitized reconstruction
 commands, and zero scheduler errors for the PTO persistent rows.
 
-## Latest Tensor Throughput Report Gate
+## Latest Current-Head Compact Gate
+
+The compact paired gate at artifact label `7191db4e` refreshes the selected
+no-batch A100/H200 benchmark matrix after graph-metadata summaries gained a
+dedicated `Tensor args` column. It uses the default `16x16x16` tensor
+descriptor, `N=1024`, one repeat, no host batch rows, and no
+worker-blocks-per-task sweep. The paired runner synced the local tree to
+`bizhaoh200`, captured local A100 and remote H200 reports, merged them,
+generated Markdown/SVG reports, refreshed `tmp/cuda-backend/index.md`, and
+validated the combined JSON with explicit selected-row requirements.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark.json \
+    --require-size 1024 --expected-repeats 1 --expected-result-count 88 \
+    --require-baseline pto_persistent_dag_graph_node_attrs \
+    --require-baseline pto_persistent_dag_graph_tensor_core \
+    --require-baseline cublas_sgemm_graph \
+    --require-dispatch pto_persistent_dag_graph_node_attrs=9,2,1 \
+    --require-dispatch pto_persistent_dag_graph_tensor_core=10,1,2,1 \
+    --require-tensor-tile pto_persistent_dag_graph_tensor_core=16x16x16 \
+    --require-tensor-tile cublas_sgemm_graph=16x16x16 \
+    --require-graph-node-attrs pto_persistent_dag_graph_node_attrs=task0=attrs:tensor_args,scalar_args \
+    --require-scalar-args pto_persistent_dag_graph_node_attrs=scalar_args[0]=1.5,scalar_args[1]=0.25 \
+    --require-tensor-args pto_persistent_dag_graph_node_attrs=tensor_args[0]=tmp0,tensor_args[1]=tmp3 \
+    --require-graph-fanin pto_persistent_dag_graph_node_attrs=0,0,2 \
+    --require-graph-dependents pto_persistent_dag_graph_node_attrs=2,2 \
+    --require-report-files --require-report-graph-topology \
+    --require-report-tensor-throughput --require-command-examples \
+    --require-zero-scheduler-errors --require-source-papers
+```
+
+The combined JSON has `88` samples. The validator checked A100/H200 machine
+metadata, size `1024`, one repeat, source-paper provenance, sanitized command
+examples, generated Markdown/SVG reports, selected graph/tensor baselines,
+dispatch IDs, tensor descriptor metadata, graph fan-in/dependent metadata,
+report-visible graph topology, tensor-throughput rows, and zero scheduler
+errors for PTO persistent DAG rows.
+
+Launch baseline comparison from the same raw JSON:
+
+| GPU | N | PTO host ns | Compiler ns | Driver ns | Graph ns | Compiler/PTO | Graph/PTO |
+| --- | - | ----------- | ----------- | --------- | -------- | ------------ | --------- |
+| A100 | 1024 | 31744 | 29696 | 51199 | 36864 | 0.94x | 1.16x |
+| H200 | 1024 | 15424 | 13920 | 21632 | 16736 | 0.90x | 1.09x |
+
+Selected tensor throughput from the same raw JSON:
+
+| GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | Graph tensor-core ns | cuBLAS ns | cuBLAS graph ns |
+| --- | - | ----- | --------- | -------- | -------------- | -------------------- | --------- | --------------- |
+| A100 | 1024 | 16x16x16 | 38912 | 38912 | 39936 | 39936 | 52223 | 13311 |
+| H200 | 1024 | 16x16x16 | 33120 | 33856 | 32095 | 31936 | 37023 | 9088 |
+
+| GPU | Scalar GF/s | Graph GF/s | Tensor-core GF/s | Graph tensor-core GF/s | cuBLAS GF/s | cuBLAS graph GF/s |
+| --- | ----------- | ---------- | ---------------- | ---------------------- | ----------- | ----------------- |
+| A100 | 0.84 | 0.84 | 0.82 | 0.82 | 0.63 | 2.46 |
+| H200 | 0.99 | 0.97 | 1.02 | 1.03 | 0.89 | 3.61 |
+
+Selected graph metadata rows:
+
+| GPU | Baseline | Dispatch | Fan-in | Dependents | Scalar args | Tensor args | Device ns |
+| --- | -------- | -------- | ------ | ---------- | ----------- | ----------- | --------- |
+| A100 | `pto_persistent_dag_graph_node_attrs` | `9,2,1` | `0,0,2` | `2,2` | `scalar_args[0]=1.5,scalar_args[1]=0.25` | `tensor_args[0]=tmp0,tensor_args[1]=tmp3` | 29696 |
+| H200 | `pto_persistent_dag_graph_node_attrs` | `9,2,1` | `0,0,2` | `2,2` | `scalar_args[0]=1.5,scalar_args[1]=0.25` | `tensor_args[0]=tmp0,tensor_args[1]=tmp3` | 31072 |
+| A100 | `pto_persistent_dag_graph_tensor_core` | `10,1,2,1` | `0,1,1,2` | `1,2,3,3` | `-` | `-` | 39936 |
+| H200 | `pto_persistent_dag_graph_tensor_core` | `10,1,2,1` | `0,1,1,2` | `1,2,3,3` | `-` | `-` | 31936 |
+
+## Previous Tensor Throughput Report Gate
 
 The compact paired gate at artifact label `a9d028de` revalidates the current
 selected benchmark matrix after adding `--require-report-tensor-throughput`.

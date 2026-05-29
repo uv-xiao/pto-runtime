@@ -10,7 +10,7 @@ local A100 runs, and remote H200 runs.
 
 The latest full paired A100/H200 benchmark capture was taken at commit
 `61cf96cd`, and the latest compact current-head paired gate uses artifact
-label `01ddf564`. Supplemental tensor-shape and tensor-core captures were
+label `7191db4e`. Supplemental tensor-shape and tensor-core captures were
 taken at commits `c0ada3ad` and `0879aa9e`. The first cuBLAS library baseline
 capture uses the `343924df` artifact label, and the first cuBLAS CUDA Graph
 baseline capture is under `cublas-graph-compact-working`. The first
@@ -66,6 +66,10 @@ latest multi-size tensor baseline sweep uses `e79edba2`:
 - [Current capture](evaluation-current.md) records the compact `01ddf564`
   paired gate that promotes incoming-edge `depends_on` graph descriptors into
   the selected A100/H200 benchmark path.
+- [Current capture](evaluation-current.md) records the compact `7191db4e`
+  current-head paired gate that validates 88 A100/H200 samples with
+  report-visible graph topology, node attrs, scalar/tensor descriptor args,
+  tensor throughput rows, command examples, and source-paper metadata.
 - [Current capture](evaluation-current.md) records the `1c683c1c` lifecycle
   matrix that adds graph tensor-core descriptors to the paired repeat-run
   prepared-callable validation path.
@@ -149,6 +153,9 @@ committed:
 - `tmp/cuda-backend/graph-depends-benchmark-working/a100-current-01ddf564/`
 - `tmp/cuda-backend/graph-depends-benchmark-working/h200-current-01ddf564/`
 - `tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/a100-current-7191db4e/`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/h200-current-7191db4e/`
+- `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/`
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/a100-current-a9d028de/`
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/h200-current-a9d028de/`
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/`
