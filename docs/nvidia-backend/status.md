@@ -585,11 +585,11 @@ Evidence:
   scheduler errors, expected runtime/mode, dispatch IDs, repeat-run lifecycle
   counts, tensor-tile descriptor shape, and generated smoke report files.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_artifact_index.py` indexes
-  local `tmp/cuda-backend/` benchmark, tensor-shape sweep, and smoke
-  artifacts, including tensor-tile shapes, persistent smoke modes, dispatch
-  sequences, scheduler error counters, repeat-run counts, and per-launch
-  completion counts, graph task-argument keys, and graph task-argument
-  metadata.
+  local `tmp/cuda-backend/` benchmark, tensor-shape sweep, lifecycle matrix,
+  and smoke artifacts, including tensor-tile shapes, persistent smoke modes,
+  lifecycle scenarios, dispatch sequences, scheduler error counters,
+  repeat-run counts, per-launch completion counts, graph task-argument keys,
+  and graph task-argument metadata.
 - `.agents/skills/cuda-backend-eval/SKILL.md` documents the current paired
   A100/H200 recipe.
 

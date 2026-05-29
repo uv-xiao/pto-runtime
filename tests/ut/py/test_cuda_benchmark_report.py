@@ -1167,6 +1167,95 @@ def test_cuda_artifact_index_records_persistent_smoke_lifecycle_reuse(tmp_path):
     assert "| dag/graph_descriptor | 9,2,1 | count=0,code=0,task=0 | 2 | 3,3 |" in report
 
 
+def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
+    cuda_artifact_index = _load_artifact_index_module()
+    artifact_dir = tmp_path / "persistent-lifecycle-matrix-abc123"
+    artifact_dir.mkdir()
+    payload = {
+        "label": "persistent-lifecycle-matrix-abc123",
+        "rows": [
+            {
+                "artifact": "a100",
+                "scenario": "direct",
+                "runtime": "persistent_device",
+                "mode": "direct",
+                "n": 1024,
+                "repeat_runs": 2,
+                "launch_completed_counts": [2, 2],
+                "resource_policy": {
+                    "scheduler_blocks": 0,
+                    "worker_blocks": 4,
+                    "worker_blocks_per_task": 2,
+                    "stream_id": 1,
+                    "block_dim": 256,
+                    "grid_dim": 4,
+                },
+            },
+            {
+                "artifact": "h200",
+                "scenario": "graph-scratch-reuse",
+                "runtime": "persistent_device",
+                "mode": "dag",
+                "dag_shape": "graph_descriptor_scratch_reuse",
+                "n": 1024,
+                "repeat_runs": 2,
+                "launch_completed_counts": [6, 6],
+                "dispatch_func_ids": [1, 2, 1, 2, 1, 1],
+                "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+                "resource_policy": {
+                    "scheduler_blocks": 1,
+                    "worker_blocks": 2,
+                    "worker_blocks_per_task": 1,
+                    "stream_id": 1,
+                    "block_dim": 256,
+                    "grid_dim": 3,
+                },
+            },
+        ],
+    }
+    (artifact_dir / "cuda-lifecycle-matrix.json").write_text(json.dumps(payload) + "\n")
+    (artifact_dir / "cuda-lifecycle-matrix.md").write_text("# lifecycle\n")
+    (artifact_dir / "cuda-lifecycle-matrix.svg").write_text("<svg></svg>\n")
+
+    entries = cuda_artifact_index.scan_artifacts(tmp_path)
+    report = cuda_artifact_index.render_markdown(entries)
+
+    assert entries == [
+        {
+            "path": "persistent-lifecycle-matrix-abc123",
+            "kind": "lifecycle_matrix",
+            "label": "persistent-lifecycle-matrix-abc123",
+            "machine": "combined",
+            "git_commit": "unknown",
+            "result_count": 2,
+            "baselines": ["direct", "graph-scratch-reuse"],
+            "sizes": [1024],
+            "tensor_tiles": [],
+            "smoke_modes": ["dag/graph_descriptor_scratch_reuse", "direct"],
+            "dispatches": ["1,2,1,2,1,1"],
+            "scheduler_errors": ["count=0,code=0,task=0"],
+            "repeat_runs": [2],
+            "launch_completed_counts": ["2,2", "6,6"],
+            "resource_policies": [
+                "sched=0,workers=4,wp=2,stream=1,block=256,grid=4",
+                "sched=1,workers=2,wp=1,stream=1,block=256,grid=3",
+            ],
+            "source_papers": [],
+            "has_command_examples": False,
+            "has_markdown": True,
+            "has_svg": True,
+            "has_throughput_svg": False,
+            "has_ratio_svg": False,
+            "has_dag_delta_svg": False,
+        }
+    ]
+    assert (
+        "| persistent-lifecycle-matrix-abc123 | lifecycle_matrix | persistent-lifecycle-matrix-abc123 | "
+        "combined | unknown | 2 | 1024 |  | dag/graph_descriptor_scratch_reuse, direct | "
+        "1,2,1,2,1,1 | count=0,code=0,task=0 | 2 | 2,2, 6,6 |"
+    ) in report
+
+
 def test_cuda_artifact_index_sorts_numeric_sizes_before_strings(tmp_path):
     cuda_artifact_index = _load_artifact_index_module()
     artifact_dir = tmp_path / "mixed-sizes"

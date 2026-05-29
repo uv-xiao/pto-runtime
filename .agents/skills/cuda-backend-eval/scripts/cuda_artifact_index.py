@@ -225,6 +225,52 @@ def _read_tensor_sweep_artifact(path: Path, root: Path) -> dict[str, Any]:
     }
 
 
+def _read_lifecycle_matrix_artifact(path: Path, root: Path) -> dict[str, Any]:
+    payload = json.loads((path / "cuda-lifecycle-matrix.json").read_text())
+    rows = payload.get("rows", [])
+    artifacts = _sorted_unique({row.get("artifact", "unknown") for row in rows})
+    if len(artifacts) > 1:
+        machine = "combined"
+    elif artifacts:
+        machine = str(artifacts[0])
+    else:
+        machine = "unknown"
+    return {
+        "path": str(path.relative_to(root)),
+        "kind": "lifecycle_matrix",
+        "label": str(payload.get("label", path.name)),
+        "machine": machine,
+        "git_commit": str(payload.get("git_commit", "unknown")),
+        "result_count": len(rows),
+        "baselines": _sorted_unique({row.get("scenario", "unknown") for row in rows}),
+        "sizes": _sorted_unique({row.get("n", "unknown") for row in rows}),
+        "tensor_tiles": _tensor_tile_shapes(rows),
+        "smoke_modes": _sorted_unique({mode for row in rows for mode in (_smoke_mode(row),) if mode is not None}),
+        "dispatches": _sorted_unique(
+            {dispatch for row in rows for dispatch in (_dispatch_func_ids(row),) if dispatch is not None}
+        ),
+        "scheduler_errors": _sorted_unique(
+            {errors for row in rows for errors in (_scheduler_errors(row),) if errors is not None}
+        ),
+        "repeat_runs": _sorted_unique(
+            {repeat for row in rows for repeat in (_repeat_runs(row),) if repeat is not None}
+        ),
+        "launch_completed_counts": _sorted_unique(
+            {counts for row in rows for counts in (_launch_completed_counts(row),) if counts is not None}
+        ),
+        "resource_policies": _sorted_unique(
+            {policy for row in rows for policy in (_resource_policy(row),) if policy is not None}
+        ),
+        "source_papers": _source_paper_ids(payload.get("metadata", {})),
+        "has_command_examples": _has_command_examples(payload.get("metadata", {})),
+        "has_markdown": (path / "cuda-lifecycle-matrix.md").exists(),
+        "has_svg": (path / "cuda-lifecycle-matrix.svg").exists(),
+        "has_throughput_svg": False,
+        "has_ratio_svg": False,
+        "has_dag_delta_svg": False,
+    }
+
+
 def _smoke_label(report: str, fallback: str) -> str:
     match = _SMOKE_LABEL_RE.search(report)
     if match:
@@ -296,13 +342,18 @@ def scan_artifacts(root: Path) -> list[dict[str, Any]]:
         return []
     benchmark_dirs = {path.parent for path in root.rglob("cuda-benchmark.json") if path.is_file()}
     tensor_sweep_dirs = {path.parent for path in root.rglob("cuda-tensor-shape-sweep.json") if path.is_file()}
+    lifecycle_matrix_dirs = {path.parent for path in root.rglob("cuda-lifecycle-matrix.json") if path.is_file()}
     smoke_dirs = {
         path.parent
         for path in root.rglob("cuda-smoke-report.md")
-        if path.is_file() and path.parent not in benchmark_dirs and path.parent not in tensor_sweep_dirs
+        if path.is_file()
+        and path.parent not in benchmark_dirs
+        and path.parent not in tensor_sweep_dirs
+        and path.parent not in lifecycle_matrix_dirs
     }
     entries = [_read_artifact(path, root) for path in benchmark_dirs]
     entries.extend(_read_tensor_sweep_artifact(path, root) for path in tensor_sweep_dirs)
+    entries.extend(_read_lifecycle_matrix_artifact(path, root) for path in lifecycle_matrix_dirs)
     entries.extend(_read_smoke_artifact(path, root) for path in smoke_dirs)
     return sorted(entries, key=lambda entry: entry["path"])
 
