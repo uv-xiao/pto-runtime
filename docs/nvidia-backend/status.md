@@ -338,18 +338,28 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - same-work batch rows;
 - worker-grid batch rows.
 
-The latest full paired capture at commit `61cf96cd` uses the `8x4x12` tensor
-descriptor, sizes `1024,65536,1048576`, three repeats, task counts `2,6,12`,
-and worker-grid values `32,64,128,256`. It includes the compiler-backed
-host-schedule row, unary square host-schedule row, quad host-schedule row, and
-`pto_persistent_dag_scalar_axpy`, `pto_persistent_dag_scalar_affine`, and
-`pto_persistent_dag_triad` on both A100 and H200. It also includes
-`pto_persistent_dag_quad`, validating fourth tensor task descriptor fields,
-`pto_persistent_dag_generic_args`, validating indexed generic tensor/scalar
-argument slots, and `pto_persistent_dag_unary_square`, validating unary
-persistent DAG arguments in the full paired benchmark path. It also includes
-`pto_persistent_dag_graph`, validating the explicit runtime graph descriptor
-path in the full paired benchmark path.
+The latest full paired capture at commit `cb300e82` uses the `16x16x16`
+tensor descriptor, sizes `1024,65536,1048576`, three repeats, task counts
+`2,6,12`, and worker-grid values `32,64,128,256`. It writes artifacts under
+`tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/`
+and validates `1206` combined samples. The paired-runner validator checked
+source-paper provenance, sanitized command examples, generated Markdown/SVG
+reports, zero scheduler errors, selected tensor throughput reports, graph
+topology reports, graph TaskArgs-like metadata reports, expected generated
+dispatch sequences, tensor tile descriptors, graph fan-in/dependent arrays,
+node attrs/ops metadata, task-argument spellings, and scratch-reuse metadata.
+This supersedes the older `61cf96cd` full capture while keeping the same
+three-size/three-repeat comparison role.
+
+Selected current-head full-capture medians show that the compiler-backed
+host-schedule row remains within `0.60x-1.15x` of the handwritten
+host-schedule row across A100/H200 and vector sizes. The graph task-argument
+spelling rows also validate tag, role-keyed, compact, and pair-shaped
+spellings through the same in-place graph topology: dispatch `1,1,1`,
+fan-in `0,1,1`, dependents `1,2`, and the same report-visible task args.
+At `N=1024`, A100 reported tag/role/compact/pair medians of
+`29696/30720/29696/29696 ns`; H200 reported
+`28704/28192/28704/28192 ns`.
 
 A compact paired benchmark at commit `945016c3` adds
 `pto_persistent_dag_graph_diamond` to the benchmark matrix and validates the

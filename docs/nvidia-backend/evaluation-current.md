@@ -1,8 +1,10 @@
 # CUDA Current Evaluation Capture
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
-from commit `61cf96cd`, plus compact current-head validation captures. The
-latest compact current-head gate is the capture under
+from commit `cb300e82`, plus compact current-head validation captures. The
+full current-head capture is under
+`tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/`.
+The latest compact current-head gate is the capture under
 `tmp/cuda-backend/pair-current-compact-working/combined-current-c5094aa5/`,
 which validates the selected compact benchmark matrix after pair-shaped graph
 task arguments joined the tag, role-keyed, and compact spellings. The raw
@@ -13,12 +15,12 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 
 - A100: `compute_80`
 - H200: `compute_90`
-- tensor descriptor: `8x4x12`
+- tensor descriptor: `16x16x16`
 - sizes: `1024,65536,1048576`
 - repeats: `3`
 - batch tasks: `2,6,12`
 - worker blocks per task: `32,64,128,256`
-- samples in combined JSON: `720`
+- samples in combined JSON: `1206`
 
 ## Artifact Paths
 
@@ -30,6 +32,16 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/current-head-full-pair-working/a100-current-cb300e82/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-pair-working/a100-current-cb300e82/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-pair-working/h200-current-cb300e82/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-pair-working/h200-current-cb300e82/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/cuda-benchmark.svg`
+- `tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/combined-current-f0f43b2a/cuda-benchmark.json`
 - `tmp/cuda-backend/combined-current-f0f43b2a/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-current-f0f43b2a/cuda-benchmark.svg`
@@ -296,6 +308,81 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-throughput.svg`
+
+## Latest Full Current-Head Capture
+
+The full paired capture at artifact label `cb300e82` refreshes the broad
+A100/H200 benchmark matrix on the current branch head. It uses `compute_80`
+on A100, `compute_90` on H200, the default `16x16x16` tensor descriptor,
+three vector sizes, three repeats, same-work task counts `2,6,12`, and worker
+grid values `32,64,128,256`.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/cuda-benchmark.json \
+    --require-size 1024,65536,1048576 --expected-repeats 3 \
+    --expected-result-count 1206 \
+    --require-report-files --require-report-graph-topology \
+    --require-report-graph-task-args --require-report-tensor-throughput \
+    --require-command-examples --require-zero-scheduler-errors \
+    --require-source-papers
+```
+
+The paired runner generated this validator with explicit required baselines,
+generated-dispatch IDs, tensor descriptors, graph fan-in/dependent arrays,
+TaskArgs-like graph metadata, graph node attrs/ops, scratch-reuse metadata,
+and tensor/core/cuBLAS report requirements. It accepted the combined JSON,
+Markdown, and SVG artifacts with `1206` samples.
+
+Launch baseline comparison from the same raw JSON:
+
+| GPU | N | PTO host ns | Compiler ns | Driver ns | Graph ns | Compiler/PTO | Graph/PTO |
+| --- | - | ----------- | ----------- | --------- | -------- | ------------ | --------- |
+| A100 | 1024 | 41984 | 40960 | 40959 | 26623 | 0.98x | 0.63x |
+| A100 | 65536 | 29120 | 33408 | 43903 | 31968 | 1.15x | 1.10x |
+| A100 | 1048576 | 27808 | 25984 | 26464 | 25504 | 0.93x | 0.92x |
+| H200 | 1024 | 31520 | 18816 | 20543 | 16928 | 0.60x | 0.54x |
+| H200 | 65536 | 15872 | 16416 | 23808 | 19263 | 1.03x | 1.21x |
+| H200 | 1048576 | 18016 | 18880 | 25056 | 18719 | 1.05x | 1.04x |
+
+Selected tensor throughput from the same raw JSON:
+
+| GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | Graph tensor-core ns | cuBLAS ns | cuBLAS graph ns |
+| --- | - | ----- | --------- | -------- | -------------- | -------------------- | --------- | --------------- |
+| A100 | 1024 | 16x16x16 | 36864 | 35840 | 38912 | 38912 | 21503 | 10239 |
+| A100 | 65536 | 16x16x16 | 457440 | 459520 | 570912 | 568864 | 17408 | 10239 |
+| A100 | 1048576 | 16x16x16 | 7211232 | 7251264 | 8792000 | 8978784 | 54271 | 46080 |
+| H200 | 1024 | 16x16x16 | 34592 | 33920 | 34752 | 35712 | 22080 | 9279 |
+| H200 | 65536 | 16x16x16 | 458688 | 464736 | 444960 | 452576 | 24895 | 10432 |
+| H200 | 1048576 | 16x16x16 | 6987968 | 7082720 | 6790976 | 6894208 | 27936 | 18688 |
+
+Graph task-argument spelling medians:
+
+| GPU | N | Tag ns | Role ns | Compact ns | Pair ns |
+| --- | - | ------ | ------- | ---------- | ------- |
+| A100 | 1024 | 29696 | 30720 | 29696 | 29696 |
+| A100 | 65536 | 221024 | 223008 | 219328 | 219136 |
+| A100 | 1048576 | 3223808 | 3237568 | 3221888 | 3210272 |
+| H200 | 1024 | 28704 | 28192 | 28704 | 28192 |
+| H200 | 65536 | 183264 | 185024 | 183456 | 184544 |
+| H200 | 1048576 | 2668576 | 2690112 | 2665984 | 2688544 |
+
+Interpretation:
+
+- The host-schedule compiler path stays within roughly `0.60x-1.15x` of the
+  hand-written host-schedule row, depending on GPU and vector size.
+- CUDA Graph replay is best for the tiny launch-dominated row, but is not a
+  replacement for the persistent-device scheduler path because the host still
+  launches the captured graph.
+- The tag, role-keyed, compact, and pair-shaped graph task-argument spellings
+  produce the same dispatch `1,1,1`, fan-in `0,1,1`, dependents `1,2`, and
+  TaskArgs-like metadata in the report, with comparable median device times.
+- Tensor/core rows remain validation and reporting evidence for the current
+  generated-dispatch path. cuBLAS and cuBLAS Graph are expectedly much faster
+  as library baselines for this descriptor.
 
 ## Latest Reordered Graph Benchmark Gate
 
