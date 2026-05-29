@@ -2074,9 +2074,9 @@ dependents `[2,2]`, repeat completions `[3,3]`, resource policy
 `input:tmp1,input:tmp2,output_existing:out`, and zero scheduler errors on
 both GPUs. A100 reported per-launch device times `[44032,24576]`; H200
 reported `[24768,18720]`. The regenerated Markdown/SVG smoke report and
-artifact index also show `Graph task args`, so this artifact visibly ties the
-paired hardware result back to the tagged tensor/scalar task-argument
-lowering form.
+artifact index also show graph fan-in/dependents and `Graph task args`, so
+this artifact visibly ties the paired hardware result back to the tagged
+tensor/scalar task-argument lowering form.
 
 The host-schedule generic-args adapter was checked with a failing test first,
 then local A100 and remote H200 real-data ctypes scene tests:

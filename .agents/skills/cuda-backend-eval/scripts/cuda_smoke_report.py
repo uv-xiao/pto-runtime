@@ -71,6 +71,24 @@ def _dispatch(row: dict[str, Any]) -> str:
     return ",".join(str(item) for item in ids)
 
 
+def _graph_descriptor_field(row: dict[str, Any], field: str) -> str:
+    descriptor = row.get("graph_descriptor")
+    if not isinstance(descriptor, dict):
+        return "-"
+    values = descriptor.get(field)
+    if not isinstance(values, list) or not values:
+        return "-"
+    return ",".join(str(item) for item in values)
+
+
+def _graph_descriptor_summary(row: dict[str, Any]) -> str:
+    fanin = _graph_descriptor_field(row, "fanin")
+    dependents = _graph_descriptor_field(row, "dependents")
+    if fanin == "-" and dependents == "-":
+        return "-"
+    return f"fanin={fanin},dependents={dependents}"
+
+
 def _scheduler_errors(row: dict[str, Any]) -> str:
     errors = row.get("device_scheduler_errors")
     if not isinstance(errors, dict):
@@ -170,16 +188,16 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
         (
             "| Artifact | Status | Runtime | Mode | N | PTX arch | Device ns | "
             "Host ns | Tensor shape | Tiles | Tensor core | Dispatch | "
-            "Scheduler errors | Repeat runs | Launch completions | Resource policy | "
-            "Scalar args | Tensor args | Scratch reuse | Graph task arg key | "
-            "Graph task args |"
+            "Graph fan-in | Graph dependents | Scheduler errors | Repeat runs | "
+            "Launch completions | Resource policy | Scalar args | Tensor args | "
+            "Scratch reuse | Graph task arg key | Graph task args |"
         ),
         (
             "| -------- | ------ | ------- | ---- | - | -------- | --------- | "
             "------- | ------------ | ----- | ----------- | -------- | "
-            "---------------- | ----------- | ------------------ | --------------- | "
-            "----------- | ----------- | ------------- | ------------------ | "
-            "--------------- |"
+            "------------ | ---------------- | ---------------- | ----------- | "
+            "------------------ | --------------- | ----------- | ----------- | "
+            "------------- | ------------------ | --------------- |"
         ),
     ]
     for row in payloads:
@@ -188,9 +206,11 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
             f"{row.get('runtime', 'unknown')} | {_mode(row)} | {row.get('n', '-')} | "
             f"`{row.get('ptx_arch', 'unknown')}` | {row.get('device_wall_ns', '-')} | "
             f"{row.get('host_wall_ns', '-')} | {_shape(row)} | {_tile_count(row)} | "
-            f"`{_tensor_core(row)}` | `{_dispatch(row)}` | `{_scheduler_errors(row)}` | "
-            f"`{_repeat_runs(row)}` | `{_launch_completed_counts(row)}` | "
-            f"`{_resource_policy(row)}` | "
+            f"`{_tensor_core(row)}` | `{_dispatch(row)}` | "
+            f"`{_graph_descriptor_field(row, 'fanin')}` | "
+            f"`{_graph_descriptor_field(row, 'dependents')}` | "
+            f"`{_scheduler_errors(row)}` | `{_repeat_runs(row)}` | "
+            f"`{_launch_completed_counts(row)}` | `{_resource_policy(row)}` | "
             f"`{_scalar_args(row)}` | `{_tensor_args(row)}` | "
             f"`{_scratch_reuse(row)}` | `{_graph_task_arg_key(row)}` | "
             f"`{_graph_task_args(row)}` |"
@@ -206,7 +226,7 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
 def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
     width = 760
     bar_height = 28
-    row_gap = 118
+    row_gap = 132
     left = 170
     right = 40
     top = 70
@@ -233,6 +253,7 @@ def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
         scalar_args = _scalar_args(row)
         tensor_args = _tensor_args(row)
         scratch_reuse = _scratch_reuse(row)
+        graph_descriptor = _graph_descriptor_summary(row)
         graph_task_arg_key = _graph_task_arg_key(row)
         graph_task_args = _graph_task_args(row)
         lines.extend(
@@ -276,10 +297,15 @@ def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
                 (
                     f'<text x="{left}" y="{y + bar_height + 98}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
-                    f"task arg key: {html.escape(graph_task_arg_key)}</text>"
+                    f"graph: {html.escape(graph_descriptor)}</text>"
                 ),
                 (
                     f'<text x="{left}" y="{y + bar_height + 112}" '
+                    'font-family="sans-serif" font-size="11" fill="#555">'
+                    f"task arg key: {html.escape(graph_task_arg_key)}</text>"
+                ),
+                (
+                    f'<text x="{left}" y="{y + bar_height + 126}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
                     f"task args: {html.escape(graph_task_args)}</text>"
                 ),

@@ -722,6 +722,11 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
         "repeat_runs": 2,
         "launch_completed_counts": [4, 4],
         "dispatch_func_ids": [3, 1, 2, 1],
+        "graph_descriptor": {
+            "tasks": 4,
+            "fanin": [0, 1, 1, 2],
+            "dependents": [1, 2, 3, 3],
+        },
         "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
         "resource_policy": {
             "scheduler_blocks": 1,
@@ -770,14 +775,15 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
     svg = cuda_smoke_report.render_svg_report(payload, label="tensor-smoke")
 
     assert (
-        "| Tensor core | Dispatch | Scheduler errors | Repeat runs | Launch completions | "
-        "Resource policy | Scalar args | Tensor args | Scratch reuse | Graph task arg key | "
-        "Graph task args |" in markdown
+        "| Tensor core | Dispatch | Graph fan-in | Graph dependents | Scheduler errors | "
+        "Repeat runs | Launch completions | Resource policy | Scalar args | Tensor args | "
+        "Scratch reuse | Graph task arg key | Graph task args |" in markdown
     )
     assert "| a100 | pass | persistent_device | dag/tensor_tile | 4096 | `compute_80` | 102400 | 122260 |" in markdown
     assert "| h200 | pass | persistent_device | dag/tensor_tile | 4096 | `compute_90` | 70464 | 79788 |" in markdown
     assert (
-        "| `wmma:m16n16k8:tf32->f32` | `3,1,2,1` | `count=0,code=0,task=0` | `2` | `4,4` | "
+        "| `wmma:m16n16k8:tf32->f32` | `3,1,2,1` | `0,1,1,2` | `1,2,3,3` | "
+        "`count=0,code=0,task=0` | `2` | `4,4` | "
         "`sched=1,workers=2,wp=1,stream=1,block=256,grid=3` | "
         "`scalar0=1.5` | `c=tmp0` | "
         "`reused_buffer=tmp0,reuse_task=4` | "
@@ -785,7 +791,7 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
         "`task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2` |" in markdown
     )
     assert (
-        "| `3,1,2,1` | `count=1,code=7,task=3` | `2` | `4,4` | "
+        "| `3,1,2,1` | `0,1,1,2` | `1,2,3,3` | `count=1,code=7,task=3` | `2` | `4,4` | "
         "`sched=1,workers=2,wp=1,stream=1,block=256,grid=3` | "
         "`scalar0=1.5` | `c=tmp0` | `reused_buffer=tmp0,reuse_task=4` |" in markdown
     )
@@ -799,6 +805,7 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
     assert "scalars: scalar0=1.5" in svg
     assert "tensors: c=tmp0" in svg
     assert "scratch: reused_buffer=tmp0,reuse_task=4" in svg
+    assert "graph: fanin=0,1,1,2,dependents=1,2,3,3" in svg
     assert "task arg key: role" in svg
     assert "task args: task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2" in svg
 
