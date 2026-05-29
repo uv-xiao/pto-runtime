@@ -1259,6 +1259,7 @@ or incoming `depends_on` / `dependencies`; integer task IDs still work.
 Prefer named edges for new graph-descriptor tests because they are closer to
 normal named PTO task graphs and avoid renumbering errors when inserting
 tasks.
+Each edge field may be a single task name/id or a list of task names/ids.
 Graph tasks may alternatively pass role-keyed `task_args` entries with
 `input`, `output`, `output_existing`, or `inout` roles. The adapter prefers
 the `role` key and still accepts the older `tag` spelling for compatibility.

@@ -1890,10 +1890,11 @@ task IDs. The named form keeps descriptor tests stable when tasks are inserted
 or reordered and moves the CUDA graph adapter closer to normal named PTO task
 graphs.
 Outgoing `dependents` may now use the same task names, so both graph edge
-directions share one descriptor naming model. The real-data
-`graph_with_ctypes_data` scene now uses named outgoing dependents and passed on
-local A100 and remote H200; the H200 run printed the known PTO-ISA SSH refresh
-warning before pytest reported `1 passed, 103 deselected`.
+directions share one descriptor naming model. The edge fields may be a single
+task name/id or a list of task names/ids. The real-data
+`graph_with_ctypes_data` scene now uses scalar named outgoing dependents and
+passed on local A100 and remote H200; the H200 run printed the known PTO-ISA
+SSH refresh warning before pytest reported `1 passed, 104 deselected`.
 The incoming-edge path is now covered by both a real-data L2 ctypes scene and
 paired persistent-device smoke. The working-tree smoke capture under
 `tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`
@@ -3614,8 +3615,8 @@ Needed:
   `persistent_dag_graph_f32` descriptor adapter, which already covers
   automatic default temporary allocation, logical-output/storage-output
   separation for scratch reuse, order-independent tensor-flow dependency
-  inference, explicit outgoing and incoming graph edges with named task
-  dependencies, and paired smoke,
+  inference, explicit outgoing and incoming graph edges with scalar or
+  list-valued named task dependencies, and paired smoke,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, named graph-callable resolution, explicit unary square graph
   dispatch, tagged graph-descriptor paired smoke, and five-task chain,

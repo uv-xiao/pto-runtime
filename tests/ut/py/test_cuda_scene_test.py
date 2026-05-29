@@ -1091,7 +1091,7 @@ def _cuda_persistent_graph_generic_args_spec(
                 "a": "a",
                 "b": "b",
                 "out": "tmp0",
-                "dependents": ["join"],
+                "dependents": "join",
                 "tensor_args": ["c", "d"],
                 "scalar_args": [1.5, 0.25],
             },
@@ -1101,7 +1101,7 @@ def _cuda_persistent_graph_generic_args_spec(
                 "a": "a",
                 "b": "b",
                 "out": "tmp1",
-                "dependents": ["join"],
+                "dependents": "join",
             },
             {
                 "name": "join",
@@ -2342,6 +2342,35 @@ def test_scene_test_builds_cuda_persistent_graph_from_named_dependents():
             "tasks": [
                 {"name": "left", "func_id": 1, "a": "a", "b": "b", "out": "tmp0", "dependents": ["join"]},
                 {"name": "right", "func_id": 2, "a": "a", "b": "b", "out": "tmp1", "dependents": ["join"]},
+                {"name": "join", "func_id": 1, "a": "tmp0", "b": "tmp1", "out": "out", "initial_fanin": 2},
+            ]
+        },
+    }
+    buffers = _CudaPersistentDagSceneBuffers(_FakeWorker(), test_args, cuda_spec)
+
+    assert list(buffers.host_fanin) == [0, 0, 2]
+    assert list(buffers.host_dependents) == [2, 2]
+    assert [(task.func_id, task.dependent_begin, task.dependent_count) for task in buffers.host_tasks] == [
+        (1, 0, 1),
+        (2, 1, 1),
+        (1, 2, 0),
+    ]
+
+
+def test_scene_test_builds_cuda_persistent_graph_from_scalar_dependents():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(17)),
+        Tensor("b", _FakeTensor(17)),
+        Tensor("out", _FakeTensor(17)),
+    )
+    cuda_spec = {
+        "arg_builder": "persistent_dag_graph_f32",
+        "args": ["a", "b", "out"],
+        "queue_capacity": 2,
+        "graph": {
+            "tasks": [
+                {"name": "left", "func_id": 1, "a": "a", "b": "b", "out": "tmp0", "dependents": "join"},
+                {"name": "right", "func_id": 2, "a": "a", "b": "b", "out": "tmp1", "dependents": 2},
                 {"name": "join", "func_id": 1, "a": "tmp0", "b": "tmp1", "out": "out", "initial_fanin": 2},
             ]
         },

@@ -1380,9 +1380,12 @@ class _CudaPersistentDagSceneBuffers:
                     "CUDA persistent_dag_graph_f32 graph tasks cannot mix dependents with depends_on/dependencies"
                 )
             if "dependents" in task_spec:
+                task_dependents = task_spec["dependents"]
+                if isinstance(task_dependents, (int, str)):
+                    task_dependents = [task_dependents]
                 dependents[task_id].extend(
                     _CudaPersistentDagSceneBuffers._graph_dependent_task_id(dependent, task_name_to_id)
-                    for dependent in task_spec["dependents"]
+                    for dependent in task_dependents
                 )
 
         for task_id, task_spec in enumerate(task_specs):

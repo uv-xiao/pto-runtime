@@ -351,6 +351,7 @@ normal `submit_next_level(callable, TaskArgs, ...)` shape.
 Graph tasks may also carry `name` and use those names in outgoing
 `dependents` or incoming `depends_on` / `dependencies`. This preserves both
 edge-list styles while avoiding fragile numeric task IDs in descriptor specs.
+Each edge field may be a single task name/id or a list of task names/ids.
 Integer task IDs remain accepted, and tensor-flow inference remains the
 fallback when neither outgoing `dependents` nor incoming dependencies are
 provided.
