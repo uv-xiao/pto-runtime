@@ -784,6 +784,18 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
                         pto_dag_record_error(state, 2U, dependent_id);
                         continue;
                     }}
+                    bool duplicate_dependent = false;
+                    for (unsigned int prev = 0; prev < idx; ++prev) {{
+                        unsigned int previous_id = state->dependents[task.dependent_begin + prev];
+                        if (previous_id == dependent_id) {{
+                            duplicate_dependent = true;
+                            break;
+                        }}
+                    }}
+                    if (duplicate_dependent) {{
+                        pto_dag_record_error(state, 8U, dependent_id);
+                        continue;
+                    }}
                     unsigned int old = pto_dag_try_decrement_fanin(state, dependent_id);
                     if (old == 0U) {{
                         pto_dag_record_error(state, 4U, dependent_id);

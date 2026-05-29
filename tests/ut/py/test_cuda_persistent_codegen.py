@@ -361,6 +361,8 @@ def test_render_persistent_dag_source_records_device_scheduler_errors():
     assert "__device__ unsigned int pto_dag_first_unready_task" in source
     assert "published == completed" in source
     assert "pto_dag_record_error(state, 7U, pto_dag_first_unready_task(state));" in source
+    assert "for (unsigned int prev = 0; prev < idx; ++prev)" in source
+    assert "pto_dag_record_error(state, 8U, dependent_id);" in source
     assert "atomicAdd(state->error_count, 0U) != 0U" in source
 
 

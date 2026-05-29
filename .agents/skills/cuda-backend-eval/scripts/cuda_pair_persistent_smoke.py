@@ -477,6 +477,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         choices=(
             "bad_dependent",
             "bad_dependent_range",
+            "bad_duplicate_dependent",
             "bad_fanin_underflow",
             "bad_func_id",
             "bad_initial_fanin",

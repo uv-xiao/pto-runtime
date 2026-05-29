@@ -873,6 +873,21 @@ PYTHONPATH=$PWD:$PWD/python \
 Result: expected non-zero exit with `persistent dag scheduler error code=4
 task_id=2 count=1`.
 
+The synthetic duplicate-dependent shape was run locally to verify that a
+runtime graph descriptor cannot list the same dependent task twice for one
+completed task. Without this check, one producer could decrement the same
+dependent fan-in twice and make it ready without two distinct predecessors:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
+    --device 0 --task-count 2 --n 1024 --arch compute_80 \
+    --mode dag --queue-capacity 2 --dag-shape bad_duplicate_dependent
+```
+
+Result: expected non-zero exit with `persistent dag scheduler error code=8
+task_id=1 count=1`.
+
 The synthetic initial-fan-in mismatch shape was run locally to verify that a
 runtime graph descriptor cannot start from fan-in counters that disagree with
 task metadata:
@@ -946,6 +961,10 @@ The H200 invalid-dependent-range check returned the expected diagnostic:
 The H200 fan-in-underflow check returned the expected diagnostic:
 `persistent dag scheduler error code=4 task_id=2 count=1`.
 
+After syncing this working tree to H200, the duplicate-dependent check returned
+the expected diagnostic:
+`persistent dag scheduler error code=8 task_id=1 count=1`.
+
 The H200 initial-fan-in mismatch check returned the expected diagnostic:
 `persistent dag scheduler error code=5 task_id=0 count=1`.
 
@@ -1003,8 +1022,8 @@ Local A100 returned `launch_completed_counts=[4,4]` and
 `launch_completed_counts=[4,4]` and `launch_device_wall_ns=[25280,14272]`.
 
 After adding invalid-dependent, dependent-range, fan-in-underflow,
-initial-fan-in, no-root, and unreachable-task scheduler diagnostics, the CUDA
-backend/codegen tests were rerun locally:
+duplicate-dependent, initial-fan-in, no-root, and unreachable-task scheduler
+diagnostics, the CUDA backend/codegen tests were rerun locally:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
@@ -1013,7 +1032,7 @@ PYTHONPATH=$PWD:$PWD/python \
   tests/ut/py/test_cuda_persistent_codegen.py -q --platform cuda
 ```
 
-Result: `55 passed`. The full local CUDA scene-test file was also rerun with
+Result: `65 passed`. The full local CUDA scene-test file was also rerun with
 `--platform cuda` and reported `42 passed`.
 
 After adding the third-tensor persistent DAG scene-test arg builder, the new
@@ -2978,8 +2997,9 @@ Needed:
   errors on A100 and H200, so the remaining gap is policy breadth rather than
   artifact validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
-  invalid-dependent-ID, dependent-range, fan-in-underflow, initial-fan-in, and
-  no-root/unreachable-task diagnostics.
+  invalid-dependent-ID, dependent-range, fan-in-underflow,
+  duplicate-dependent, initial-fan-in, and no-root/unreachable-task
+  diagnostics.
 
 ### Tuned Tensor Workloads
 
