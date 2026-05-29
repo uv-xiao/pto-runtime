@@ -1314,7 +1314,17 @@ class _CudaPersistentDagSceneBuffers:
                     raise ValueError("CUDA persistent_dag_graph_f32 graph task dictionary values must be dictionaries")
                 task_specs.append({"name": task_name, **task_spec})
             return task_specs
-        return list(tasks)
+        return [_CudaPersistentDagSceneBuffers._normalize_graph_task_identity(task_spec) for task_spec in tasks]
+
+    @staticmethod
+    def _normalize_graph_task_identity(task_spec: dict[str, Any]) -> dict[str, Any]:
+        name = task_spec.get("name")
+        node_id = task_spec.get("id")
+        if name is not None and node_id is not None and str(name) != str(node_id):
+            raise ValueError("CUDA persistent_dag_graph_f32 graph task cannot use conflicting name and id values")
+        if name is not None or node_id is None:
+            return task_spec
+        return {"name": node_id, **task_spec}
 
     @staticmethod
     def _resolve_graph_task_callable(graph: dict[str, Any], task_spec: dict[str, Any]) -> dict[str, Any]:

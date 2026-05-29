@@ -374,7 +374,9 @@ a single target or a list of targets.
 name. In the dictionary form, the key becomes the task `name` used by
 `graph.edges`, `dependents`, and `depends_on` / `dependencies`. `graph.nodes`
 is accepted as an alias for `graph.tasks` when the descriptor should use
-graph-node terminology; descriptors must not provide both fields.
+graph-node terminology; descriptors must not provide both fields. List-shaped
+nodes may use `id` as a `name` alias when the source graph schema calls node
+identity `id`.
 Graph nodes may also spell task arguments as top-level `inputs`, `outputs`,
 `output_existing`, `inouts`, and `scalars` fields. The adapter expands these
 node IO fields into the same role-keyed `task_args` lowering path before

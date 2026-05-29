@@ -1346,6 +1346,8 @@ as `{"from": "producer", "to": "consumer"}`, two-item endpoint pairs, or
 name; in the dictionary form, the key becomes the task name used by edge
 metadata. `graph.nodes` is accepted as an alias for `graph.tasks` when the
 descriptor should use graph-node terminology; do not provide both fields.
+List-shaped graph nodes may use `id` as a `name` alias when the source graph
+schema calls node identity `id`.
 Graph nodes may use top-level `inputs`, `outputs`, `output_existing`,
 `inouts`, and `scalars` fields when the descriptor should look like node IO
 metadata instead of a task-arg list. The adapter expands those fields into the

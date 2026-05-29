@@ -1986,6 +1986,12 @@ terminology without changing the runtime task array. The ctypes-backed
 deselected`; the full local A100 CUDA scene-test file passed with
 `115 passed`; and the H200 selector passed with `1 passed, 114 deselected`
 while still emitting the known PTO-ISA SSH refresh warning.
+List-shaped graph nodes may now spell node identity as `id`, which normalizes
+to the existing `name` field used by edge lookup. The focused selector first
+failed with `unknown dependency task name: left`, then passed locally on A100
+with `2 passed, 129 deselected` and remotely on H200 with `2 passed, 129
+deselected`; the H200 run printed the known PTO-ISA SSH refresh warning
+first.
 Graph nodes now also accept node-style IO fields: `inputs`, `outputs`,
 `output_existing`, `inouts`, and `scalars`. These fields expand into the
 existing role-keyed `task_args` lowering path, so graph-node descriptors can
@@ -4111,8 +4117,9 @@ Needed:
   inference, explicit outgoing and incoming graph edges with scalar or
   list-valued named task dependencies, top-level graph edge lists including
   string `source -> target` entries, adjacency dictionaries, `graph.nodes`
-  aliases, node-style IO fields, node `op` callable aliases, callable
-  metadata `callable_id` / `cid` aliases, and paired smoke,
+  aliases, node `id` identity aliases, node-style IO fields, node `op`
+  callable aliases, callable metadata `callable_id` / `cid` aliases, and
+  paired smoke,
   dictionary-keyed graph task descriptors,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, named graph-callable resolution, explicit unary square graph
