@@ -25,6 +25,23 @@ from typing import Any
 import cuda_pair_persistent_smoke as paired_smoke
 
 Runner = Callable[..., subprocess.CompletedProcess]
+SOURCE_PAPERS = (
+    {
+        "id": "arXiv:2605.03190",
+        "label": "VDCores",
+        "path": "tmp/sources/arxiv-2605.03190-vdcores.txt",
+    },
+    {
+        "id": "arXiv:2512.22219v1",
+        "label": "MPK persistent kernel",
+        "path": "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt",
+    },
+)
+PAPER_SETUP = (
+    "Paired A100/H200 persistent-device lifecycle matrix inspired by "
+    "VDCores/MPK persistent-kernel evaluation; validates prepared-callable "
+    "reuse and scheduler/resource policy, not end-to-end LLM serving."
+)
 
 
 @dataclass(frozen=True)
@@ -95,6 +112,7 @@ class LifecycleMatrixConfig:
     remote_git_fetch_timeout: int = 60
     refresh_remote: bool = True
     sync_remote_tree: bool = False
+    collect_existing_suffix: str | None = None
 
 
 def _scenario_names(raw: Sequence[str] | None) -> tuple[str, ...]:
@@ -157,6 +175,66 @@ def _matrix_suffix(config: LifecycleMatrixConfig, runner: Runner) -> str:
         )
         remote_commit = paired_smoke._remote_git_commit(probe_config, runner)
     return local_commit if local_commit == remote_commit else f"{local_commit}-{remote_commit}"
+
+
+def _display_command(command: Sequence[str]) -> str:
+    return shlex.join(command).replace(str(Path.cwd()), "$PWD")
+
+
+def build_command_examples(config: LifecycleMatrixConfig, suffix: str) -> dict[str, str]:
+    first_scenario = SCENARIOS[config.scenario_names[0]]
+    remote_config = _scenario_config(
+        config,
+        first_scenario,
+        sync_remote_tree=False,
+        refresh_remote=config.refresh_remote and not config.sync_remote_tree,
+    )
+    local_command = [
+        "env",
+        "PYTHONPATH=$PWD:$PWD/python",
+        config.local_python,
+        ".agents/skills/cuda-backend-eval/scripts/cuda_persistent_lifecycle_matrix.py",
+        "--n",
+        str(config.n),
+        "--repeat-runs",
+        str(config.repeat_runs),
+        "--stream-id",
+        str(config.stream_id),
+        "--output-root",
+        str(config.output_root),
+    ]
+    for scenario_name in config.scenario_names:
+        local_command.extend(["--scenario", scenario_name])
+    if config.sync_remote_tree:
+        local_command.append("--sync-remote-tree")
+    if not config.refresh_remote and not config.sync_remote_tree:
+        local_command.append("--skip-remote-refresh")
+
+    examples = {
+        "local_sample": _display_command(local_command),
+        "remote_sample": _display_command(paired_smoke.build_remote_smoke_command(remote_config, suffix)),
+    }
+    if config.sync_remote_tree:
+        sync_config = paired_smoke.PairedPersistentSmokeConfig(
+            remote=config.remote,
+            remote_workdir=config.remote_workdir,
+        )
+        examples["sync_remote_tree"] = _display_command(paired_smoke.build_remote_sync_command(sync_config))
+    return examples
+
+
+def build_metadata(config: LifecycleMatrixConfig, label: str, suffix: str) -> dict[str, Any]:
+    return {
+        "label": label,
+        "git_commit": suffix,
+        "n": config.n,
+        "repeat_runs": config.repeat_runs,
+        "stream_id": config.stream_id,
+        "scenarios": list(config.scenario_names),
+        "paper_setup": PAPER_SETUP,
+        "source_papers": list(SOURCE_PAPERS),
+        "command_examples": build_command_examples(config, suffix),
+    }
 
 
 def _load_json(path: Path, scenario: LifecycleScenario, artifact: str) -> dict[str, Any]:
@@ -228,23 +306,65 @@ def _policy(row: dict[str, Any]) -> str:
     )
 
 
-def render_lifecycle_markdown(rows: list[dict[str, Any]], label: str) -> str:
+def _source_paper_summary(metadata: dict[str, Any]) -> str:
+    papers = metadata.get("source_papers") or SOURCE_PAPERS
+    parts = []
+    for paper in papers:
+        if not isinstance(paper, dict):
+            continue
+        paper_id = paper.get("id")
+        label = paper.get("label")
+        if paper_id and label:
+            parts.append(f"`{paper_id}` {label}")
+        elif paper_id:
+            parts.append(f"`{paper_id}`")
+    return "; ".join(parts)
+
+
+def _command_example_lines(metadata: dict[str, Any]) -> list[str]:
+    examples = metadata.get("command_examples")
+    if not isinstance(examples, dict):
+        return []
+    labels = {
+        "local_sample": "Local sample command",
+        "remote_sample": "Remote sample command",
+        "sync_remote_tree": "Remote tree sync command",
+    }
+    return [f"- {label}: `{examples[key]}`" for key, label in labels.items() if isinstance(examples.get(key), str)]
+
+
+def render_lifecycle_markdown(
+    rows: list[dict[str, Any]],
+    label: str,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    metadata = metadata or {}
     lines = [
         "# CUDA Persistent Lifecycle Matrix",
         "",
         f"- Label: `{label}`",
-        "",
-        (
-            "| Scenario | Artifact | Status | Runtime | Mode | N | Device ns | "
-            "Host ns | Repeat runs | Completions | Dispatch | Scheduler errors | "
-            "Resource policy |"
-        ),
-        (
-            "| -------- | -------- | ------ | ------- | ---- | - | --------- | "
-            "------- | ----------- | ----------- | -------- | ---------------- | "
-            "--------------- |"
-        ),
     ]
+    source_papers = _source_paper_summary(metadata)
+    if source_papers:
+        lines.append(f"- Source papers: {source_papers}")
+    if metadata.get("paper_setup"):
+        lines.append(f"- Paper alignment: {metadata['paper_setup']}")
+    lines.extend(_command_example_lines(metadata))
+    lines.extend(
+        [
+            "",
+            (
+                "| Scenario | Artifact | Status | Runtime | Mode | N | Device ns | "
+                "Host ns | Repeat runs | Completions | Dispatch | Scheduler errors | "
+                "Resource policy |"
+            ),
+            (
+                "| -------- | -------- | ------ | ------- | ---- | - | --------- | "
+                "------- | ----------- | ----------- | -------- | ---------------- | "
+                "--------------- |"
+            ),
+        ]
+    )
     for row in rows:
         lines.append(
             f"| {row.get('scenario', '-')} | {row.get('artifact', '-')} | "
@@ -304,13 +424,17 @@ def write_lifecycle_report(
     rows: list[dict[str, Any]],
     output_dir: Path,
     label: str,
+    metadata: dict[str, Any] | None = None,
 ) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     markdown_path = output_dir / "cuda-lifecycle-matrix.md"
     svg_path = output_dir / "cuda-lifecycle-matrix.svg"
     json_path = output_dir / "cuda-lifecycle-matrix.json"
-    json_path.write_text(json.dumps({"label": label, "rows": rows}, indent=2) + "\n")
-    markdown_path.write_text(render_lifecycle_markdown(rows, label))
+    payload: dict[str, Any] = {"label": label, "rows": rows}
+    if metadata:
+        payload["metadata"] = dict(metadata)
+    json_path.write_text(json.dumps(payload, indent=2) + "\n")
+    markdown_path.write_text(render_lifecycle_markdown(rows, label, metadata))
     svg_path.write_text(render_lifecycle_svg(rows, label))
     return markdown_path, svg_path
 
@@ -323,6 +447,8 @@ def build_validate_command(config: LifecycleMatrixConfig, suffix: str) -> list[s
         str(output_dir / "cuda-lifecycle-matrix.json"),
         "--preset",
         "default",
+        "--require-source-papers",
+        "--require-command-examples",
     ]
 
 
@@ -332,19 +458,20 @@ def run_lifecycle_matrix(
     runner: Runner = subprocess.run,
     dry_run: bool = False,
 ) -> list[list[str]]:
-    suffix = _matrix_suffix(config, runner)
+    suffix = config.collect_existing_suffix or _matrix_suffix(config, runner)
     commands: list[list[str]] = []
-    for index, scenario_name in enumerate(config.scenario_names):
-        scenario = SCENARIOS[scenario_name]
-        sync_remote_tree = config.sync_remote_tree and index == 0
-        refresh_remote = config.refresh_remote and not config.sync_remote_tree
-        paired_config = _scenario_config(
-            config,
-            scenario,
-            sync_remote_tree=sync_remote_tree,
-            refresh_remote=refresh_remote,
-        )
-        commands.extend(paired_smoke.run_paired_persistent_smoke(paired_config, runner=runner, dry_run=dry_run))
+    if config.collect_existing_suffix is None:
+        for index, scenario_name in enumerate(config.scenario_names):
+            scenario = SCENARIOS[scenario_name]
+            sync_remote_tree = config.sync_remote_tree and index == 0
+            refresh_remote = config.refresh_remote and not config.sync_remote_tree
+            paired_config = _scenario_config(
+                config,
+                scenario,
+                sync_remote_tree=sync_remote_tree,
+                refresh_remote=refresh_remote,
+            )
+            commands.extend(paired_smoke.run_paired_persistent_smoke(paired_config, runner=runner, dry_run=dry_run))
     output_dir = config.output_root / f"persistent-lifecycle-matrix-{suffix}"
     validate_command = build_validate_command(config, suffix)
     index_command = paired_smoke.build_index_command(
@@ -355,7 +482,9 @@ def run_lifecycle_matrix(
     )
     if not dry_run:
         rows = collect_lifecycle_rows(config, suffix)
-        markdown_path, svg_path = write_lifecycle_report(rows, output_dir, f"persistent-lifecycle-matrix-{suffix}")
+        label = f"persistent-lifecycle-matrix-{suffix}"
+        metadata = build_metadata(config, label, suffix)
+        markdown_path, svg_path = write_lifecycle_report(rows, output_dir, label, metadata=metadata)
         print(markdown_path)
         print(svg_path)
     for command in (validate_command, index_command):
@@ -388,6 +517,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--remote-git-fetch-timeout", type=int, default=60)
     parser.add_argument("--skip-remote-refresh", action="store_true")
     parser.add_argument("--sync-remote-tree", action="store_true")
+    parser.add_argument("--collect-existing-suffix")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args(argv)
 
@@ -415,6 +545,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         remote_git_fetch_timeout=args.remote_git_fetch_timeout,
         refresh_remote=not args.skip_remote_refresh and not args.sync_remote_tree,
         sync_remote_tree=args.sync_remote_tree,
+        collect_existing_suffix=args.collect_existing_suffix,
     )
     run_lifecycle_matrix(config, dry_run=args.dry_run)
 

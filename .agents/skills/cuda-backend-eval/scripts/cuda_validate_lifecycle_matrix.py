@@ -22,6 +22,7 @@ REPORT_FILES = (
     "cuda-lifecycle-matrix.md",
     "cuda-lifecycle-matrix.svg",
 )
+REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 DEFAULT_SCENARIOS = ("direct", "queue", "dag-chain", "graph-scratch-reuse")
 DEFAULT_ARTIFACTS = ("a100", "h200")
 DEFAULT_DISPATCH = {
@@ -155,6 +156,68 @@ def _validate_report_files(artifact_dir: Path | None) -> list[str]:
     return [f"missing report file {file_name}" for file_name in REPORT_FILES if not (artifact_dir / file_name).exists()]
 
 
+def _validate_source_papers(payload: dict[str, Any], *, source_root: Path) -> list[str]:
+    metadata = payload.get("metadata")
+    paper_setup = metadata.get("paper_setup") if isinstance(metadata, dict) else None
+    source_papers = metadata.get("source_papers") if isinstance(metadata, dict) else None
+    errors: list[str] = []
+    if not isinstance(paper_setup, str) or not paper_setup:
+        errors.append("missing metadata.paper_setup")
+    if not isinstance(source_papers, list):
+        return [
+            *errors,
+            *[f"missing metadata.source_papers {paper_id}" for paper_id in REQUIRED_SOURCE_PAPER_IDS],
+        ]
+
+    papers_by_id = {
+        paper.get("id"): paper for paper in source_papers if isinstance(paper, dict) and paper.get("id") is not None
+    }
+    for paper_id in REQUIRED_SOURCE_PAPER_IDS:
+        paper = papers_by_id.get(paper_id)
+        if not isinstance(paper, dict):
+            errors.append(f"missing metadata.source_papers {paper_id}")
+            continue
+        path = paper.get("path")
+        if not isinstance(path, str) or not path.startswith("tmp/sources/"):
+            errors.append(f"metadata.source_papers {paper_id} path must stay under tmp/sources/")
+            continue
+        if not (source_root / path).is_file():
+            errors.append(f"missing metadata.source_papers {paper_id} file {path}")
+    return errors
+
+
+def _validate_command_examples(payload: dict[str, Any]) -> list[str]:
+    metadata = payload.get("metadata")
+    examples = metadata.get("command_examples") if isinstance(metadata, dict) else None
+    errors: list[str] = []
+    if not isinstance(examples, dict):
+        return [
+            "missing metadata.command_examples.local_sample",
+            "missing metadata.command_examples.remote_sample",
+        ]
+
+    local_sample = examples.get("local_sample")
+    remote_sample = examples.get("remote_sample")
+    if not isinstance(local_sample, str) or not local_sample:
+        errors.append("missing metadata.command_examples.local_sample")
+    else:
+        if str(Path.cwd()) in local_sample:
+            errors.append("metadata.command_examples.local_sample contains local checkout path")
+        if "$PWD" not in local_sample:
+            errors.append("metadata.command_examples.local_sample must use $PWD")
+
+    if not isinstance(remote_sample, str) or not remote_sample:
+        errors.append("missing metadata.command_examples.remote_sample")
+    elif "ssh" not in remote_sample.split():
+        errors.append("metadata.command_examples.remote_sample must use ssh")
+
+    sync_sample = examples.get("sync_remote_tree")
+    if isinstance(sync_sample, str) and str(Path.cwd()) in sync_sample:
+        errors.append("metadata.command_examples.sync_remote_tree contains local checkout path")
+
+    return errors
+
+
 def validate_lifecycle_matrix(
     payload: dict[str, Any],
     *,
@@ -164,6 +227,9 @@ def validate_lifecycle_matrix(
     require_artifacts: Sequence[str] = (),
     required_dispatch: dict[str, str] | None = None,
     require_report_files: bool = False,
+    require_source_papers: bool = False,
+    require_command_examples: bool = False,
+    source_paper_root: Path | None = None,
 ) -> list[str]:
     rows = _rows(payload)
     errors: list[str] = []
@@ -178,6 +244,10 @@ def validate_lifecycle_matrix(
     errors.extend(_validate_dispatch(rows, required_dispatch or DEFAULT_DISPATCH))
     if require_report_files:
         errors.extend(_validate_report_files(artifact_dir))
+    if require_source_papers:
+        errors.extend(_validate_source_papers(payload, source_root=source_paper_root or Path.cwd()))
+    if require_command_examples:
+        errors.extend(_validate_command_examples(payload))
     return errors
 
 
@@ -200,6 +270,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--require-artifact", action="append")
     parser.add_argument("--require-dispatch", action="append")
     parser.add_argument("--require-report-files", action="store_true")
+    parser.add_argument("--require-source-papers", action="store_true")
+    parser.add_argument("--require-command-examples", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -233,6 +305,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         require_artifacts=_as_list(args.require_artifact),
         required_dispatch=required_dispatch,
         require_report_files=args.require_report_files,
+        require_source_papers=args.require_source_papers,
+        require_command_examples=args.require_command_examples,
+        source_paper_root=Path.cwd() if args.require_source_papers else None,
     )
     if errors:
         for error in errors:

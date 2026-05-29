@@ -144,7 +144,10 @@ including tensor-tile descriptor shapes when the JSON payloads carry that
 metadata. Persistent smoke and lifecycle matrix rows also include dispatch,
 graph descriptor fan-in/dependent arrays, repeat-run counts, and per-launch
 completion counts, which are the quick audit fields for graph-descriptor
-lifecycle reuse captures.
+lifecycle reuse captures. Lifecycle matrix reports now also carry the
+VDCores/MPK source-paper IDs and sanitized reconstruction commands, and can be
+refreshed from existing per-scenario smoke JSON with
+`cuda_persistent_lifecycle_matrix.py --collect-existing-suffix <commit>`.
 Benchmark report directories now include `cuda-benchmark-dag-deltas.svg`,
 which visualizes the signed device-time increment of each
 `pto_persistent_dag_*` row over the matched `pto_persistent_dag` scheduler

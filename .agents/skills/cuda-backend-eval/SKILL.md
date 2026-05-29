@@ -949,6 +949,11 @@ PYTHONPATH=$PWD:$PWD/python \
 This writes per-scenario smoke artifacts plus
 `tmp/cuda-backend/persistent-lifecycle-matrix-<commit>/cuda-lifecycle-matrix.md`,
 `cuda-lifecycle-matrix.svg`, and `cuda-lifecycle-matrix.json`.
+Lifecycle matrix JSON/Markdown includes source-paper provenance, paper
+alignment text, and sanitized local/remote command examples. Use
+`--collect-existing-suffix <commit>` to regenerate the combined matrix report
+and index from existing per-scenario `a100.json`/`h200.json` files without
+rerunning A100/H200 hardware.
 Use `--dry-run` to print every paired smoke command plus the final matrix
 validator and artifact-index commands without writing the matrix report.
 The current paired lifecycle matrix capture is under
@@ -959,7 +964,7 @@ Validate a lifecycle matrix before copying its fields into docs:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_validate_lifecycle_matrix.py \
     tmp/cuda-backend/lifecycle-graph-working/persistent-lifecycle-matrix-b50a80dd/cuda-lifecycle-matrix.json \
-    --preset default
+    --preset default --require-source-papers --require-command-examples
 ```
 
 Run the six-task persistent DAG scratch-reuse smoke. This graph reuses `tmp0`
@@ -1930,9 +1935,10 @@ descriptor shapes, persistent smoke modes, dispatch sequences, scheduler
 error counters, repeat-run counts, per-launch completion counts, graph
 descriptor fan-in/dependent arrays, graph task-argument keys, graph
 task-argument metadata, tensor-sweep source-paper IDs, tensor-sweep
-command-example presence, and generated report/chart presence. It is a local
-audit aid under `tmp/`; do not commit it with raw benchmark, tensor sweep,
-lifecycle matrix, or smoke data.
+command-example presence, lifecycle-matrix source-paper IDs,
+lifecycle-matrix command-example presence, and generated report/chart
+presence. It is a local audit aid under `tmp/`; do not commit it with raw
+benchmark, tensor sweep, lifecycle matrix, or smoke data.
 
 Render compact smoke JSON reports when a result is a smoke validation rather
 than a full benchmark:

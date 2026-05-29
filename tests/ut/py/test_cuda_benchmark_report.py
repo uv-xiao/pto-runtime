@@ -1304,6 +1304,16 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
     artifact_dir.mkdir()
     payload = {
         "label": "persistent-lifecycle-matrix-abc123",
+        "metadata": {
+            "source_papers": [
+                {"id": "arXiv:2605.03190", "label": "VDCores"},
+                {"id": "arXiv:2512.22219v1", "label": "MPK persistent kernel"},
+            ],
+            "command_examples": {
+                "local_sample": "env PYTHONPATH=$PWD:$PWD/python $PWD/.venv/bin/python script.py",
+                "remote_sample": "ssh h200-box 'cd /work/pto-cu && python3 script.py'",
+            },
+        },
         "rows": [
             {
                 "artifact": "a100",
@@ -1373,8 +1383,8 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
                 "sched=0,workers=4,wp=2,stream=1,block=256,grid=4",
                 "sched=1,workers=2,wp=1,stream=1,block=256,grid=3",
             ],
-            "source_papers": [],
-            "has_command_examples": False,
+            "source_papers": ["arXiv:2512.22219v1", "arXiv:2605.03190"],
+            "has_command_examples": True,
             "has_markdown": True,
             "has_svg": True,
             "has_throughput_svg": False,
@@ -1387,6 +1397,7 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
         "combined | unknown | 2 | 1024 |  | dag/graph_descriptor_scratch_reuse, direct | "
         "1,2,1,2,1,1 |  |  | count=0,code=0,task=0 | 2 | 2,2, 6,6 |"
     ) in report
+    assert "arXiv:2512.22219v1, arXiv:2605.03190 | yes | direct, graph-scratch-reuse |" in report
 
 
 def test_cuda_artifact_index_sorts_numeric_sizes_before_strings(tmp_path):
@@ -2946,6 +2957,75 @@ def test_cuda_lifecycle_matrix_validator_accepts_default_matrix(tmp_path):
     )
 
     assert errors == []
+
+
+def test_cuda_lifecycle_matrix_validator_requires_source_papers_and_commands(tmp_path):
+    cuda_validate_lifecycle = _load_lifecycle_matrix_validator_module()
+    source_root = tmp_path / "source-root"
+    source_dir = source_root / "tmp" / "sources"
+    source_dir.mkdir(parents=True)
+    (source_dir / "arxiv-2605.03190-vdcores.txt").write_text("vdcores\n")
+    (source_dir / "arxiv-2512.22219v1-mirage-persistent-kernel.txt").write_text("mpk\n")
+    payload = {
+        "label": "persistent-lifecycle-matrix-test",
+        "metadata": {},
+        "rows": [
+            {
+                "scenario": "direct",
+                "artifact": "a100",
+                "status": "pass",
+                "runtime": "persistent_device",
+                "mode": "direct",
+                "n": 1024,
+                "repeat_runs": 2,
+                "launch_completed_counts": [2, 2],
+                "completed_count": 2,
+            }
+        ],
+    }
+
+    errors = cuda_validate_lifecycle.validate_lifecycle_matrix(
+        payload,
+        require_source_papers=True,
+        source_paper_root=source_root,
+        require_command_examples=True,
+    )
+
+    assert "missing metadata.paper_setup" in errors
+    assert "missing metadata.source_papers arXiv:2605.03190" in errors
+    assert "missing metadata.source_papers arXiv:2512.22219v1" in errors
+    assert "missing metadata.command_examples.local_sample" in errors
+    assert "missing metadata.command_examples.remote_sample" in errors
+
+    payload["metadata"] = {
+        "paper_setup": "paired lifecycle matrix",
+        "source_papers": [
+            {
+                "id": "arXiv:2605.03190",
+                "label": "VDCores",
+                "path": "tmp/sources/arxiv-2605.03190-vdcores.txt",
+            },
+            {
+                "id": "arXiv:2512.22219v1",
+                "label": "MPK persistent kernel",
+                "path": "tmp/sources/arxiv-2512.22219v1-mirage-persistent-kernel.txt",
+            },
+        ],
+        "command_examples": {
+            "local_sample": "env PYTHONPATH=$PWD:$PWD/python $PWD/.venv/bin/python script.py",
+            "remote_sample": "ssh bizhaoh200 'cd /work/pto-cu && python3 script.py'",
+        },
+    }
+
+    assert (
+        cuda_validate_lifecycle.validate_lifecycle_matrix(
+            payload,
+            require_source_papers=True,
+            source_paper_root=source_root,
+            require_command_examples=True,
+        )
+        == []
+    )
 
 
 def test_cuda_lifecycle_matrix_validator_reports_contract_errors(tmp_path):
@@ -5141,7 +5221,12 @@ def test_cuda_persistent_lifecycle_matrix_builds_default_workflow(tmp_path):
     assert len(validate_commands) == 1
     matrix_json = tmp_path / "cuda-backend" / "persistent-lifecycle-matrix-abc123" / "cuda-lifecycle-matrix.json"
     assert str(matrix_json) in validate_commands[0]
-    assert validate_commands[0][-2:] == ["--preset", "default"]
+    assert validate_commands[0][-4:] == [
+        "--preset",
+        "default",
+        "--require-source-papers",
+        "--require-command-examples",
+    ]
     assert commands[-2] == validate_commands[0]
     assert commands[-1][-2:] == ["--root", str(tmp_path / "cuda-backend")]
     assert not any("cuda-lifecycle-matrix.md" in part for command in commands for part in command)
@@ -5222,10 +5307,83 @@ def test_cuda_persistent_lifecycle_matrix_validates_written_report(tmp_path):
     ]
     json_path = output_root / "persistent-lifecycle-matrix-abc123" / "cuda-lifecycle-matrix.json"
     assert str(json_path) in validate_command
-    assert validate_command[-2:] == ["--preset", "default"]
+    assert "--preset" in validate_command
+    assert "default" in validate_command
+    assert "--require-source-papers" in validate_command
+    assert "--require-command-examples" in validate_command
     assert commands[-2] == validate_command
     assert commands[-1][-2:] == ["--root", str(output_root)]
     assert calls[-2] == (validate_command, {"check": True})
+
+
+def test_cuda_persistent_lifecycle_matrix_collects_existing_suffix(tmp_path):
+    cuda_lifecycle_matrix = _load_persistent_lifecycle_matrix_module()
+    output_root = tmp_path / "cuda-backend"
+    calls = []
+
+    def fake_runner(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0, stdout="abc123\n", stderr="")
+
+    for scenario_dir, completed_count, mode, dag_shape, dispatch in (
+        ("persistent-direct-repeat2-smoke-abc123", 2, "direct", None, None),
+        ("persistent-queue-repeat2-smoke-abc123", 4, "queue", None, None),
+        ("persistent-chain-repeat2-smoke-abc123", 5, "dag", "chain", [1, 2, 1, 2, 1]),
+        (
+            "persistent-graph_descriptor_scratch_reuse-repeat2-smoke-abc123",
+            6,
+            "dag",
+            "graph_descriptor_scratch_reuse",
+            [1, 2, 1, 2, 1, 1],
+        ),
+    ):
+        directory = output_root / scenario_dir
+        directory.mkdir(parents=True)
+        payload = {
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": mode,
+            "n": 1024,
+            "device_wall_ns": 4096,
+            "host_wall_ns": 8192,
+            "repeat_runs": 2,
+            "completed_count": completed_count,
+            "launch_completed_counts": [completed_count, completed_count],
+            "resource_policy": {
+                "scheduler_blocks": 1 if mode != "direct" else 0,
+                "worker_blocks": 2,
+                "worker_blocks_per_task": 1 if mode != "direct" else 2,
+                "stream_id": 1,
+                "block_dim": 256,
+                "grid_dim": 3,
+            },
+        }
+        if dag_shape is not None:
+            payload["dag_shape"] = dag_shape
+            payload["device_scheduler_errors"] = {"count": 0, "code": 0, "task_id": 0}
+        if dispatch is not None:
+            payload["dispatch_func_ids"] = dispatch
+        for artifact in ("a100", "h200"):
+            (directory / f"{artifact}.json").write_text(json.dumps(payload) + "\n")
+
+    config = cuda_lifecycle_matrix.LifecycleMatrixConfig(
+        output_root=output_root,
+        local_python=".venv/bin/python",
+        sync_remote_tree=True,
+        collect_existing_suffix="abc123",
+    )
+
+    commands = cuda_lifecycle_matrix.run_lifecycle_matrix(config, runner=fake_runner, dry_run=False)
+
+    smoke_script = ".agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py"
+    assert not any(smoke_script in command for command in commands)
+    assert calls[0][0][1] == ".agents/skills/cuda-backend-eval/scripts/cuda_validate_lifecycle_matrix.py"
+    json_path = output_root / "persistent-lifecycle-matrix-abc123" / "cuda-lifecycle-matrix.json"
+    payload = json.loads(json_path.read_text())
+    assert payload["metadata"]["git_commit"] == "abc123"
+    assert payload["metadata"]["command_examples"]["local_sample"].startswith("env 'PYTHONPATH=$PWD:$PWD/python'")
+    assert "--sync-remote-tree" in payload["metadata"]["command_examples"]["local_sample"]
+    assert "--skip-remote-refresh" not in payload["metadata"]["command_examples"]["local_sample"]
 
 
 def test_cuda_persistent_lifecycle_matrix_renders_report(tmp_path):
@@ -5304,11 +5462,32 @@ def test_cuda_persistent_lifecycle_matrix_renders_report(tmp_path):
         rows,
         tmp_path,
         "lifecycle-test",
+        metadata={
+            "paper_setup": "paired lifecycle matrix",
+            "source_papers": [
+                {"id": "arXiv:2605.03190", "label": "VDCores"},
+                {"id": "arXiv:2512.22219v1", "label": "MPK persistent kernel"},
+            ],
+            "command_examples": {
+                "local_sample": "env PYTHONPATH=$PWD:$PWD/python $PWD/.venv/bin/python script.py",
+                "remote_sample": "ssh bizhaoh200 'cd /work/pto-cu && python3 script.py'",
+            },
+        },
     )
 
     report = markdown_path.read_text()
+    payload = json.loads((tmp_path / "cuda-lifecycle-matrix.json").read_text())
     assert markdown_path.name == "cuda-lifecycle-matrix.md"
     assert svg_path.name == "cuda-lifecycle-matrix.svg"
+    assert payload["metadata"]["paper_setup"] == "paired lifecycle matrix"
+    assert [paper["id"] for paper in payload["metadata"]["source_papers"]] == [
+        "arXiv:2605.03190",
+        "arXiv:2512.22219v1",
+    ]
+    assert payload["metadata"]["command_examples"]["local_sample"].startswith("env PYTHONPATH=$PWD")
+    assert "- Source papers: `arXiv:2605.03190` VDCores; `arXiv:2512.22219v1` MPK persistent kernel" in report
+    assert "- Local sample command: `env PYTHONPATH=$PWD:$PWD/python $PWD/.venv/bin/python script.py`" in report
+    assert "- Remote sample command: `ssh bizhaoh200 'cd /work/pto-cu && python3 script.py'`" in report
     assert "| direct | a100 | pass | persistent_device | direct |" in report
     assert "`sched=0,workers=4,wp=2,stream=1,block=256,grid=4`" in report
     assert "| dag-chain | h200 | pass | persistent_device | dag/chain |" in report
