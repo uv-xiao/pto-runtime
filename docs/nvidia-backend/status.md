@@ -1999,6 +1999,20 @@ graph fan-in `[0,0,2]`, graph dependents `[2,2]`, repeat completions
 `scalar_args[0]=1.5,scalar_args[1]=0.25`, and report metadata
 `graph_node_attrs.task0=attrs:tensor_args,scalar_args`. Device times were
 `72704 ns` on A100 and `45408 ns` on H200 for `N=1024`.
+The paired persistent-smoke validator now also requires the same attrs
+metadata in both JSON and generated Markdown/SVG reports. The working-tree
+capture under
+`tmp/cuda-backend/persistent-node-attrs-smoke-working/`
+`persistent-graph_descriptor_node_attrs-repeat2-smoke-761fbdfe/` contains
+A100/H200 JSON plus Markdown/SVG artifacts. The paired validator accepted
+dispatch `[9,2,1]`, graph fan-in `[0,0,2]`, graph dependents `[2,2]`,
+repeat completions `[3,3]`, resource policy `scheduler_blocks=1`,
+`worker_blocks=3`, `block_dim=256`, `grid_dim=4`, tensor slots
+`tensor_args[0]=tmp0,tensor_args[1]=tmp3`, scalar slots
+`scalar_args[0]=1.5,scalar_args[1]=0.25`, report-visible graph-node attrs
+`task0=attrs:tensor_args,scalar_args`, and zero scheduler errors. A100
+reported `device_wall_ns=67584`, `host_wall_ns=99134`; H200 reported
+`device_wall_ns=42144`, `host_wall_ns=60174`.
 The same shape is also promoted into the selected benchmark matrix as
 `pto_persistent_dag_graph_node_attrs`. The compact paired A100/H200 capture
 under

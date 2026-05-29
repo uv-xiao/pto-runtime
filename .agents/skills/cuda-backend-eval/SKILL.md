@@ -376,8 +376,10 @@ PYTHONPATH=$PWD:$PWD/python \
 Use `--dag-shape graph_descriptor_node_attrs` to capture the same three-task
 generic graph descriptor while recording that the auxiliary tensor/scalar
 slots came from graph-node `attrs` metadata rather than graph IO fields. The
-generated smoke report includes `Graph node attrs` and `Graph node ops`
-columns:
+paired validator expects dispatch `9,2,1`, graph fan-in `0,0,2`,
+dependents `2,2`, generated Markdown/SVG report files with
+`Graph node attrs`, and
+`graph_node_attrs=task0=attrs:tensor_args,scalar_args`:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
@@ -385,6 +387,15 @@ PYTHONPATH=$PWD:$PWD/python \
     --dag-shape graph_descriptor_node_attrs --task-count 3 \
     --queue-capacity 2 --repeat-runs 2 --sync-remote-tree
 ```
+
+The working-tree capture under
+`tmp/cuda-backend/persistent-node-attrs-smoke-working/` validated paired A100
+and H200 JSON, Markdown, and SVG artifacts with repeat completions `[3,3]`,
+zero scheduler errors, dispatch `[9,2,1]`, graph fan-in `[0,0,2]`, graph
+dependents `[2,2]`, tensor slots `tensor_args[0]=tmp0,tensor_args[1]=tmp3`,
+scalar slots `scalar_args[0]=1.5,scalar_args[1]=0.25`, and graph-node attrs
+`task0=attrs:tensor_args,scalar_args`. Device times were `67584 ns` on A100
+and `42144 ns` on H200 for `N=1024`.
 
 Use `--dag-shape graph_descriptor_node_op` to capture graph node `op`
 callable aliases over the add/mul/add descriptor shape. The paired validator

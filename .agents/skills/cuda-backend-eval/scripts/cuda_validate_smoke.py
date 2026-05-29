@@ -68,12 +68,14 @@ class SmokeValidationExpectation:
     graph_dependents: str | None = None
     graph_task_arg_key: str | None = None
     graph_task_args: str | None = None
+    graph_node_attrs: str | None = None
     graph_node_ops: str | None = None
     scratch_reuse: str | None = None
     resource_policy: ResourcePolicyExpectation | None = None
     require_report_files: bool = False
     require_report_graph_topology: bool = False
     require_report_graph_task_args: bool = False
+    require_report_graph_node_attrs: bool = False
     require_report_graph_node_ops: bool = False
 
 
@@ -255,6 +257,13 @@ def _graph_task_args(payload: dict[str, Any]) -> str | None:
     return ";".join(f"{key}={task_args[key]}" for key in sorted(task_args))
 
 
+def _graph_node_attrs(payload: dict[str, Any]) -> str | None:
+    node_attrs = payload.get("graph_node_attrs")
+    if not isinstance(node_attrs, dict):
+        return None
+    return ";".join(f"{key}={node_attrs[key]}" for key in sorted(node_attrs))
+
+
 def _graph_node_ops(payload: dict[str, Any]) -> str | None:
     node_ops = payload.get("graph_node_ops")
     if not isinstance(node_ops, dict):
@@ -300,6 +309,22 @@ def _validate_graph_node_ops(
         actual = _graph_node_ops(payload)
         if actual != expected_node_ops:
             errors.append(f"expected graph_node_ops {expected_node_ops} for artifact={artifact}, found {actual}")
+    return errors
+
+
+def _validate_graph_node_attrs(
+    payloads: list[dict[str, Any]],
+    *,
+    expected_node_attrs: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if expected_node_attrs is None:
+        return errors
+    for payload in payloads:
+        artifact = payload.get("_artifact", "unknown")
+        actual = _graph_node_attrs(payload)
+        if actual != expected_node_attrs:
+            errors.append(f"expected graph_node_attrs {expected_node_attrs} for artifact={artifact}, found {actual}")
     return errors
 
 
@@ -471,6 +496,36 @@ def _validate_report_graph_node_ops(
     return errors
 
 
+def _validate_report_graph_node_attrs(
+    artifact_dir: Path | None,
+    *,
+    expected_node_attrs: str | None,
+) -> list[str]:
+    if artifact_dir is None:
+        return ["missing artifact directory for report graph node attrs validation"]
+
+    checks = {
+        "cuda-smoke-report.md": [
+            "Graph node attrs",
+            f"`{expected_node_attrs}`" if expected_node_attrs is not None else None,
+        ],
+        "cuda-smoke-report.svg": [
+            f"node attrs: {expected_node_attrs}" if expected_node_attrs is not None else None,
+        ],
+    }
+
+    errors: list[str] = []
+    for file_name, needles in checks.items():
+        path = artifact_dir / file_name
+        if not path.exists():
+            errors.append(f"missing report graph node attrs in {file_name}")
+            continue
+        content = path.read_text()
+        if any(needle is not None and needle not in content for needle in needles):
+            errors.append(f"missing report graph node attrs in {file_name}")
+    return errors
+
+
 def validate_smoke(
     payloads: list[dict[str, Any]],
     *,
@@ -507,6 +562,7 @@ def validate_smoke(
     )
     errors.extend(_validate_graph_task_arg_key(payloads, expected_key=expectation.graph_task_arg_key))
     errors.extend(_validate_graph_task_args(payloads, expected_task_args=expectation.graph_task_args))
+    errors.extend(_validate_graph_node_attrs(payloads, expected_node_attrs=expectation.graph_node_attrs))
     errors.extend(_validate_graph_node_ops(payloads, expected_node_ops=expectation.graph_node_ops))
     errors.extend(_validate_scratch_reuse(payloads, expected_scratch_reuse=expectation.scratch_reuse))
     errors.extend(
@@ -534,6 +590,13 @@ def validate_smoke(
                 expected_task_args=expectation.graph_task_args,
             )
         )
+    if expectation.require_report_graph_node_attrs:
+        errors.extend(
+            _validate_report_graph_node_attrs(
+                expectation.artifact_dir,
+                expected_node_attrs=expectation.graph_node_attrs,
+            )
+        )
     if expectation.require_report_graph_node_ops:
         errors.extend(
             _validate_report_graph_node_ops(
@@ -559,6 +622,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-graph-dependents")
     parser.add_argument("--expected-graph-task-arg-key")
     parser.add_argument("--expected-graph-task-args")
+    parser.add_argument("--expected-graph-node-attrs")
     parser.add_argument("--expected-graph-node-ops")
     parser.add_argument("--expected-scratch-reuse")
     parser.add_argument("--expected-scheduler-blocks", type=int)
@@ -570,6 +634,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--require-report-files", action="store_true")
     parser.add_argument("--require-report-graph-topology", action="store_true")
     parser.add_argument("--require-report-graph-task-args", action="store_true")
+    parser.add_argument("--require-report-graph-node-attrs", action="store_true")
     parser.add_argument("--require-report-graph-node-ops", action="store_true")
     return parser.parse_args(argv)
 
@@ -605,12 +670,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             graph_dependents=args.expected_graph_dependents,
             graph_task_arg_key=args.expected_graph_task_arg_key,
             graph_task_args=args.expected_graph_task_args,
+            graph_node_attrs=args.expected_graph_node_attrs,
             graph_node_ops=args.expected_graph_node_ops,
             scratch_reuse=args.expected_scratch_reuse,
             resource_policy=_resource_policy_expectation(args),
             require_report_files=args.require_report_files,
             require_report_graph_topology=args.require_report_graph_topology,
             require_report_graph_task_args=args.require_report_graph_task_args,
+            require_report_graph_node_attrs=args.require_report_graph_node_attrs,
             require_report_graph_node_ops=args.require_report_graph_node_ops,
         ),
     )
