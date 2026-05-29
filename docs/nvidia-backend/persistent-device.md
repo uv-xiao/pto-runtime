@@ -370,6 +370,8 @@ separate from dependency metadata when a scene test needs a more graph-shaped
 descriptor.
 `graph.edges` may also be an adjacency dictionary from source task name/id to
 a single target or a list of targets.
+`graph.links` is accepted as the same edge-list field when importing
+node-link style graph schemas that spell dependencies as links.
 `graph.tasks` may be a list of task dictionaries or a dictionary keyed by task
 name. In the dictionary form, the key becomes the task `name` used by
 `graph.edges`, `dependents`, and `depends_on` / `dependencies`. `graph.nodes`

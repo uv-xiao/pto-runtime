@@ -4135,6 +4135,31 @@ CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH \
 That run reported `2 passed, 131 deselected` after the known PTO-ISA SSH
 refresh warning.
 
+The same node-link compatibility path now accepts `graph.links` as an alias
+for top-level edge lists. A focused TDD selector first failed with graph fan-in
+`[0,0,0]` because the links were ignored; after routing `links` through the
+same dependency lowering as `edges`, the local A100 selector passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k 'node_link or node_data or graph_edges or adjacency_edges' \
+    --platform cuda
+```
+
+That run reported `11 passed, 124 deselected`. The synced H200 focused
+selector also passed:
+
+```bash
+CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH \
+  PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k node_link --platform cuda
+```
+
+That run reported `2 passed, 133 deselected` after the known PTO-ISA SSH
+refresh warning.
+
 Needed:
 
 - full graph construction from normal PTO task graphs;
@@ -4144,10 +4169,10 @@ Needed:
   separation for scratch reuse, order-independent tensor-flow dependency
   inference, explicit outgoing and incoming graph edges with scalar or
   list-valued named task dependencies, top-level graph edge lists including
-  string `source -> target` entries, adjacency dictionaries, `graph.nodes`
-  aliases, node `id` identity aliases, node-link `data` payloads, node-style
-  IO fields, node `op` callable aliases, callable metadata `callable_id` /
-  `cid` aliases, and paired smoke,
+  string `source -> target` entries, adjacency dictionaries, `graph.links`
+  aliases, `graph.nodes` aliases, node `id` identity aliases, node-link
+  `data` payloads, node-style IO fields, node `op` callable aliases, callable
+  metadata `callable_id` / `cid` aliases, and paired smoke,
   dictionary-keyed graph task descriptors,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, named graph-callable resolution, explicit unary square graph

@@ -451,12 +451,13 @@ on A100 and `55296 ns` on H200 for `N=1024`.
 When changing node-link graph input handling, run the SceneTestCase node-data
 selector. It validates list-shaped `graph.nodes` entries whose `id` carries
 identity and whose task payload lives under `data`, with top-level node fields
-overriding conflicting `data` fields:
+overriding conflicting `data` fields. It also covers `graph.links` as the
+node-link spelling for edge-list metadata:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
-    -q -k node_data --platform cuda
+    -q -k 'node_data or node_link' --platform cuda
 ```
 
 Use `--dag-shape graph_descriptor_triad` and
@@ -1353,6 +1354,8 @@ as `{"from": "producer", "to": "consumer"}`, two-item endpoint pairs, or
 `"producer -> consumer"` strings.
 `graph.edges` may also be an adjacency dictionary such as
 `{"producer": ["consumer"]}`.
+For node-link style graph schemas, `graph.links` is accepted as the same
+edge-list field as `graph.edges`.
 `graph.tasks` may be a list of task dictionaries or a dictionary keyed by task
 name; in the dictionary form, the key becomes the task name used by edge
 metadata. `graph.nodes` is accepted as an alias for `graph.tasks` when the

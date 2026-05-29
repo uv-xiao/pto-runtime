@@ -1258,7 +1258,7 @@ class _CudaPersistentDagSceneBuffers:
         for task_spec in task_specs:
             self._bind_graph_task_output_storage(task_spec, ptrs, add_temporary, output_nbytes)
 
-        graph_dependents = self._graph_dependents_from_task_specs(task_specs, graph.get("edges", []))
+        graph_dependents = self._graph_dependents_from_task_specs(task_specs, self._graph_edges(graph))
         dependents: list[int] = []
         fanin = [0 for _ in task_specs]
         for task_id, task_spec in enumerate(task_specs):
@@ -1317,6 +1317,10 @@ class _CudaPersistentDagSceneBuffers:
                 )
             return task_specs
         return [_CudaPersistentDagSceneBuffers._normalize_graph_task_shape(task_spec) for task_spec in tasks]
+
+    @staticmethod
+    def _graph_edges(graph: dict[str, Any]) -> Any:
+        return graph.get("edges", graph.get("links", []))
 
     @staticmethod
     def _normalize_graph_task_shape(task_spec: dict[str, Any]) -> dict[str, Any]:
