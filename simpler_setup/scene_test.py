@@ -529,6 +529,18 @@ def _build_cuda_host_schedule_args(
 
 
 class _CudaPersistentDagSceneBuffers:
+    _GRAPH_NODE_IO_FIELDS = (
+        "input",
+        "inputs",
+        "output",
+        "outputs",
+        "output_existing",
+        "inout",
+        "inouts",
+        "scalar",
+        "scalars",
+    )
+
     def __init__(self, worker, test_args: TaskArgsBuilder, cuda_spec: dict):
         self.worker = worker
         self.test_args = test_args
@@ -1565,12 +1577,14 @@ class _CudaPersistentDagSceneBuffers:
 
     @staticmethod
     def _normalize_graph_task_spec(task_spec: dict[str, Any]) -> dict[str, Any]:
-        task_args = task_spec.get("task_args")
+        task_args = _CudaPersistentDagSceneBuffers._graph_task_args_for_normalization(task_spec)
         if task_args is None:
             return task_spec
 
         normalized = dict(task_spec)
         normalized.pop("task_args", None)
+        for field in _CudaPersistentDagSceneBuffers._GRAPH_NODE_IO_FIELDS:
+            normalized.pop(field, None)
         inputs: list[str] = []
         outputs: list[str] = []
         scalar_args: list[Any] = []
@@ -1622,6 +1636,47 @@ class _CudaPersistentDagSceneBuffers:
         if inout_names:
             normalized["_inout_names"] = inout_names
         return normalized
+
+    @staticmethod
+    def _graph_task_args_for_normalization(task_spec: dict[str, Any]) -> Any:
+        task_args = task_spec.get("task_args")
+        has_node_io_fields = any(field in task_spec for field in _CudaPersistentDagSceneBuffers._GRAPH_NODE_IO_FIELDS)
+        if task_args is not None and has_node_io_fields:
+            raise ValueError("CUDA persistent_dag_graph_f32 graph tasks cannot mix task_args with node IO fields")
+        if task_args is not None:
+            return task_args
+        return _CudaPersistentDagSceneBuffers._graph_node_io_task_args(task_spec, has_node_io_fields)
+
+    @staticmethod
+    def _graph_node_io_task_args(task_spec: dict[str, Any], has_node_io_fields: bool) -> list[dict[str, Any]] | None:
+        if not has_node_io_fields:
+            return None
+
+        task_args: list[dict[str, Any]] = []
+        for name in _CudaPersistentDagSceneBuffers._graph_node_io_values(task_spec, "input", "inputs"):
+            task_args.append({"input": name})
+        for name in _CudaPersistentDagSceneBuffers._graph_node_io_values(task_spec, "output", "outputs"):
+            task_args.append({"output": name})
+        for name in _CudaPersistentDagSceneBuffers._graph_node_io_values(task_spec, "output_existing"):
+            task_args.append({"output_existing": name})
+        for name in _CudaPersistentDagSceneBuffers._graph_node_io_values(task_spec, "inout", "inouts"):
+            task_args.append({"inout": name})
+        for name in _CudaPersistentDagSceneBuffers._graph_node_io_values(task_spec, "scalar", "scalars"):
+            task_args.append({"scalar": name})
+        return task_args
+
+    @staticmethod
+    def _graph_node_io_values(task_spec: dict[str, Any], *keys: str) -> list[Any]:
+        values: list[Any] = []
+        for key in keys:
+            if key not in task_spec:
+                continue
+            value = task_spec[key]
+            if isinstance(value, (list, tuple)):
+                values.extend(value)
+            else:
+                values.append(value)
+        return values
 
     @staticmethod
     def _compact_graph_tensor_task_arg(task_arg: dict[str, Any], index: int) -> tuple[str | None, Any]:

@@ -1921,6 +1921,14 @@ terminology without changing the runtime task array. The ctypes-backed
 deselected`; the full local A100 CUDA scene-test file passed with
 `115 passed`; and the H200 selector passed with `1 passed, 114 deselected`
 while still emitting the known PTO-ISA SSH refresh warning.
+Graph nodes now also accept node-style IO fields: `inputs`, `outputs`,
+`output_existing`, `inouts`, and `scalars`. These fields expand into the
+existing role-keyed `task_args` lowering path, so graph-node descriptors can
+avoid embedding `a`/`b`/`out` ABI field names directly. The ctypes-backed
+`node_io_graph_with_ctypes_data` scene passed locally with `2 passed, 115
+deselected`; the full local A100 CUDA scene-test file passed with
+`117 passed`; and the H200 selector passed with `1 passed, 116 deselected`
+while still emitting the known PTO-ISA SSH refresh warning.
 The incoming-edge path is now covered by both a real-data L2 ctypes scene and
 paired persistent-device smoke. The working-tree smoke capture under
 `tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`
@@ -3647,7 +3655,8 @@ Needed:
   separation for scratch reuse, order-independent tensor-flow dependency
   inference, explicit outgoing and incoming graph edges with scalar or
   list-valued named task dependencies, top-level graph edge lists and
-  adjacency dictionaries, `graph.nodes` aliases, and paired smoke,
+  adjacency dictionaries, `graph.nodes` aliases, node-style IO fields,
+  and paired smoke,
   dictionary-keyed graph task descriptors,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, named graph-callable resolution, explicit unary square graph

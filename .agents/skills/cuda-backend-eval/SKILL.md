@@ -1268,6 +1268,10 @@ as `{"from": "producer", "to": "consumer"}` or two-item endpoint pairs.
 name; in the dictionary form, the key becomes the task name used by edge
 metadata. `graph.nodes` is accepted as an alias for `graph.tasks` when the
 descriptor should use graph-node terminology; do not provide both fields.
+Graph nodes may use top-level `inputs`, `outputs`, `output_existing`,
+`inouts`, and `scalars` fields when the descriptor should look like node IO
+metadata instead of a task-arg list. The adapter expands those fields into the
+same role-keyed `task_args` lowering path.
 Graph tasks may alternatively pass role-keyed `task_args` entries with
 `input`, `output`, `output_existing`, or `inout` roles. The adapter prefers
 the `role` key and still accepts the older `tag` spelling for compatibility.

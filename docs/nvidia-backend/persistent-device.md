@@ -364,6 +364,10 @@ name. In the dictionary form, the key becomes the task `name` used by
 `graph.edges`, `dependents`, and `depends_on` / `dependencies`. `graph.nodes`
 is accepted as an alias for `graph.tasks` when the descriptor should use
 graph-node terminology; descriptors must not provide both fields.
+Graph nodes may also spell task arguments as top-level `inputs`, `outputs`,
+`output_existing`, `inouts`, and `scalars` fields. The adapter expands these
+node IO fields into the same role-keyed `task_args` lowering path before
+temporary allocation and task-struct construction.
 Integer task IDs remain accepted, and tensor-flow inference remains the
 fallback when neither outgoing `dependents` nor incoming dependencies are
 provided.
