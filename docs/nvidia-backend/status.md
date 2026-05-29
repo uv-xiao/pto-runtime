@@ -2070,6 +2070,19 @@ command examples, Markdown/SVG reports, zero scheduler errors, dispatch
 `task1=input:a,input:b,output:tmp1`, and
 `task2=input:a,input:b,output:out`.
 Device times were `28672 ns` on A100 and `25632 ns` on H200 for `N=1024`.
+The same node-IO graph descriptor path is now also covered by the paired
+persistent-smoke report validator. The working-tree capture under
+`tmp/cuda-backend/persistent-node-io-smoke-working/`
+`persistent-graph_descriptor_node_io-repeat2-smoke-feddd21b/` contains A100
+and H200 JSON plus Markdown/SVG artifacts. The paired validator accepted
+dispatch `[1,2,1]`, graph fan-in `[0,0,2]`, graph dependents `[2,2]`,
+repeat completions `[3,3]`, resource policy `scheduler_blocks=1`,
+`worker_blocks=3`, `block_dim=256`, `grid_dim=4`, report-visible
+`graph_task_arg_key=node_io`, task args
+`task0=input:a,input:b,output:tmp0;task1=input:a,input:b,output:tmp1;task2=input:a,input:b,output:out`,
+and zero scheduler errors. A100 reported `device_wall_ns=68608`,
+`host_wall_ns=102364`; H200 reported `device_wall_ns=42784`,
+`host_wall_ns=59753`.
 The same node-op graph descriptor path is now also covered by the paired
 persistent-smoke report validator. The working-tree capture under
 `tmp/cuda-backend/persistent-node-op-smoke-working/`

@@ -195,6 +195,10 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/h200.json`
 - `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/cuda-smoke-report.svg`
+- `tmp/cuda-backend/persistent-node-io-smoke-working/persistent-graph_descriptor_node_io-repeat2-smoke-feddd21b/a100.json`
+- `tmp/cuda-backend/persistent-node-io-smoke-working/persistent-graph_descriptor_node_io-repeat2-smoke-feddd21b/h200.json`
+- `tmp/cuda-backend/persistent-node-io-smoke-working/persistent-graph_descriptor_node_io-repeat2-smoke-feddd21b/cuda-smoke-report.md`
+- `tmp/cuda-backend/persistent-node-io-smoke-working/persistent-graph_descriptor_node_io-repeat2-smoke-feddd21b/cuda-smoke-report.svg`
 - `tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/a100.json`
 - `tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/h200.json`
 - `tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/cuda-smoke-report.md`

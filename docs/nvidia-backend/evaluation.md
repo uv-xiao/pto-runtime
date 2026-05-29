@@ -120,6 +120,7 @@ committed:
 - `tmp/cuda-backend/persistent-graph_descriptor_reordered-repeat2-smoke-f877b7b3/`
 - `tmp/cuda-backend/persistent-graph_descriptor_chain-repeat2-smoke-b94b555d/`
 - `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/`
+- `tmp/cuda-backend/persistent-node-io-smoke-working/persistent-graph_descriptor_node_io-repeat2-smoke-feddd21b/`
 - `tmp/cuda-backend/worker-square-smoke-4cdde399/`
 - `tmp/cuda-backend/worker-quad-smoke-4327698e/`
 - `tmp/cuda-backend/worker-mul-smoke-output-json/`
@@ -442,3 +443,7 @@ silently lag behind the JSON topology metadata.
 For tagged graph smokes, it also passes `--expected-graph-task-args` and
 `--require-report-graph-task-args`, so the visible reports must expose the
 same lowered TaskArgs-like roles as the JSON payload.
+For node-IO graph smokes, it additionally passes
+`--expected-graph-task-arg-key node_io`, proving that graph node
+`input`/`output` fields are preserved separately from role-keyed or tagged
+task-argument spellings.

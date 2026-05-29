@@ -402,6 +402,31 @@ the scalar and tensor slot metadata in JSON plus generated Markdown/SVG
 reports. It validated the same dispatch/topology with device times
 `62464 ns` on A100 and `40672 ns` on H200 for `N=1024`.
 
+Use `--dag-shape graph_descriptor_node_io` to capture graph node
+`input`/`output` fields as the source of TaskArgs-like roles. The paired
+validator expects dispatch `1,2,1`, graph fan-in `0,0,2`, dependents `2,2`,
+generated Markdown/SVG report files with `Graph task arg key` and
+`Graph task args`, `graph_task_arg_key=node_io`, and task args
+`task0=input:a,input:b,output:tmp0;task1=input:a,input:b,output:tmp1;task2=input:a,input:b,output:out`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_node_io --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/persistent-node-io-smoke-working
+```
+
+The working-tree capture under
+`tmp/cuda-backend/persistent-node-io-smoke-working/`
+`persistent-graph_descriptor_node_io-repeat2-smoke-feddd21b/` validated
+paired A100 and H200 JSON, Markdown, and SVG artifacts with repeat
+completions `[3,3]`, zero scheduler errors, dispatch `[1,2,1]`, graph fan-in
+`[0,0,2]`, graph dependents `[2,2]`, `graph_task_arg_key=node_io`, and
+report-visible graph task args
+`task0=input:a,input:b,output:tmp0;task1=input:a,input:b,output:tmp1;task2=input:a,input:b,output:out`.
+Device times were `68608 ns` on A100 and `42784 ns` on H200 for `N=1024`.
+
 Use `--dag-shape graph_descriptor_node_op` to capture graph node `op`
 callable aliases over the add/mul/add descriptor shape. The paired validator
 expects dispatch `1,2,1`, graph fan-in `0,0,2`, dependents `2,2`,
