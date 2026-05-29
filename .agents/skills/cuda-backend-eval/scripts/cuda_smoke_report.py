@@ -165,6 +165,13 @@ def _graph_node_attrs(row: dict[str, Any]) -> str:
     return ";".join(f"{key}={node_attrs[key]}" for key in sorted(node_attrs))
 
 
+def _graph_node_ops(row: dict[str, Any]) -> str:
+    node_ops = row.get("graph_node_ops")
+    if not isinstance(node_ops, dict) or not node_ops:
+        return "-"
+    return ";".join(f"{key}={node_ops[key]}" for key in sorted(node_ops))
+
+
 def _graph_task_arg_key(row: dict[str, Any]) -> str:
     key = row.get("graph_task_arg_key")
     return str(key) if key else "-"
@@ -204,7 +211,7 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
             "Graph fan-in | Graph dependents | Scheduler errors | Repeat runs | "
             "Launch completions | Resource policy | Scalar args | Tensor args | "
             "Scratch reuse | Graph task arg key | Graph task args | "
-            "Graph node attrs |"
+            "Graph node attrs | Graph node ops |"
         ),
         (
             "| -------- | ------ | ------- | ---- | - | -------- | --------- | "
@@ -212,7 +219,7 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
             "------------ | ---------------- | ---------------- | ----------- | "
             "------------------ | --------------- | ----------- | ----------- | "
             "------------- | ------------------ | --------------- | "
-            "---------------- |"
+            "---------------- | -------------- |"
         ),
     ]
     for row in payloads:
@@ -228,7 +235,7 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
             f"`{_launch_completed_counts(row)}` | `{_resource_policy(row)}` | "
             f"`{_scalar_args(row)}` | `{_tensor_args(row)}` | "
             f"`{_scratch_reuse(row)}` | `{_graph_task_arg_key(row)}` | "
-            f"`{_graph_task_args(row)}` | `{_graph_node_attrs(row)}` |"
+            f"`{_graph_task_args(row)}` | `{_graph_node_attrs(row)}` | `{_graph_node_ops(row)}` |"
         )
 
     lines.extend(["", "## PTX Sources", ""])
@@ -241,7 +248,7 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
 def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
     width = 760
     bar_height = 28
-    row_gap = 146
+    row_gap = 160
     left = 170
     right = 40
     top = 70
@@ -272,6 +279,7 @@ def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
         graph_task_arg_key = _graph_task_arg_key(row)
         graph_task_args = _graph_task_args(row)
         graph_node_attrs = _graph_node_attrs(row)
+        graph_node_ops = _graph_node_ops(row)
         lines.extend(
             [
                 f'<text x="24" y="{y + 19}" font-family="sans-serif" font-size="13">{html.escape(name)}</text>',
@@ -329,6 +337,11 @@ def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
                     f'<text x="{left}" y="{y + bar_height + 140}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
                     f"node attrs: {html.escape(graph_node_attrs)}</text>"
+                ),
+                (
+                    f'<text x="{left}" y="{y + bar_height + 154}" '
+                    'font-family="sans-serif" font-size="11" fill="#555">'
+                    f"node ops: {html.escape(graph_node_ops)}</text>"
                 ),
             ]
         )

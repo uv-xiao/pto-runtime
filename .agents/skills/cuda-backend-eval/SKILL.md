@@ -376,12 +376,25 @@ PYTHONPATH=$PWD:$PWD/python \
 Use `--dag-shape graph_descriptor_node_attrs` to capture the same three-task
 generic graph descriptor while recording that the auxiliary tensor/scalar
 slots came from graph-node `attrs` metadata rather than graph IO fields. The
-generated smoke report includes a `Graph node attrs` column:
+generated smoke report includes `Graph node attrs` and `Graph node ops`
+columns:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
     --dag-shape graph_descriptor_node_attrs --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree
+```
+
+Use `--dag-shape graph_descriptor_node_op` to capture graph node `op`
+callable aliases over the add/mul/add descriptor shape. The paired validator
+expects dispatch `1,2,1`, graph fan-in `0,0,2`, dependents `2,2`, and
+`graph_node_ops=task0=op:add=1;task1=op:mul=2;task2=op:add=1`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_node_op --task-count 3 \
     --queue-capacity 2 --repeat-runs 2 --sync-remote-tree
 ```
 
@@ -1632,8 +1645,9 @@ together. The current committed summary keeps the full `61cf96cd` capture plus
 compact current-head gates in `docs/nvidia-backend/evaluation-current.md`.
 
 Use this compact paired gate after changing selected persistent graph
-benchmark rows. With no batch rows, it validates 86 samples across A100 and
+benchmark rows. With no batch rows, it validates 88 samples across A100 and
 H200, including `pto_persistent_dag_graph_node_attrs`,
+`pto_persistent_dag_graph_node_op`,
 `pto_persistent_dag_graph_depends_on`,
 `pto_persistent_dag_graph_scalar_axpy`,
 `pto_persistent_dag_graph_scalar_scale`,
@@ -1641,10 +1655,12 @@ H200, including `pto_persistent_dag_graph_node_attrs`,
 `pto_persistent_dag_graph_reordered`,
 `pto_persistent_dag_graph_triad`, `pto_persistent_dag_graph_quad`, and
 `pto_persistent_dag_graph_compact_role_inout` with dispatch `9,2,1`,
-`1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `1,9,2`, `6,2,1`,
+`1,2,1`, `1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `1,9,2`, `6,2,1`,
 `8,2,1`, and `1,1,1`.
 The node-attrs row requires
-`graph_node_attrs=task0=attrs:tensor_args,scalar_args`; the depends-on and
+`graph_node_attrs=task0=attrs:tensor_args,scalar_args`; the node-op row
+requires `graph_node_ops=task0=op:add=1;task1=op:mul=2;task2=op:add=1`;
+the depends-on and
 graph scalar rows require graph fan-in `0,0,2` and dependents `2,2`; the
 reordered row requires graph fan-in `2,0,0` and dependents `0,0`; the compact
 role row requires graph fan-in `0,1,1`, dependents `1,2`, and
@@ -1817,6 +1833,21 @@ errors, source-paper provenance, generated Markdown/SVG reports, and
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --single-baseline pto_persistent_dag_graph_node_attrs \
+    --sizes 4096 --arch compute_80
+```
+
+Use `--single-baseline pto_persistent_dag_graph_node_op` for the selected
+benchmark row whose callable ids came from graph-node `op` aliases. The
+compact A100/H200 gate under
+`tmp/cuda-backend/graph-node-op-benchmark-working/combined-current-7edfb7df/`
+validated dispatch `1,2,1`, fan-in `0,0,2`, dependents `2,2`, zero scheduler
+errors, source-paper provenance, generated Markdown/SVG reports, and
+`graph_node_ops=task0=op:add=1;task1=op:mul=2;task2=op:add=1`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_node_op \
     --sizes 4096 --arch compute_80
 ```
 

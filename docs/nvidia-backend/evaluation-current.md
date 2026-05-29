@@ -1429,6 +1429,41 @@ Both rows reported zero device scheduler errors. The generated Markdown
 report, SVG `<desc>`, and local artifact index all carry the node-attrs
 metadata, so this coverage is visible outside the raw JSON.
 
+## Supplemental Graph Node Op Benchmark
+
+The graph-node `op` path is now a selected benchmark baseline as
+`pto_persistent_dag_graph_node_op`. It uses graph node callable aliases
+(`add`, `mul`, `add`) to produce dispatch `1,2,1` over the same
+three-task fan-in shape as the incoming-edge graph descriptor. This makes the
+benchmark distinguish callable alias lowering from the topology-only
+`depends_on` row. The compact paired artifact is under
+`tmp/cuda-backend/graph-node-op-benchmark-working/combined-current-7edfb7df/`.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/graph-node-op-benchmark-working/combined-current-7edfb7df/cuda-benchmark.json \
+    --require-size 1024 --expected-repeats 1 --expected-result-count 88 \
+    --require-baseline pto_persistent_dag_graph_node_op \
+    --require-dispatch pto_persistent_dag_graph_node_op=1,2,1 \
+    --require-graph-node-ops 'pto_persistent_dag_graph_node_op=task0=op:add=1;task1=op:mul=2;task2=op:add=1' \
+    --require-graph-fanin pto_persistent_dag_graph_node_op=0,0,2 \
+    --require-graph-dependents pto_persistent_dag_graph_node_op=2,2 \
+    --require-report-files --require-zero-scheduler-errors \
+    --require-source-papers
+```
+
+| GPU | Baseline | N | Dispatch | Fan-in | Dependents | Node ops | Device ns | Status |
+| --- | -------- | - | -------- | ------ | ---------- | -------- | --------- | ------ |
+| A100 | `pto_persistent_dag_graph_node_op` | 1024 | `1,2,1` | `0,0,2` | `2,2` | `task0=op:add=1;task1=op:mul=2;task2=op:add=1` | 31744 | pass |
+| H200 | `pto_persistent_dag_graph_node_op` | 1024 | `1,2,1` | `0,0,2` | `2,2` | `task0=op:add=1;task1=op:mul=2;task2=op:add=1` | 25536 | pass |
+
+Both rows reported zero device scheduler errors. The generated Markdown
+report, SVG `<desc>`, current summary table, and local artifact index carry
+the node-op metadata, so this coverage is visible outside the raw JSON.
+
 ## Supplemental Reordered Graph-Descriptor Smoke
 
 The reordered graph-descriptor persistent DAG smoke at artifact label

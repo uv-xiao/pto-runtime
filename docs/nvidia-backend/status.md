@@ -310,6 +310,7 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - `pto_persistent_dag_graph`;
 - `pto_persistent_dag_graph_generic_args4`;
 - `pto_persistent_dag_graph_node_attrs`;
+- `pto_persistent_dag_graph_node_op`;
 - `pto_persistent_dag_graph_depends_on`;
 - `pto_persistent_dag_graph_chain`;
 - `pto_persistent_dag_graph_scratch_reuse`;
@@ -2007,6 +2008,15 @@ command examples, Markdown/SVG reports, zero scheduler errors, dispatch
 `[9,2,1]`, graph fan-in `[0,0,2]`, graph dependents `[2,2]`, and
 `graph_node_attrs.task0=attrs:tensor_args,scalar_args`. Device times were
 `40960 ns` on A100 and `33152 ns` on H200 for `N=1024`.
+The graph-node callable-alias path is now also promoted into the selected
+benchmark matrix as `pto_persistent_dag_graph_node_op`. The compact paired
+A100/H200 capture under
+`tmp/cuda-backend/graph-node-op-benchmark-working/combined-current-7edfb7df/`
+validated `88` benchmark samples with source-paper provenance, sanitized
+command examples, Markdown/SVG reports, zero scheduler errors, dispatch
+`[1,2,1]`, graph fan-in `[0,0,2]`, graph dependents `[2,2]`, and
+`graph_node_ops=task0=op:add=1;task1=op:mul=2;task2=op:add=1`. Device times
+were `31744 ns` on A100 and `25536 ns` on H200 for `N=1024`.
 The incoming-edge path is now covered by both a real-data L2 ctypes scene and
 paired persistent-device smoke. The working-tree smoke capture under
 `tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`
