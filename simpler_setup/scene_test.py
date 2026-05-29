@@ -1375,7 +1375,7 @@ class _CudaPersistentDagSceneBuffers:
     @staticmethod
     def _graph_dependents_from_task_specs(
         task_specs: list[dict[str, Any]],
-        graph_edges: list[Any] | None = None,
+        graph_edges: Any = None,
     ) -> list[list[int]]:
         task_name_to_id = _CudaPersistentDagSceneBuffers._graph_task_name_to_id(task_specs)
         producers: dict[str, list[int]] = {}
@@ -1443,11 +1443,11 @@ class _CudaPersistentDagSceneBuffers:
     @staticmethod
     def _add_graph_edges_to_dependents(
         dependents: list[list[int]],
-        graph_edges: list[Any],
+        graph_edges: Any,
         task_name_to_id: dict[str, int],
         task_count: int,
     ) -> None:
-        for edge in graph_edges:
+        for edge in _CudaPersistentDagSceneBuffers._graph_edge_entries(graph_edges):
             source, target = _CudaPersistentDagSceneBuffers._graph_edge_endpoints(edge)
             source_id = _CudaPersistentDagSceneBuffers._graph_dependency_task_id(source, task_name_to_id)
             target_id = _CudaPersistentDagSceneBuffers._graph_dependent_task_id(target, task_name_to_id)
@@ -1457,6 +1457,20 @@ class _CudaPersistentDagSceneBuffers:
                 raise ValueError(f"CUDA persistent_dag_graph_f32 edge target task id {target_id} is outside the graph")
             if target_id not in dependents[source_id]:
                 dependents[source_id].append(target_id)
+
+    @staticmethod
+    def _graph_edge_entries(graph_edges: Any) -> list[Any]:
+        if graph_edges is None:
+            return []
+        if isinstance(graph_edges, dict):
+            entries = []
+            for source, targets in graph_edges.items():
+                if isinstance(targets, (list, tuple)):
+                    entries.extend((source, target) for target in targets)
+                else:
+                    entries.append((source, targets))
+            return entries
+        return list(graph_edges)
 
     @staticmethod
     def _graph_edge_endpoints(edge: Any) -> tuple[Any, Any]:

@@ -356,6 +356,8 @@ The graph descriptor may also carry a top-level `edges` list, where each edge
 is either `{"from": <task>, "to": <task>}` or a two-item endpoint pair. This
 keeps node/task metadata separate from dependency metadata when a scene test
 needs a more graph-shaped descriptor.
+`graph.edges` may also be an adjacency dictionary from source task name/id to
+a single target or a list of targets.
 `graph.tasks` may be a list of task dictionaries or a dictionary keyed by task
 name. In the dictionary form, the key becomes the task `name` used by
 `graph.edges`, `dependents`, and `depends_on` / `dependencies`.
