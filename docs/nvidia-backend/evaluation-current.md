@@ -1,9 +1,10 @@
 # CUDA Current Evaluation Capture
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
-from commit `cb300e82`, plus compact current-head validation captures. The
+from commit `9ec5511e`, plus compact current-head validation captures. The
 full current-head capture is under
-`tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/`.
+`tmp/cuda-backend/current-head-full-node-link-working/`
+`combined-current-9ec5511e/`.
 The latest compact current-head gate is the capture under
 `tmp/cuda-backend/graph-node-link-compact-current-preset-working/`
 `combined-current-8a74e5ab/`, which validates the selected compact benchmark
@@ -21,11 +22,12 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - repeats: `3`
 - batch tasks: `2,6,12`
 - worker blocks per task: `32,64,128,256`
-- samples in combined JSON: `1206`
+- samples in combined JSON: `1224`
 
-The current paired-current validator expects `1224` samples for a refreshed
-full capture after the node-link graph row joined the selected matrix. The
-`1206` sample count above describes the historical `cb300e82` full capture.
+The current paired-current validator now accepts the full capture with
+`1224` samples after the node-link graph row joined the selected matrix. The
+older `cb300e82` full capture remains useful as historical evidence, but it
+validated `1206` samples before that row was included.
 
 ## Artifact Paths
 
@@ -37,6 +39,16 @@ full capture after the node-link graph row joined the selected matrix. The
 - `tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.md`
 - `tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark.svg`
 - `tmp/cuda-backend/combined-current-61cf96cd/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/current-head-full-node-link-working/a100-current-9ec5511e/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-node-link-working/a100-current-9ec5511e/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-node-link-working/h200-current-9ec5511e/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-node-link-working/h200-current-9ec5511e/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-node-link-working/combined-current-9ec5511e/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-node-link-working/combined-current-9ec5511e/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-node-link-working/combined-current-9ec5511e/cuda-benchmark.svg`
+- `tmp/cuda-backend/current-head-full-node-link-working/combined-current-9ec5511e/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/current-head-full-node-link-working/combined-current-9ec5511e/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/current-head-full-node-link-working/combined-current-9ec5511e/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/current-head-full-pair-working/a100-current-cb300e82/cuda-benchmark.json`
 - `tmp/cuda-backend/current-head-full-pair-working/a100-current-cb300e82/cuda-benchmark.md`
 - `tmp/cuda-backend/current-head-full-pair-working/h200-current-cb300e82/cuda-benchmark.json`
@@ -324,7 +336,7 @@ full capture after the node-link graph row joined the selected matrix. The
 
 ## Latest Full Current-Head Capture
 
-The full paired capture at artifact label `cb300e82` refreshes the broad
+The full paired capture at artifact label `9ec5511e` refreshes the broad
 A100/H200 benchmark matrix on the current branch head. It uses `compute_80`
 on A100, `compute_90` on H200, the default `16x16x16` tensor descriptor,
 three vector sizes, three repeats, same-work task counts `2,6,12`, and worker
@@ -335,9 +347,9 @@ Validation command:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/current-head-full-pair-working/combined-current-cb300e82/cuda-benchmark.json \
+    tmp/cuda-backend/current-head-full-node-link-working/combined-current-9ec5511e/cuda-benchmark.json \
     --require-size 1024,65536,1048576 --expected-repeats 3 \
-    --expected-result-count 1206 \
+    --expected-result-count 1224 \
     --require-report-files --require-report-graph-topology \
     --require-report-graph-task-args --require-report-tensor-throughput \
     --require-command-examples --require-zero-scheduler-errors \
@@ -348,45 +360,46 @@ The paired runner generated this validator with explicit required baselines,
 generated-dispatch IDs, tensor descriptors, graph fan-in/dependent arrays,
 TaskArgs-like graph metadata, graph node attrs/ops, scratch-reuse metadata,
 and tensor/core/cuBLAS report requirements. It accepted the combined JSON,
-Markdown, and SVG artifacts with `1206` samples. New full captures should use
-the `paired-current` preset, which now expects `1224` samples.
+Markdown, and SVG artifacts with `1224` samples. New full captures should use
+the `paired-current` preset with the same sample count until the selected
+benchmark matrix changes again.
 
 Launch baseline comparison from the same raw JSON:
 
 | GPU | N | PTO host ns | Compiler ns | Driver ns | Graph ns | Compiler/PTO | Graph/PTO |
 | --- | - | ----------- | ----------- | --------- | -------- | ------------ | --------- |
-| A100 | 1024 | 41984 | 40960 | 40959 | 26623 | 0.98x | 0.63x |
-| A100 | 65536 | 29120 | 33408 | 43903 | 31968 | 1.15x | 1.10x |
-| A100 | 1048576 | 27808 | 25984 | 26464 | 25504 | 0.93x | 0.92x |
-| H200 | 1024 | 31520 | 18816 | 20543 | 16928 | 0.60x | 0.54x |
-| H200 | 65536 | 15872 | 16416 | 23808 | 19263 | 1.03x | 1.21x |
-| H200 | 1048576 | 18016 | 18880 | 25056 | 18719 | 1.05x | 1.04x |
+| A100 | 1024 | 43008 | 41984 | 38911 | 25599 | 0.98x | 0.60x |
+| A100 | 65536 | 33760 | 34368 | 41855 | 27456 | 1.02x | 0.81x |
+| A100 | 1048576 | 27488 | 24352 | 28031 | 23967 | 0.89x | 0.87x |
+| H200 | 1024 | 29760 | 30688 | 21759 | 16960 | 1.03x | 0.57x |
+| H200 | 65536 | 15136 | 16800 | 24895 | 19104 | 1.11x | 1.26x |
+| H200 | 1048576 | 21280 | 22112 | 29087 | 19455 | 1.04x | 0.91x |
 
 Selected tensor throughput from the same raw JSON:
 
 | GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | Graph tensor-core ns | cuBLAS ns | cuBLAS graph ns |
 | --- | - | ----- | --------- | -------- | -------------- | -------------------- | --------- | --------------- |
-| A100 | 1024 | 16x16x16 | 36864 | 35840 | 38912 | 38912 | 21503 | 10239 |
-| A100 | 65536 | 16x16x16 | 457440 | 459520 | 570912 | 568864 | 17408 | 10239 |
-| A100 | 1048576 | 16x16x16 | 7211232 | 7251264 | 8792000 | 8978784 | 54271 | 46080 |
-| H200 | 1024 | 16x16x16 | 34592 | 33920 | 34752 | 35712 | 22080 | 9279 |
-| H200 | 65536 | 16x16x16 | 458688 | 464736 | 444960 | 452576 | 24895 | 10432 |
-| H200 | 1048576 | 16x16x16 | 6987968 | 7082720 | 6790976 | 6894208 | 27936 | 18688 |
+| A100 | 1024 | 16x16x16 | 36864 | 35840 | 38912 | 38912 | 20479 | 9216 |
+| A100 | 65536 | 16x16x16 | 458560 | 457792 | 566336 | 567520 | 16383 | 9216 |
+| A100 | 1048576 | 16x16x16 | 7249408 | 7251808 | 8955584 | 8911200 | 54271 | 46080 |
+| H200 | 1024 | 16x16x16 | 34496 | 34368 | 35008 | 35392 | 22592 | 9088 |
+| H200 | 65536 | 16x16x16 | 463872 | 458880 | 451776 | 445056 | 25631 | 10080 |
+| H200 | 1048576 | 16x16x16 | 7081312 | 6993504 | 6892480 | 6790816 | 29343 | 19551 |
 
 Graph task-argument spelling medians:
 
 | GPU | N | Tag ns | Role ns | Compact ns | Pair ns |
 | --- | - | ------ | ------- | ---------- | ------- |
-| A100 | 1024 | 29696 | 30720 | 29696 | 29696 |
-| A100 | 65536 | 221024 | 223008 | 219328 | 219136 |
-| A100 | 1048576 | 3223808 | 3237568 | 3221888 | 3210272 |
-| H200 | 1024 | 28704 | 28192 | 28704 | 28192 |
-| H200 | 65536 | 183264 | 185024 | 183456 | 184544 |
-| H200 | 1048576 | 2668576 | 2690112 | 2665984 | 2688544 |
+| A100 | 1024 | 29696 | 30720 | 30720 | 30720 |
+| A100 | 65536 | 218080 | 220384 | 217472 | 214752 |
+| A100 | 1048576 | 3216832 | 3212224 | 3213312 | 3238816 |
+| H200 | 1024 | 28608 | 28992 | 27776 | 28704 |
+| H200 | 65536 | 184480 | 183680 | 184992 | 183200 |
+| H200 | 1048576 | 2686784 | 2669280 | 2687456 | 2667200 |
 
 Interpretation:
 
-- The host-schedule compiler path stays within roughly `0.60x-1.15x` of the
+- The host-schedule compiler path stays within roughly `0.89x-1.11x` of the
   hand-written host-schedule row, depending on GPU and vector size.
 - CUDA Graph replay is best for the tiny launch-dominated row, but is not a
   replacement for the persistent-device scheduler path because the host still
