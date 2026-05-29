@@ -1270,6 +1270,40 @@ PYTHONPATH=$PWD:$PWD/python \
 Both rows reported zero device scheduler errors, graph fan-in `[0,0,2]`,
 dependents `[2,2]`, and all four generic tensor/scalar slots.
 
+## Supplemental Graph Node Attrs Benchmark
+
+The graph-node attrs path is now a selected benchmark baseline as
+`pto_persistent_dag_graph_node_attrs`. It uses the same generated-dispatch
+sequence as `pto_persistent_dag_graph_generic_args4`, but the benchmark row
+proves the auxiliary tensor/scalar metadata came from graph-node `attrs`
+instead of graph IO fields. The compact paired artifact is under
+`tmp/cuda-backend/graph-node-attrs-benchmark-working/combined-current-3d129351/`.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/graph-node-attrs-benchmark-working/combined-current-3d129351/cuda-benchmark.json \
+    --require-size 1024 --expected-repeats 1 --expected-result-count 78 \
+    --require-baseline pto_persistent_dag_graph_node_attrs \
+    --require-dispatch pto_persistent_dag_graph_node_attrs=9,2,1 \
+    --require-graph-node-attrs pto_persistent_dag_graph_node_attrs=task0=attrs:tensor_args,scalar_args \
+    --require-graph-fanin pto_persistent_dag_graph_node_attrs=0,0,2 \
+    --require-graph-dependents pto_persistent_dag_graph_node_attrs=2,2 \
+    --require-report-files --require-zero-scheduler-errors \
+    --require-source-papers
+```
+
+| GPU | Baseline | N | Dispatch | Fan-in | Dependents | Node attrs | Device ns | Status |
+| --- | -------- | - | -------- | ------ | ---------- | ---------- | --------- | ------ |
+| A100 | `pto_persistent_dag_graph_node_attrs` | 1024 | `9,2,1` | `0,0,2` | `2,2` | `task0=attrs:tensor_args,scalar_args` | 40960 | pass |
+| H200 | `pto_persistent_dag_graph_node_attrs` | 1024 | `9,2,1` | `0,0,2` | `2,2` | `task0=attrs:tensor_args,scalar_args` | 33152 | pass |
+
+Both rows reported zero device scheduler errors. The generated Markdown
+report, SVG `<desc>`, and local artifact index all carry the node-attrs
+metadata, so this coverage is visible outside the raw JSON.
+
 ## Supplemental Reordered Graph-Descriptor Smoke
 
 The reordered graph-descriptor persistent DAG smoke at artifact label

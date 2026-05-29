@@ -167,6 +167,13 @@ def _graph_task_args(payload: dict[str, Any]) -> str | None:
     return ";".join(f"{key}={task_args[key]}" for key in sorted(task_args))
 
 
+def _graph_node_attrs(payload: dict[str, Any]) -> str | None:
+    node_attrs = payload.get("graph_node_attrs")
+    if not isinstance(node_attrs, dict) or not node_attrs:
+        return None
+    return ";".join(f"{key}={node_attrs[key]}" for key in sorted(node_attrs))
+
+
 def _graph_task_arg_key(payload: dict[str, Any]) -> str | None:
     key = payload.get("graph_task_arg_key")
     return str(key) if key else None
@@ -215,6 +222,9 @@ def _read_artifact(path: Path, root: Path) -> dict[str, Any]:
         ),
         "graph_task_args": _sorted_unique(
             {task_args for row in results for task_args in (_graph_task_args(row),) if task_args is not None}
+        ),
+        "graph_node_attrs": _sorted_unique(
+            {attrs for row in results for attrs in (_graph_node_attrs(row),) if attrs is not None}
         ),
         "source_papers": _source_paper_ids(metadata),
         "has_command_examples": _has_command_examples(metadata),
@@ -453,6 +463,9 @@ def _read_smoke_artifact(path: Path, root: Path) -> dict[str, Any]:
         "graph_task_args": _sorted_unique(
             {task_args for payload in payloads for task_args in (_graph_task_args(payload),) if task_args is not None}
         ),
+        "graph_node_attrs": _sorted_unique(
+            {attrs for payload in payloads for attrs in (_graph_node_attrs(payload),) if attrs is not None}
+        ),
         "tensor_tiles": _tensor_tile_shapes(payloads),
         "has_markdown": True,
         "has_svg": (path / "cuda-smoke-report.svg").exists(),
@@ -509,7 +522,7 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             "Tensor tile | Smoke mode | Dispatch | Graph fan-in | "
             "Graph dependents | Scheduler errors | Repeat runs | "
             "Launch completions | Resource policy | Scalar args | Tensor args | "
-            "Graph task arg keys | Graph task args | Collection mode | "
+            "Graph task arg keys | Graph task args | Graph node attrs | Collection mode | "
             "Source papers | Commands | Baselines | Markdown | SVG | "
             "throughput SVG | ratio SVG | DAG delta SVG |"
         ),
@@ -517,7 +530,7 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             "| ---- | ---- | ----- | ------- | ------ | ------- | ----- | "
             "----------- | ---------- | -------- | ------------ | ---------------- | "
             "---------------- | ----------- | ------------------ | --------------- | "
-            "----------- | ----------- | ------------------- | --------------- | "
+            "---------------- | ----------- | ----------- | ------------------- | "
             "--------------- | ------------- | -------- | --------- | -------- | --- | "
             "-------------- | --------- | ------------- |"
         ),
@@ -539,6 +552,7 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             f"{_format_list(entry.get('tensor_args', []))} | "
             f"{_format_list(entry.get('graph_task_arg_keys', []))} | "
             f"{_format_list(entry.get('graph_task_args', []))} | "
+            f"{_format_list(entry.get('graph_node_attrs', []))} | "
             f"{_format_list(entry.get('collection_modes', []))} | "
             f"{_format_list(entry.get('source_papers', []))} | "
             f"{_checkmark(entry.get('has_command_examples', False))} | "

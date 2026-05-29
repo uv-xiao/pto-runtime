@@ -42,6 +42,7 @@ BASELINE_ROWS: tuple[str, ...] = (
     "pto_persistent_dag_generic_args",
     "pto_persistent_dag_graph",
     "pto_persistent_dag_graph_generic_args4",
+    "pto_persistent_dag_graph_node_attrs",
     "pto_persistent_dag_graph_depends_on",
     "pto_persistent_dag_graph_chain",
     "pto_persistent_dag_graph_scratch_reuse",
@@ -79,6 +80,7 @@ EXPECTED_DISPATCH_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_generic_args": "9,2,1",
     "pto_persistent_dag_graph": "9,2,1",
     "pto_persistent_dag_graph_generic_args4": "9,2,1",
+    "pto_persistent_dag_graph_node_attrs": "9,2,1",
     "pto_persistent_dag_graph_depends_on": "1,2,1",
     "pto_persistent_dag_graph_chain": "1,2,1,2,1",
     "pto_persistent_dag_graph_scratch_reuse": "1,2,1,2,1,1",
@@ -126,9 +128,13 @@ EXPECTED_GRAPH_TASK_ARG_KEY_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_role_keyed_inout": "role",
     "pto_persistent_dag_graph_compact_role_inout": "compact",
 }
+EXPECTED_GRAPH_NODE_ATTRS_BY_BASELINE: dict[str, str] = {
+    "pto_persistent_dag_graph_node_attrs": "task0=attrs:tensor_args,scalar_args",
+}
 EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph": "0,0,2",
     "pto_persistent_dag_graph_generic_args4": "0,0,2",
+    "pto_persistent_dag_graph_node_attrs": "0,0,2",
     "pto_persistent_dag_graph_depends_on": "0,0,2",
     "pto_persistent_dag_graph_chain": "0,0,2,1,1",
     "pto_persistent_dag_graph_scratch_reuse": "0,0,2,1,1,2",
@@ -146,6 +152,7 @@ EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
 EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph": "2,2",
     "pto_persistent_dag_graph_generic_args4": "2,2",
+    "pto_persistent_dag_graph_node_attrs": "2,2",
     "pto_persistent_dag_graph_depends_on": "2,2",
     "pto_persistent_dag_graph_chain": "2,2,3,4",
     "pto_persistent_dag_graph_scratch_reuse": "2,2,3,4,5,5",
@@ -454,6 +461,12 @@ def build_validate_command(
             f"{baseline}={EXPECTED_GRAPH_TASK_ARG_KEY_BY_BASELINE[baseline]}",
         )
     ]
+    graph_node_attrs_args = [
+        part
+        for baseline in _selected_baselines(config)
+        if baseline in EXPECTED_GRAPH_NODE_ATTRS_BY_BASELINE
+        for part in ("--require-graph-node-attrs", f"{baseline}={EXPECTED_GRAPH_NODE_ATTRS_BY_BASELINE[baseline]}")
+    ]
     graph_fanin_args = [
         part
         for baseline in _selected_baselines(config)
@@ -484,6 +497,7 @@ def build_validate_command(
         *scratch_reuse_args,
         *graph_task_args,
         *graph_task_arg_key_args,
+        *graph_node_attrs_args,
         *graph_fanin_args,
         *graph_dependents_args,
         "--require-report-files",

@@ -48,6 +48,7 @@ PAIRED_CURRENT_BASELINES = (
     "pto_persistent_dag_generic_args",
     "pto_persistent_dag_graph",
     "pto_persistent_dag_graph_generic_args4",
+    "pto_persistent_dag_graph_node_attrs",
     "pto_persistent_dag_graph_depends_on",
     "pto_persistent_dag_graph_chain",
     "pto_persistent_dag_graph_scratch_reuse",
@@ -71,8 +72,8 @@ PAIRED_CURRENT_BASELINES = (
 PAIRED_CURRENT_SIZES = (1024, 65536, 1048576)
 COMPACT_CURRENT_SIZES = (1024,)
 COMPACT_CURRENT_EXPECTED_REPEATS = 1
-COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 84
-PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 1062
+COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 86
+PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 1080
 REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 REPORT_FILES = (
     "cuda-benchmark.md",
@@ -93,6 +94,7 @@ PAIRED_CURRENT_DISPATCH = {
     "pto_persistent_dag_generic_args": "9,2,1",
     "pto_persistent_dag_graph": "9,2,1",
     "pto_persistent_dag_graph_generic_args4": "9,2,1",
+    "pto_persistent_dag_graph_node_attrs": "9,2,1",
     "pto_persistent_dag_graph_depends_on": "1,2,1",
     "pto_persistent_dag_graph_chain": "1,2,1,2,1",
     "pto_persistent_dag_graph_scratch_reuse": "1,2,1,2,1,1",
@@ -141,6 +143,9 @@ PAIRED_CURRENT_GRAPH_TASK_ARG_KEYS = {
     "pto_persistent_dag_graph_role_keyed_inout": "role",
     "pto_persistent_dag_graph_compact_role_inout": "compact",
 }
+PAIRED_CURRENT_GRAPH_NODE_ATTRS = {
+    "pto_persistent_dag_graph_node_attrs": "task0=attrs:tensor_args,scalar_args",
+}
 PAIRED_CURRENT_GRAPH_ROLE_SPELLING_BASELINES = (
     "pto_persistent_dag_graph_tagged_inout",
     "pto_persistent_dag_graph_role_keyed_inout",
@@ -149,6 +154,7 @@ PAIRED_CURRENT_GRAPH_ROLE_SPELLING_BASELINES = (
 PAIRED_CURRENT_GRAPH_FANIN = {
     "pto_persistent_dag_graph": "0,0,2",
     "pto_persistent_dag_graph_generic_args4": "0,0,2",
+    "pto_persistent_dag_graph_node_attrs": "0,0,2",
     "pto_persistent_dag_graph_depends_on": "0,0,2",
     "pto_persistent_dag_graph_chain": "0,0,2,1,1",
     "pto_persistent_dag_graph_scratch_reuse": "0,0,2,1,1,2",
@@ -166,6 +172,7 @@ PAIRED_CURRENT_GRAPH_FANIN = {
 PAIRED_CURRENT_GRAPH_DEPENDENTS = {
     "pto_persistent_dag_graph": "2,2",
     "pto_persistent_dag_graph_generic_args4": "2,2",
+    "pto_persistent_dag_graph_node_attrs": "2,2",
     "pto_persistent_dag_graph_depends_on": "2,2",
     "pto_persistent_dag_graph_chain": "2,2,3,4",
     "pto_persistent_dag_graph_scratch_reuse": "2,2,3,4,5,5",
@@ -250,6 +257,13 @@ def _graph_task_args_text(row: dict[str, Any]) -> str:
 def _graph_task_arg_key_text(row: dict[str, Any]) -> str:
     key = row.get("graph_task_arg_key")
     return str(key) if key else "-"
+
+
+def _graph_node_attrs_text(row: dict[str, Any]) -> str:
+    node_attrs = row.get("graph_node_attrs")
+    if not isinstance(node_attrs, dict):
+        return "-"
+    return ";".join(f"{key}={node_attrs[key]}" for key in sorted(node_attrs))
 
 
 def _graph_descriptor_text(row: dict[str, Any], field_name: str) -> str:
@@ -396,6 +410,36 @@ def _validate_report_graph_task_args(
         content = path.read_text()
         if any(needle is not None and needle not in content for needle in needles):
             errors.append(f"missing report graph task args in {file_name}")
+    return errors
+
+
+def _validate_report_graph_node_attrs(
+    artifact_dir: Path | None,
+    *,
+    required_graph_node_attrs: dict[str, str],
+) -> list[str]:
+    if artifact_dir is None:
+        return ["missing artifact directory for report graph node attrs validation"]
+
+    checks = {
+        "cuda-benchmark.md": [
+            "Graph node attrs",
+            *[f"`{value}`" for value in required_graph_node_attrs.values()],
+        ],
+        "cuda-benchmark.svg": [
+            *[f"node attrs: {value}" for value in required_graph_node_attrs.values()],
+        ],
+    }
+
+    errors: list[str] = []
+    for file_name, needles in checks.items():
+        path = artifact_dir / file_name
+        if not path.exists():
+            errors.append(f"missing report graph node attrs in {file_name}")
+            continue
+        content = path.read_text()
+        if any(needle not in content for needle in needles):
+            errors.append(f"missing report graph node attrs in {file_name}")
     return errors
 
 
@@ -689,6 +733,23 @@ def _validate_graph_task_arg_keys(
     return errors
 
 
+def _validate_graph_node_attrs(rows: list[dict[str, Any]], required_graph_node_attrs: dict[str, str]) -> list[str]:
+    errors: list[str] = []
+    for row in rows:
+        baseline = row.get("baseline")
+        expected = required_graph_node_attrs.get(str(baseline))
+        if expected is None:
+            continue
+        found = _graph_node_attrs_text(row)
+        if found != expected:
+            machine = row.get("machine", "unknown")
+            n = row.get("n", "unknown")
+            errors.append(
+                f"expected graph_node_attrs {expected} for machine={machine} baseline={baseline} n={n}, found {found}"
+            )
+    return errors
+
+
 def _validate_graph_descriptor(
     rows: list[dict[str, Any]],
     *,
@@ -733,6 +794,7 @@ def validate_capture(  # noqa: PLR0913
     required_scratch_reuse: dict[str, str] | None = None,
     required_graph_task_args: dict[str, str] | None = None,
     required_graph_task_arg_keys: dict[str, str] | None = None,
+    required_graph_node_attrs: dict[str, str] | None = None,
     required_graph_fanin: dict[str, str] | None = None,
     required_graph_dependents: dict[str, str] | None = None,
     source_paper_root: Path | None = None,
@@ -775,6 +837,13 @@ def validate_capture(  # noqa: PLR0913
                 required_graph_task_arg_keys=required_graph_task_arg_keys or {},
             )
         )
+    if required_graph_node_attrs:
+        errors.extend(
+            _validate_report_graph_node_attrs(
+                artifact_dir,
+                required_graph_node_attrs=required_graph_node_attrs,
+            )
+        )
     if require_report_graph_role_spelling:
         errors.extend(
             _validate_report_graph_role_spelling(
@@ -804,6 +873,7 @@ def validate_capture(  # noqa: PLR0913
     errors.extend(_validate_scratch_reuse(rows, required_scratch_reuse or {}))
     errors.extend(_validate_graph_task_args(rows, required_graph_task_args or {}))
     errors.extend(_validate_graph_task_arg_keys(rows, required_graph_task_arg_keys or {}))
+    errors.extend(_validate_graph_node_attrs(rows, required_graph_node_attrs or {}))
     errors.extend(_validate_graph_descriptor(rows, field_name="fanin", required_values=required_graph_fanin or {}))
     errors.extend(
         _validate_graph_descriptor(rows, field_name="dependents", required_values=required_graph_dependents or {})
@@ -848,6 +918,10 @@ def _apply_preset(args: argparse.Namespace) -> None:
     if not args.require_graph_task_arg_key:
         args.require_graph_task_arg_key = [
             f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_GRAPH_TASK_ARG_KEYS.items()
+        ]
+    if not args.require_graph_node_attrs:
+        args.require_graph_node_attrs = [
+            f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_GRAPH_NODE_ATTRS.items()
         ]
     if not args.require_graph_fanin:
         args.require_graph_fanin = [
@@ -895,6 +969,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--require-scratch-reuse", action="append")
     parser.add_argument("--require-graph-task-args", action="append")
     parser.add_argument("--require-graph-task-arg-key", action="append")
+    parser.add_argument("--require-graph-node-attrs", action="append")
     parser.add_argument("--require-graph-fanin", action="append")
     parser.add_argument("--require-graph-dependents", action="append")
     parser.add_argument("--require-report-graph-topology", action="store_true")
@@ -924,6 +999,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.require_graph_task_arg_key,
             flag="--require-graph-task-arg-key",
         )
+        required_graph_node_attrs = _parse_required_mapping(
+            args.require_graph_node_attrs,
+            flag="--require-graph-node-attrs",
+        )
         required_graph_fanin = _parse_required_mapping(args.require_graph_fanin, flag="--require-graph-fanin")
         required_graph_dependents = _parse_required_mapping(
             args.require_graph_dependents,
@@ -952,6 +1031,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         required_scratch_reuse=required_scratch_reuse,
         required_graph_task_args=required_graph_task_args,
         required_graph_task_arg_keys=required_graph_task_arg_keys,
+        required_graph_node_attrs=required_graph_node_attrs,
         required_graph_fanin=required_graph_fanin,
         required_graph_dependents=required_graph_dependents,
         source_paper_root=Path.cwd() if args.require_source_papers else None,

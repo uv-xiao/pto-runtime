@@ -1628,20 +1628,23 @@ together. The current committed summary keeps the full `61cf96cd` capture plus
 compact current-head gates in `docs/nvidia-backend/evaluation-current.md`.
 
 Use this compact paired gate after changing selected persistent graph
-benchmark rows. It validates 84 samples across A100 and H200, including
+benchmark rows. With no batch rows, it validates 78 samples across A100 and
+H200, including `pto_persistent_dag_graph_node_attrs`,
 `pto_persistent_dag_graph_depends_on`, `pto_persistent_dag_graph_triad`,
 `pto_persistent_dag_graph_quad`, and
-`pto_persistent_dag_graph_compact_role_inout` with dispatch `1,2,1`,
-`6,2,1`, `8,2,1`, and `1,1,1`. The depends-on row requires graph fan-in
-`0,0,2` and dependents `2,2`; the compact role row requires graph fan-in
-`0,1,1`, dependents `1,2`, and `graph_task_arg_key=compact`:
+`pto_persistent_dag_graph_compact_role_inout` with dispatch `9,2,1`,
+`1,2,1`, `6,2,1`, `8,2,1`, and `1,1,1`. The node-attrs row requires
+`graph_node_attrs=task0=attrs:tensor_args,scalar_args`; the depends-on row
+requires graph fan-in `0,0,2` and dependents `2,2`; the compact role row
+requires graph fan-in `0,1,1`, dependents `1,2`, and
+`graph_task_arg_key=compact`:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
-    --sizes 1024 --repeats 1 --batch-tasks 2 \
-    --worker-blocks-per-task 4 --sync-remote-tree \
-    --output-root tmp/cuda-backend/graph-tensor-arity-benchmark-working
+    --sizes 1024 --repeats 1 --batch-tasks '' \
+    --worker-blocks-per-task '' --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-node-attrs-benchmark-working
 ```
 
 For a lighter no-torch real-data check, run the paired Worker smoke instead of
@@ -1758,6 +1761,21 @@ scalar slots. The current A100/H200 quick capture is under
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --single-baseline pto_persistent_dag_graph_generic_args4 \
+    --sizes 4096 --arch compute_80
+```
+
+Use `--single-baseline pto_persistent_dag_graph_node_attrs` for the selected
+benchmark row whose auxiliary tensor/scalar metadata came from graph-node
+`attrs` rather than graph IO fields. The compact A100/H200 gate under
+`tmp/cuda-backend/graph-node-attrs-benchmark-working/combined-current-3d129351/`
+validated dispatch `9,2,1`, fan-in `0,0,2`, dependents `2,2`, zero scheduler
+errors, source-paper provenance, generated Markdown/SVG reports, and
+`graph_node_attrs=task0=attrs:tensor_args,scalar_args`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_node_attrs \
     --sizes 4096 --arch compute_80
 ```
 
