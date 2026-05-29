@@ -155,6 +155,16 @@ def _graph_task_arg_key(payload: dict[str, Any]) -> str | None:
     return str(key) if key else None
 
 
+def _graph_descriptor_field(payload: dict[str, Any], field: str) -> str | None:
+    descriptor = payload.get("graph_descriptor")
+    if not isinstance(descriptor, dict):
+        return None
+    values = descriptor.get(field)
+    if not isinstance(values, list):
+        return None
+    return ",".join(str(value) for value in values)
+
+
 def _read_artifact(path: Path, root: Path) -> dict[str, Any]:
     payload = json.loads((path / "cuda-benchmark.json").read_text())
     metadata = payload.get("metadata", {})
@@ -171,6 +181,17 @@ def _read_artifact(path: Path, root: Path) -> dict[str, Any]:
         "tensor_tiles": _tensor_tile_shapes([payload]),
         "dispatches": _sorted_unique(
             {dispatch for row in results for dispatch in (_dispatch_func_ids(row),) if dispatch is not None}
+        ),
+        "graph_fanins": _sorted_unique(
+            {fanin for row in results for fanin in (_graph_descriptor_field(row, "fanin"),) if fanin is not None}
+        ),
+        "graph_dependents": _sorted_unique(
+            {
+                dependents
+                for row in results
+                for dependents in (_graph_descriptor_field(row, "dependents"),)
+                if dependents is not None
+            }
         ),
         "graph_task_arg_keys": _sorted_unique(
             {key for row in results for key in (_graph_task_arg_key(row),) if key is not None}
@@ -249,6 +270,17 @@ def _read_lifecycle_matrix_artifact(path: Path, root: Path) -> dict[str, Any]:
         "dispatches": _sorted_unique(
             {dispatch for row in rows for dispatch in (_dispatch_func_ids(row),) if dispatch is not None}
         ),
+        "graph_fanins": _sorted_unique(
+            {fanin for row in rows for fanin in (_graph_descriptor_field(row, "fanin"),) if fanin is not None}
+        ),
+        "graph_dependents": _sorted_unique(
+            {
+                dependents
+                for row in rows
+                for dependents in (_graph_descriptor_field(row, "dependents"),)
+                if dependents is not None
+            }
+        ),
         "scheduler_errors": _sorted_unique(
             {errors for row in rows for errors in (_scheduler_errors(row),) if errors is not None}
         ),
@@ -302,6 +334,22 @@ def _read_smoke_artifact(path: Path, root: Path) -> dict[str, Any]:
         ),
         "dispatches": _sorted_unique(
             {dispatch for payload in payloads for dispatch in (_dispatch_func_ids(payload),) if dispatch is not None}
+        ),
+        "graph_fanins": _sorted_unique(
+            {
+                fanin
+                for payload in payloads
+                for fanin in (_graph_descriptor_field(payload, "fanin"),)
+                if fanin is not None
+            }
+        ),
+        "graph_dependents": _sorted_unique(
+            {
+                dependents
+                for payload in payloads
+                for dependents in (_graph_descriptor_field(payload, "dependents"),)
+                if dependents is not None
+            }
         ),
         "scheduler_errors": _sorted_unique(
             {errors for payload in payloads for errors in (_scheduler_errors(payload),) if errors is not None}
@@ -375,19 +423,19 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
         "",
         (
             "| Path | Kind | Label | Machine | Commit | Results | Sizes | "
-            "Tensor tile | Smoke mode | Dispatch | Scheduler errors | "
-            "Repeat runs | Launch completions | Resource policy | Scalar args | "
-            "Tensor args | Graph task arg keys | Graph task args | Source papers | "
-            "Commands | Baselines | Markdown | SVG | throughput SVG | ratio SVG | "
-            "DAG delta SVG |"
+            "Tensor tile | Smoke mode | Dispatch | Graph fan-in | "
+            "Graph dependents | Scheduler errors | Repeat runs | "
+            "Launch completions | Resource policy | Scalar args | Tensor args | "
+            "Graph task arg keys | Graph task args | Source papers | Commands | "
+            "Baselines | Markdown | SVG | throughput SVG | ratio SVG | DAG delta SVG |"
         ),
         (
             "| ---- | ---- | ----- | ------- | ------ | ------- | ----- | "
-            "----------- | ---------- | -------- | ---------------- | "
-            "----------- | ------------------ | --------------- | ----------- | "
-            "----------- | ------------------- | --------------- | ------------- | "
-            "-------- | --------- | -------- | --- | -------------- | --------- | "
-            "------------- |"
+            "----------- | ---------- | -------- | ------------ | ---------------- | "
+            "---------------- | ----------- | ------------------ | --------------- | "
+            "----------- | ----------- | ------------------- | --------------- | "
+            "------------- | -------- | --------- | -------- | --- | -------------- | "
+            "--------- | ------------- |"
         ),
     ]
     for entry in entries:
@@ -397,6 +445,8 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             f"{_format_list(entry['sizes'])} | {_format_list(entry['tensor_tiles'])} | "
             f"{_format_list(entry.get('smoke_modes', []))} | "
             f"{_format_list(entry.get('dispatches', []))} | "
+            f"{_format_list(entry.get('graph_fanins', []))} | "
+            f"{_format_list(entry.get('graph_dependents', []))} | "
             f"{_format_list(entry.get('scheduler_errors', []))} | "
             f"{_format_list(entry.get('repeat_runs', []))} | "
             f"{_format_list(entry.get('launch_completed_counts', []))} | "

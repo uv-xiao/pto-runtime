@@ -135,9 +135,10 @@ committed:
 `.agents/skills/cuda-backend-eval/scripts/cuda_artifact_index.py`. It indexes
 local benchmark, tensor-shape sweep, lifecycle matrix, and smoke artifacts,
 including tensor-tile descriptor shapes when the JSON payloads carry that
-metadata. Persistent smoke and lifecycle matrix rows also include repeat-run
-counts and per-launch completion counts, which are the quick audit fields for
-graph-descriptor lifecycle reuse captures.
+metadata. Persistent smoke and lifecycle matrix rows also include dispatch,
+graph descriptor fan-in/dependent arrays, repeat-run counts, and per-launch
+completion counts, which are the quick audit fields for graph-descriptor
+lifecycle reuse captures.
 Benchmark report directories now include `cuda-benchmark-dag-deltas.svg`,
 which visualizes the signed device-time increment of each
 `pto_persistent_dag_*` row over the matched `pto_persistent_dag` scheduler

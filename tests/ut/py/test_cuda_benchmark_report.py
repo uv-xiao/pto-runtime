@@ -840,6 +840,8 @@ def test_cuda_artifact_index_scans_benchmark_outputs(tmp_path):
             "sizes": [1024],
             "tensor_tiles": [],
             "dispatches": [],
+            "graph_fanins": [],
+            "graph_dependents": [],
             "graph_task_arg_keys": [],
             "graph_task_args": [],
             "source_papers": [],
@@ -870,7 +872,7 @@ def test_cuda_artifact_index_renders_markdown_and_writes_default_index(tmp_path)
     assert "# CUDA Backend Artifact Index" in report
     assert (
         "| a100-graph | benchmark | a100-graph | hina | abc123 | 1 | 1024 |  |  |  |  |  |  |  |  |  |  | "
-        " |  | no | direct_driver_graph |"
+        " |  |  |  | no | direct_driver_graph |"
     ) in report
     assert "ratio SVG" in report
     assert "DAG delta SVG" in report
@@ -948,6 +950,95 @@ def test_cuda_artifact_index_records_benchmark_graph_task_arg_keys(tmp_path):
     assert "1,1,1 |" in report
     assert "role |" in report
     assert "task1=inout:tmp1,input:b" in report
+
+
+def test_cuda_artifact_index_records_graph_descriptor_topology(tmp_path):
+    cuda_artifact_index = _load_artifact_index_module()
+    benchmark_dir = tmp_path / "combined-role-keyed"
+    benchmark_dir.mkdir()
+    benchmark_payload = {
+        "metadata": {
+            "label": "role-keyed",
+            "git_commit": "abc123",
+            "machine": "combined",
+        },
+        "results": [
+            {
+                "baseline": "pto_persistent_dag_graph_role_keyed_inout",
+                "n": 1024,
+                "device_wall_ns": 10,
+                "dispatch_func_ids": [1, 1, 1],
+                "graph_descriptor": {
+                    "tasks": 3,
+                    "fanin": [0, 1, 1],
+                    "dependents": [1, 2],
+                },
+            }
+        ],
+    }
+    (benchmark_dir / "cuda-benchmark.json").write_text(json.dumps(benchmark_payload) + "\n")
+
+    smoke_dir = tmp_path / "role-keyed-smoke"
+    smoke_dir.mkdir()
+    smoke_payload = {
+        "status": "pass",
+        "runtime": "persistent_device",
+        "mode": "dag",
+        "dag_shape": "graph_descriptor_role_keyed_inout",
+        "n": 1024,
+        "dispatch_func_ids": [1, 1, 1],
+        "graph_descriptor": {
+            "tasks": 3,
+            "fanin": [0, 1, 1],
+            "dependents": [1, 2],
+        },
+    }
+    (smoke_dir / "a100.json").write_text(json.dumps(smoke_payload) + "\n")
+    (smoke_dir / "cuda-smoke-report.md").write_text("# CUDA Smoke Report\n\n- Label: `role-keyed-smoke`\n")
+
+    lifecycle_dir = tmp_path / "role-keyed-lifecycle"
+    lifecycle_dir.mkdir()
+    lifecycle_payload = {
+        "label": "role-keyed-lifecycle",
+        "rows": [
+            {
+                "artifact": "a100",
+                "scenario": "role-keyed",
+                "runtime": "persistent_device",
+                "mode": "dag",
+                "dag_shape": "graph_descriptor_role_keyed_inout",
+                "n": 1024,
+                "dispatch_func_ids": [1, 1, 1],
+                "graph_descriptor": {
+                    "tasks": 3,
+                    "fanin": [0, 1, 1],
+                    "dependents": [1, 2],
+                },
+            }
+        ],
+    }
+    (lifecycle_dir / "cuda-lifecycle-matrix.json").write_text(json.dumps(lifecycle_payload) + "\n")
+
+    entries = cuda_artifact_index.scan_artifacts(tmp_path)
+    by_path = {entry["path"]: entry for entry in entries}
+    report = cuda_artifact_index.render_markdown(entries)
+
+    for path in ("combined-role-keyed", "role-keyed-smoke", "role-keyed-lifecycle"):
+        assert by_path[path]["graph_fanins"] == ["0,1,1"]
+        assert by_path[path]["graph_dependents"] == ["1,2"]
+
+    assert "Graph fan-in | Graph dependents" in report
+    assert (
+        "| combined-role-keyed | benchmark | role-keyed | combined | abc123 | 1 | 1024 |  |  | 1,1,1 | 0,1,1 | 1,2 |"
+    ) in report
+    assert (
+        "| role-keyed-smoke | smoke | role-keyed-smoke | unknown | unknown | 1 | 1024 |  | "
+        "dag/graph_descriptor_role_keyed_inout | 1,1,1 | 0,1,1 | 1,2 |"
+    ) in report
+    assert (
+        "| role-keyed-lifecycle | lifecycle_matrix | role-keyed-lifecycle | a100 | unknown | 1 | 1024 |  | "
+        "dag/graph_descriptor_role_keyed_inout | 1,1,1 | 0,1,1 | 1,2 |"
+    ) in report
 
 
 def test_cuda_artifact_index_records_benchmark_source_papers(tmp_path):
@@ -1105,6 +1196,8 @@ def test_cuda_artifact_index_scans_smoke_report_outputs(tmp_path):
             "sizes": [4096],
             "smoke_modes": ["dag/tensor_tile"],
             "dispatches": ["3,1,2,1"],
+            "graph_fanins": [],
+            "graph_dependents": [],
             "scheduler_errors": [
                 "count=0,code=0,task=0",
                 "count=1,code=7,task=3",
@@ -1125,11 +1218,12 @@ def test_cuda_artifact_index_scans_smoke_report_outputs(tmp_path):
         }
     ]
     assert (
-        "Smoke mode | Dispatch | Scheduler errors | Repeat runs | Launch completions | "
-        "Resource policy | Scalar args | Tensor args | Graph task arg keys |"
+        "Smoke mode | Dispatch | Graph fan-in | Graph dependents | Scheduler errors | "
+        "Repeat runs | Launch completions | Resource policy | Scalar args | Tensor args | "
+        "Graph task arg keys |"
     ) in report
     assert "| tensor-descriptor-smoke | smoke | tensor-smoke | combined | unknown | 2 |" in report
-    assert "| 4096 | 16x16x16 | dag/tensor_tile | 3,1,2,1 |" in report
+    assert "| 4096 | 16x16x16 | dag/tensor_tile | 3,1,2,1 |  |  |" in report
     assert "count=0,code=0,task=0, count=1,code=7,task=3 |" in report
     assert "sched=1,workers=2,wp=1,stream=1,block=256,grid=3 |" in report
     assert (
@@ -1164,7 +1258,7 @@ def test_cuda_artifact_index_records_persistent_smoke_lifecycle_reuse(tmp_path):
     assert entry["repeat_runs"] == [2]
     assert entry["launch_completed_counts"] == ["3,3"]
     assert "Repeat runs | Launch completions" in report
-    assert "| dag/graph_descriptor | 9,2,1 | count=0,code=0,task=0 | 2 | 3,3 |" in report
+    assert "| dag/graph_descriptor | 9,2,1 |  |  | count=0,code=0,task=0 | 2 | 3,3 |" in report
 
 
 def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
@@ -1233,6 +1327,8 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
             "tensor_tiles": [],
             "smoke_modes": ["dag/graph_descriptor_scratch_reuse", "direct"],
             "dispatches": ["1,2,1,2,1,1"],
+            "graph_fanins": [],
+            "graph_dependents": [],
             "scheduler_errors": ["count=0,code=0,task=0"],
             "repeat_runs": [2],
             "launch_completed_counts": ["2,2", "6,6"],
@@ -1252,7 +1348,7 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
     assert (
         "| persistent-lifecycle-matrix-abc123 | lifecycle_matrix | persistent-lifecycle-matrix-abc123 | "
         "combined | unknown | 2 | 1024 |  | dag/graph_descriptor_scratch_reuse, direct | "
-        "1,2,1,2,1,1 | count=0,code=0,task=0 | 2 | 2,2, 6,6 |"
+        "1,2,1,2,1,1 |  |  | count=0,code=0,task=0 | 2 | 2,2, 6,6 |"
     ) in report
 
 
