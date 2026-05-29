@@ -2700,7 +2700,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 result["scalar_args"] = scalar_args
             if config.dag_shape == "graph_descriptor_tagged":
                 result["graph_task_args"] = {
-                    "task0": "input:a,input:b,output:tmp1",
+                    "task0": "input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1]",
                     "task1": "input:a,input:b,output:tmp2",
                     "task2": "input:tmp1,input:tmp2,output_existing:out",
                 }

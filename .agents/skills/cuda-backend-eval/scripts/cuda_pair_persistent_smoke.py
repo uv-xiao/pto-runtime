@@ -334,7 +334,7 @@ def _expected_graph_task_args(config: PairedPersistentSmokeConfig) -> str | None
         return None
     return {
         "graph_descriptor_tagged": (
-            "task0=input:a,input:b,output:tmp1;"
+            "task0=input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1];"
             "task1=input:a,input:b,output:tmp2;"
             "task2=input:tmp1,input:tmp2,output_existing:out"
         ),

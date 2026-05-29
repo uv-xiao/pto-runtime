@@ -159,10 +159,10 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/h200.json`
 - `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/cuda-smoke-report.md`
 - `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/cuda-smoke-report.svg`
-- `tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/a100.json`
-- `tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/h200.json`
-- `tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/cuda-smoke-report.md`
-- `tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/cuda-smoke-report.svg`
+- `tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/a100.json`
+- `tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/h200.json`
+- `tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/cuda-smoke-report.md`
+- `tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/cuda-smoke-report.svg`
 - `tmp/cuda-backend/persistent-graph-generic-args4-baseline-working/a100.json`
 - `tmp/cuda-backend/persistent-graph-generic-args4-baseline-working/h200.json`
 - `tmp/cuda-backend/persistent-graph-generic-args4-baseline-working/cuda-smoke-report.md`
@@ -903,13 +903,14 @@ Both rows reported zero device scheduler errors and generated Markdown/SVG
 smoke reports. This is correctness evidence for graph lowering; the task body
 and arithmetic are the same as the generic-args graph descriptor.
 
-The tagged graph-descriptor paired smoke at artifact label `d880e2b8`
-validates the first TaskArgs-like lowering slice in the paired report flow.
+The tagged graph-descriptor paired smoke at artifact label `a618e624`
+validates the first TaskArgs-like lowering slice in the paired report flow,
+including scalar task-arg entries.
 It lowers tagged task entries to the same three-task graph descriptor:
 `graph_descriptor.fanin=[0,0,2]`,
 `graph_descriptor.dependents=[2,2]`, dispatch `9,2,1`, and
 `graph_task_args` metadata for
-`input:a,input:b,output:tmp1`,
+`input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1]`,
 `input:a,input:b,output:tmp2`, and
 `input:tmp1,input:tmp2,output_existing:out`.
 
@@ -918,8 +919,8 @@ Validation command:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
-    tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/a100.json \
-    tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/h200.json \
+    tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/a100.json \
+    tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/h200.json \
     --require-artifact a100 --require-artifact h200 \
     --expected-runtime persistent_device --expected-mode dag \
     --expected-dag-shape graph_descriptor_tagged \
@@ -928,14 +929,14 @@ PYTHONPATH=$PWD:$PWD/python \
     --expected-graph-fanin 0,0,2 \
     --expected-graph-dependents 2,2 \
     --expected-graph-task-args \
-      'task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2;task2=input:tmp1,input:tmp2,output_existing:out' \
+      'task0=input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1];task1=input:a,input:b,output:tmp2;task2=input:tmp1,input:tmp2,output_existing:out' \
     --require-report-files
 ```
 
 | GPU | Dispatch | Fan-in | Dependents | Launch completions | Device ns | Host ns | Status |
 | --- | -------- | ------ | ---------- | ------------------ | --------- | ------- | ------ |
-| A100 | `9,2,1` | `0,0,2` | `2,2` | `3,3` | 38912 | 802138 | pass |
-| H200 | `9,2,1` | `0,0,2` | `2,2` | `3,3` | 40000 | 4919518 | pass |
+| A100 | `9,2,1` | `0,0,2` | `2,2` | `3,3` | 68608 | 98185 | pass |
+| H200 | `9,2,1` | `0,0,2` | `2,2` | `3,3` | 43488 | 61711 | pass |
 
 Both rows reported zero device scheduler errors and generated Markdown/SVG
 smoke reports. The regenerated report and artifact index include a

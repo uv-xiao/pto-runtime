@@ -3850,6 +3850,7 @@ def test_cuda_pair_persistent_smoke_accepts_tagged_graph_descriptor_workflow(tmp
     assert "--expected-graph-dependents" in validate
     assert "2,2" in validate
     assert "--expected-graph-task-args" in validate
+    assert "task0=input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1]" in " ".join(validate)
     assert "task2=input:tmp1,input:tmp2,output_existing:out" in " ".join(validate)
 
 

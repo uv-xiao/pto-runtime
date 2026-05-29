@@ -1917,16 +1917,22 @@ resource policy `scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`,
 and zero scheduler errors on both GPUs. A100 reported per-launch device times
 `[46080,25600]` and H200 reported `[28960,20512]`.
 The same tagged graph shape is now also in the paired persistent-smoke report
-flow as `graph_descriptor_tagged`, with A100/H200 JSON plus Markdown/SVG
-artifacts under
-`tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/`.
+flow as `graph_descriptor_tagged`, with scalar inputs recorded beside tensor
+roles in `graph_task_args`. The current A100/H200 JSON plus Markdown/SVG
+artifacts are under
+`tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/`.
 The paired validator accepted dispatch `9,2,1`, fan-in `[0,0,2]`,
-dependents `[2,2]`, repeat completions `[3,3]`, and zero scheduler errors on
-both GPUs. The regenerated Markdown/SVG smoke report and artifact index also
-show `Graph task args`, so this artifact now visibly ties the paired hardware
-result back to the tagged task-argument lowering form. The smoke validator
-now checks `--expected-graph-task-args` for this shape as well as dispatch,
-fan-in, dependents, lifecycle counters, resource policy, and report files.
+dependents `[2,2]`, repeat completions `[3,3]`, resource policy
+`scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`, scalar metadata
+`scalar_args[0]=1.5`, `scalar_args[1]=0.25`, tagged task args
+`input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1]`,
+`input:a,input:b,output:tmp2`, and
+`input:tmp1,input:tmp2,output_existing:out`, and zero scheduler errors on
+both GPUs. A100 reported per-launch device times `[44032,24576]`; H200
+reported `[24768,18720]`. The regenerated Markdown/SVG smoke report and
+artifact index also show `Graph task args`, so this artifact visibly ties the
+paired hardware result back to the tagged tensor/scalar task-argument
+lowering form.
 
 The host-schedule generic-args adapter was checked with a failing test first,
 then local A100 and remote H200 real-data ctypes scene tests:

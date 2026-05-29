@@ -603,7 +603,9 @@ Use `--dag-shape graph_descriptor_tagged --repeat-runs 2` to validate the
 same three-task graph descriptor shape after lowering tagged TaskArgs-like
 entries (`input`, `output`, `output_existing`, and scalar inputs) into the
 CUDA descriptor fields. The current paired capture is under
-`tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/`.
+`tmp/cuda-backend/graph-tagged-scalar-working/persistent-graph_descriptor_tagged-repeat2-smoke-a618e624/`.
+The paired validator requires the scalar roles in the tagged task metadata:
+`task0=input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1]`.
 The current graph-descriptor DAG-chain repeat-run capture is under
 `tmp/cuda-backend/persistent-graph_descriptor_chain-repeat2-smoke-b94b555d/`.
 Use `--dag-shape graph_descriptor_reordered --repeat-runs 2` to validate that
