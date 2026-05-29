@@ -1937,9 +1937,10 @@ error counters, repeat-run counts, per-launch completion counts, graph
 descriptor fan-in/dependent arrays, graph task-argument keys, graph
 task-argument metadata, tensor-sweep source-paper IDs, tensor-sweep
 command-example presence, lifecycle-matrix source-paper IDs,
-lifecycle-matrix command-example presence, and generated report/chart
-presence. It is a local audit aid under `tmp/`; do not commit it with raw
-benchmark, tensor sweep, lifecycle matrix, or smoke data.
+lifecycle-matrix collection mode, lifecycle-matrix command-example presence,
+and generated report/chart presence. It is a local audit aid under `tmp/`; do
+not commit it with raw benchmark, tensor sweep, lifecycle matrix, or smoke
+data.
 
 Render compact smoke JSON reports when a result is a smoke validation rather
 than a full benchmark:

@@ -907,10 +907,9 @@ def test_cuda_artifact_index_renders_markdown_and_writes_default_index(tmp_path)
 
     assert output == tmp_path / "index.md"
     assert "# CUDA Backend Artifact Index" in report
-    assert (
-        "| a100-graph | benchmark | a100-graph | hina | abc123 | 1 | 1024 |  |  |  |  |  |  |  |  |  |  | "
-        " |  |  |  | no | direct_driver_graph |"
-    ) in report
+    assert "Collection mode | Source papers | Commands" in report
+    assert "| a100-graph | benchmark | a100-graph | hina | abc123 | 1 | 1024 |" in report
+    assert "| no | direct_driver_graph | no | no | no | no | no |" in report
     assert "ratio SVG" in report
     assert "DAG delta SVG" in report
 
@@ -1305,6 +1304,8 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
     payload = {
         "label": "persistent-lifecycle-matrix-abc123",
         "metadata": {
+            "git_commit": "abc123",
+            "collection_mode": "existing",
             "source_papers": [
                 {"id": "arXiv:2605.03190", "label": "VDCores"},
                 {"id": "arXiv:2512.22219v1", "label": "MPK persistent kernel"},
@@ -1367,7 +1368,7 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
             "kind": "lifecycle_matrix",
             "label": "persistent-lifecycle-matrix-abc123",
             "machine": "combined",
-            "git_commit": "unknown",
+            "git_commit": "abc123",
             "result_count": 2,
             "baselines": ["direct", "graph-scratch-reuse"],
             "sizes": [1024],
@@ -1383,6 +1384,7 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
                 "sched=0,workers=4,wp=2,stream=1,block=256,grid=4",
                 "sched=1,workers=2,wp=1,stream=1,block=256,grid=3",
             ],
+            "collection_modes": ["existing"],
             "source_papers": ["arXiv:2512.22219v1", "arXiv:2605.03190"],
             "has_command_examples": True,
             "has_markdown": True,
@@ -1394,10 +1396,10 @@ def test_cuda_artifact_index_scans_lifecycle_matrix_outputs(tmp_path):
     ]
     assert (
         "| persistent-lifecycle-matrix-abc123 | lifecycle_matrix | persistent-lifecycle-matrix-abc123 | "
-        "combined | unknown | 2 | 1024 |  | dag/graph_descriptor_scratch_reuse, direct | "
+        "combined | abc123 | 2 | 1024 |  | dag/graph_descriptor_scratch_reuse, direct | "
         "1,2,1,2,1,1 |  |  | count=0,code=0,task=0 | 2 | 2,2, 6,6 |"
     ) in report
-    assert "arXiv:2512.22219v1, arXiv:2605.03190 | yes | direct, graph-scratch-reuse |" in report
+    assert "existing | arXiv:2512.22219v1, arXiv:2605.03190 | yes | direct, graph-scratch-reuse |" in report
 
 
 def test_cuda_artifact_index_sorts_numeric_sizes_before_strings(tmp_path):

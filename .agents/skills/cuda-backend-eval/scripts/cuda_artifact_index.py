@@ -77,6 +77,13 @@ def _has_command_examples(metadata: dict[str, Any]) -> bool:
     )
 
 
+def _collection_modes(metadata: dict[str, Any]) -> list[str]:
+    mode = metadata.get("collection_mode")
+    if not isinstance(mode, str) or not mode:
+        return []
+    return [mode]
+
+
 def _smoke_mode(payload: dict[str, Any]) -> str | None:
     mode = payload.get("mode")
     dag_shape = payload.get("dag_shape")
@@ -248,6 +255,9 @@ def _read_tensor_sweep_artifact(path: Path, root: Path) -> dict[str, Any]:
 
 def _read_lifecycle_matrix_artifact(path: Path, root: Path) -> dict[str, Any]:
     payload = json.loads((path / "cuda-lifecycle-matrix.json").read_text())
+    metadata = payload.get("metadata", {})
+    if not isinstance(metadata, dict):
+        metadata = {}
     rows = payload.get("rows", [])
     artifacts = _sorted_unique({row.get("artifact", "unknown") for row in rows})
     if len(artifacts) > 1:
@@ -261,7 +271,7 @@ def _read_lifecycle_matrix_artifact(path: Path, root: Path) -> dict[str, Any]:
         "kind": "lifecycle_matrix",
         "label": str(payload.get("label", path.name)),
         "machine": machine,
-        "git_commit": str(payload.get("git_commit", "unknown")),
+        "git_commit": str(metadata.get("git_commit", payload.get("git_commit", "unknown"))),
         "result_count": len(rows),
         "baselines": _sorted_unique({row.get("scenario", "unknown") for row in rows}),
         "sizes": _sorted_unique({row.get("n", "unknown") for row in rows}),
@@ -293,8 +303,9 @@ def _read_lifecycle_matrix_artifact(path: Path, root: Path) -> dict[str, Any]:
         "resource_policies": _sorted_unique(
             {policy for row in rows for policy in (_resource_policy(row),) if policy is not None}
         ),
-        "source_papers": _source_paper_ids(payload.get("metadata", {})),
-        "has_command_examples": _has_command_examples(payload.get("metadata", {})),
+        "collection_modes": _collection_modes(metadata),
+        "source_papers": _source_paper_ids(metadata),
+        "has_command_examples": _has_command_examples(metadata),
         "has_markdown": (path / "cuda-lifecycle-matrix.md").exists(),
         "has_svg": (path / "cuda-lifecycle-matrix.svg").exists(),
         "has_throughput_svg": False,
@@ -426,16 +437,17 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             "Tensor tile | Smoke mode | Dispatch | Graph fan-in | "
             "Graph dependents | Scheduler errors | Repeat runs | "
             "Launch completions | Resource policy | Scalar args | Tensor args | "
-            "Graph task arg keys | Graph task args | Source papers | Commands | "
-            "Baselines | Markdown | SVG | throughput SVG | ratio SVG | DAG delta SVG |"
+            "Graph task arg keys | Graph task args | Collection mode | "
+            "Source papers | Commands | Baselines | Markdown | SVG | "
+            "throughput SVG | ratio SVG | DAG delta SVG |"
         ),
         (
             "| ---- | ---- | ----- | ------- | ------ | ------- | ----- | "
             "----------- | ---------- | -------- | ------------ | ---------------- | "
             "---------------- | ----------- | ------------------ | --------------- | "
             "----------- | ----------- | ------------------- | --------------- | "
-            "------------- | -------- | --------- | -------- | --- | -------------- | "
-            "--------- | ------------- |"
+            "--------------- | ------------- | -------- | --------- | -------- | --- | "
+            "-------------- | --------- | ------------- |"
         ),
     ]
     for entry in entries:
@@ -455,6 +467,7 @@ def render_markdown(entries: list[dict[str, Any]]) -> str:
             f"{_format_list(entry.get('tensor_args', []))} | "
             f"{_format_list(entry.get('graph_task_arg_keys', []))} | "
             f"{_format_list(entry.get('graph_task_args', []))} | "
+            f"{_format_list(entry.get('collection_modes', []))} | "
             f"{_format_list(entry.get('source_papers', []))} | "
             f"{_checkmark(entry.get('has_command_examples', False))} | "
             f"{_format_list(entry['baselines'])} | "
