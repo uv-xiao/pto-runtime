@@ -78,6 +78,15 @@ def cuda_host_runtime_binaries():
 
 
 @requires_cuda
+def test_cuda_persistent_host_runtime_exports_role_keyed_init():
+    binaries = RuntimeBuilder(platform="cuda").get_binaries("persistent_device", build=True)
+
+    runtime = ctypes.CDLL(str(binaries.host_path))
+
+    assert hasattr(runtime, "simpler_init_roles")
+
+
+@requires_cuda
 def test_cuda_host_schedule_worker_run_accepts_raw_cuda_args():
     result = subprocess.run(
         [

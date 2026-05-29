@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -631,6 +632,27 @@ int simpler_init(
     (void)aicore_binary;
     (void)aicore_size;
     if (ctx == nullptr) return -1;
+    try {
+        return runner(ctx)->init(device_id);
+    } catch (...) {
+        return -1;
+    }
+}
+
+int simpler_init_roles(DeviceContextHandle ctx, int device_id, const PtoRuntimeBinaryMap *binaries) {
+    if (ctx == nullptr || binaries == nullptr) return -1;
+
+    bool has_device = false;
+    for (size_t i = 0; i < binaries->count; ++i) {
+        const PtoRuntimeBinaryRole &entry = binaries->entries[i];
+        if (entry.role == nullptr) return -1;
+        if (std::string(entry.role) == "host") return -1;
+        if (std::string(entry.role) == "device") {
+            has_device = entry.binary != nullptr;
+        }
+    }
+    if (!has_device) return -1;
+
     try {
         return runner(ctx)->init(device_id);
     } catch (...) {

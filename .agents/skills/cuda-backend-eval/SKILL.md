@@ -1077,6 +1077,10 @@ PYTHONPATH=$PWD:$PWD/python \
            role_keyed_paths or scheduler_role or cuda_runtime_binaries'
 
 PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_backend.py \
+    -q -k role_keyed_init --platform cuda
+
+PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
     -q -k persistent_device_graph_with_ctypes_data --platform cuda
 ```
@@ -1959,6 +1963,14 @@ Remote H200:
 ```bash
 ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
   'hostname; command -v nvcc || true; nvidia-smi --query-gpu=name,compute_cap,driver_version,memory.total --format=csv,noheader'
+```
+
+If non-interactive SSH does not find `nvcc`, export the H200 toolkit path
+before running CUDA pytest selectors:
+
+```bash
+export CUDA_HOME=/usr/local/cuda-12.8
+export PATH=/usr/local/cuda-12.8/bin:$PATH
 ```
 
 The CUDA real-data pytest files use

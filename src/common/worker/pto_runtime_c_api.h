@@ -31,6 +31,9 @@
  *   - comm:         comm_init, comm_alloc_windows, comm_get_local_window_base,
  *                   comm_get_window_size, comm_barrier, comm_destroy
  *
+ * Optional extension:
+ *   - role init:    simpler_init_roles
+ *
  * Memory management: caller allocates a buffer of get_runtime_size() bytes
  * and passes it to run_prepared(). Error codes: 0 = success, negative = error.
  */
@@ -72,6 +75,23 @@ typedef struct PtoRunTiming {
     uint64_t host_wall_ns;
     uint64_t device_wall_ns;
 } PtoRunTiming;
+
+/**
+ * Optional role-keyed runtime binary map for platforms whose compiled target
+ * roles do not match the legacy AICPU/AICore pair. The loaded host runtime
+ * .so represents the `host` role; this map carries auxiliary binaries such as
+ * `device` and `scheduler`.
+ */
+typedef struct PtoRuntimeBinaryRole {
+    const char *role;
+    const uint8_t *binary;
+    size_t size;
+} PtoRuntimeBinaryRole;
+
+typedef struct PtoRuntimeBinaryMap {
+    const PtoRuntimeBinaryRole *entries;
+    size_t count;
+} PtoRuntimeBinaryMap;
 
 /* ===========================================================================
  * Public API (resolved by ChipWorker via dlsym)
@@ -134,6 +154,16 @@ int simpler_init(
     DeviceContextHandle ctx, int device_id, const uint8_t *aicpu_binary, size_t aicpu_size,
     const uint8_t *aicore_binary, size_t aicore_size
 );
+
+/**
+ * Optional one-shot platform-side init for native role-keyed runtime binaries.
+ * ChipWorker probes this symbol when callers use init_roles(); runtimes that
+ * omit it continue to use simpler_init().
+ *
+ * The loaded host runtime .so is not repeated in `binaries`; entries contain
+ * only auxiliary target roles. Returns 0 on success, negative on failure.
+ */
+int simpler_init_roles(DeviceContextHandle ctx, int device_id, const PtoRuntimeBinaryMap *binaries);
 
 /**
  * Release all device resources held by the context.

@@ -144,6 +144,7 @@ private:
     // attach + device-id record, (b) executor binary takeover, (c) onboard
     // CANN dlog sync. Reads the current log level off HostLogger itself.
     using SimplerInitFn = int (*)(void *, int, const uint8_t *, size_t, const uint8_t *, size_t);
+    using SimplerInitRolesFn = int (*)(void *, int, const PtoRuntimeBinaryMap *);
     using PrepareCallableFn = int (*)(void *, int32_t, const void *);
     using RunPreparedFn =
         int (*)(void *, void *, int32_t, const void *, int, int, int, int, int, int, const char *, PtoRunTiming *);
@@ -180,6 +181,10 @@ private:
     int destroy_comm_session(CommSession &session);
     uint64_t create_base_comm(int rank, int nranks, const std::string &rootinfo_path);
     void clear_comm_sessions();
+    void init_with_role_paths(
+        const std::string &host_lib_path, const std::string &aicpu_path, const std::string &aicore_path,
+        const std::unordered_map<std::string, std::string> *role_paths, int device_id
+    );
 
     void *lib_handle_ = nullptr;
     CreateDeviceContextFn create_device_context_fn_ = nullptr;
@@ -190,6 +195,7 @@ private:
     CopyFromDeviceCtxFn copy_from_device_ctx_fn_ = nullptr;
     GetRuntimeSizeFn get_runtime_size_fn_ = nullptr;
     SimplerInitFn simpler_init_fn_ = nullptr;
+    SimplerInitRolesFn simpler_init_roles_fn_ = nullptr;
     PrepareCallableFn prepare_callable_fn_ = nullptr;
     RunPreparedFn run_prepared_fn_ = nullptr;
     UnregisterCallableFn unregister_callable_fn_ = nullptr;

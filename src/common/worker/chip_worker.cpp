@@ -13,6 +13,7 @@
 
 #include <dlfcn.h>
 
+#include <algorithm>
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -32,6 +33,17 @@ T load_symbol(void *handle, const char *name) {
         msg += "': ";
         msg += err;
         throw std::runtime_error(msg);
+    }
+    return reinterpret_cast<T>(sym);
+}
+
+template <typename T>
+T load_optional_symbol(void *handle, const char *name) {
+    dlerror();  // clear any existing error
+    void *sym = dlsym(handle, name);
+    const char *err = dlerror();
+    if (err) {
+        return nullptr;
     }
     return reinterpret_cast<T>(sym);
 }
@@ -65,7 +77,7 @@ void ChipWorker::init_roles(const std::unordered_map<std::string, std::string> &
 
     auto device_it = role_paths.find("device");
     if (device_it != role_paths.end()) {
-        init(host_it->second, device_it->second, device_it->second, device_id);
+        init_with_role_paths(host_it->second, device_it->second, device_it->second, &role_paths, device_id);
         return;
     }
 
@@ -76,11 +88,18 @@ void ChipWorker::init_roles(const std::unordered_map<std::string, std::string> &
             "ChipWorker::init_roles requires either a 'device' role or both 'aicpu' and 'aicore' roles"
         );
     }
-    init(host_it->second, aicpu_it->second, aicore_it->second, device_id);
+    init_with_role_paths(host_it->second, aicpu_it->second, aicore_it->second, &role_paths, device_id);
 }
 
 void ChipWorker::init(
     const std::string &host_lib_path, const std::string &aicpu_path, const std::string &aicore_path, int device_id
+) {
+    init_with_role_paths(host_lib_path, aicpu_path, aicore_path, nullptr, device_id);
+}
+
+void ChipWorker::init_with_role_paths(
+    const std::string &host_lib_path, const std::string &aicpu_path, const std::string &aicore_path,
+    const std::unordered_map<std::string, std::string> *role_paths, int device_id
 ) {
     if (finalized_) {
         throw std::runtime_error("ChipWorker already finalized; cannot reinitialize");
@@ -123,6 +142,7 @@ void ChipWorker::init(
         copy_from_device_ctx_fn_ = load_symbol<CopyFromDeviceCtxFn>(handle, "copy_from_device_ctx");
         get_runtime_size_fn_ = load_symbol<GetRuntimeSizeFn>(handle, "get_runtime_size");
         simpler_init_fn_ = load_symbol<SimplerInitFn>(handle, "simpler_init");
+        simpler_init_roles_fn_ = load_optional_symbol<SimplerInitRolesFn>(handle, "simpler_init_roles");
         prepare_callable_fn_ = load_symbol<PrepareCallableFn>(handle, "prepare_callable");
         run_prepared_fn_ = load_symbol<RunPreparedFn>(handle, "run_prepared");
         unregister_callable_fn_ = load_symbol<UnregisterCallableFn>(handle, "unregister_callable");
@@ -174,12 +194,41 @@ void ChipWorker::init(
     // catch block so the buffers and any partially-resolved handle are torn
     // down symmetrically.
     int init_rc = 0;
+    const char *init_entry_name = "simpler_init";
     try {
-        std::vector<uint8_t> aicpu_bytes = read_binary_file(aicpu_path);
-        std::vector<uint8_t> aicore_bytes = read_binary_file(aicore_path);
-        init_rc = simpler_init_fn_(
-            device_ctx_, device_id, aicpu_bytes.data(), aicpu_bytes.size(), aicore_bytes.data(), aicore_bytes.size()
-        );
+        if (role_paths != nullptr && simpler_init_roles_fn_ != nullptr) {
+            init_entry_name = "simpler_init_roles";
+            std::vector<std::pair<std::string, std::string>> sorted_role_paths;
+            sorted_role_paths.reserve(role_paths->size());
+            for (const auto &entry : *role_paths) {
+                if (entry.first != "host") {
+                    sorted_role_paths.push_back(entry);
+                }
+            }
+            std::sort(sorted_role_paths.begin(), sorted_role_paths.end());
+
+            std::vector<std::string> role_names;
+            std::vector<std::vector<uint8_t>> role_bytes;
+            std::vector<PtoRuntimeBinaryRole> binary_entries;
+            role_names.reserve(sorted_role_paths.size());
+            role_bytes.reserve(sorted_role_paths.size());
+            binary_entries.reserve(sorted_role_paths.size());
+            for (const auto &entry : sorted_role_paths) {
+                role_names.push_back(entry.first);
+                role_bytes.push_back(read_binary_file(entry.second));
+                const std::vector<uint8_t> &bytes = role_bytes.back();
+                binary_entries.push_back({role_names.back().c_str(), bytes.data(), bytes.size()});
+            }
+
+            PtoRuntimeBinaryMap binary_map{binary_entries.data(), binary_entries.size()};
+            init_rc = simpler_init_roles_fn_(device_ctx_, device_id, &binary_map);
+        } else {
+            std::vector<uint8_t> aicpu_bytes = read_binary_file(aicpu_path);
+            std::vector<uint8_t> aicore_bytes = read_binary_file(aicore_path);
+            init_rc = simpler_init_fn_(
+                device_ctx_, device_id, aicpu_bytes.data(), aicpu_bytes.size(), aicore_bytes.data(), aicore_bytes.size()
+            );
+        }
     } catch (...) {
         destroy_device_context_fn_(device_ctx_);
         device_ctx_ = nullptr;
@@ -193,6 +242,7 @@ void ChipWorker::init(
         copy_from_device_ctx_fn_ = nullptr;
         get_runtime_size_fn_ = nullptr;
         simpler_init_fn_ = nullptr;
+        simpler_init_roles_fn_ = nullptr;
         prepare_callable_fn_ = nullptr;
         run_prepared_fn_ = nullptr;
         unregister_callable_fn_ = nullptr;
@@ -206,6 +256,7 @@ void ChipWorker::init(
         comm_alloc_windows_fn_ = nullptr;
         comm_get_local_window_base_fn_ = nullptr;
         comm_get_window_size_fn_ = nullptr;
+        comm_derive_context_fn_ = nullptr;
         comm_alloc_domain_windows_fn_ = nullptr;
         comm_release_domain_windows_fn_ = nullptr;
         comm_barrier_fn_ = nullptr;
@@ -231,6 +282,7 @@ void ChipWorker::init(
         copy_from_device_ctx_fn_ = nullptr;
         get_runtime_size_fn_ = nullptr;
         simpler_init_fn_ = nullptr;
+        simpler_init_roles_fn_ = nullptr;
         prepare_callable_fn_ = nullptr;
         run_prepared_fn_ = nullptr;
         unregister_callable_fn_ = nullptr;
@@ -250,7 +302,7 @@ void ChipWorker::init(
         comm_barrier_fn_ = nullptr;
         comm_destroy_fn_ = nullptr;
         runtime_buf_.clear();
-        throw std::runtime_error("simpler_init failed with code " + std::to_string(init_rc));
+        throw std::runtime_error(std::string(init_entry_name) + " failed with code " + std::to_string(init_rc));
     }
 
     device_id_ = device_id;
@@ -280,6 +332,8 @@ void ChipWorker::finalize() {
     copy_to_device_ctx_fn_ = nullptr;
     copy_from_device_ctx_fn_ = nullptr;
     get_runtime_size_fn_ = nullptr;
+    simpler_init_fn_ = nullptr;
+    simpler_init_roles_fn_ = nullptr;
     prepare_callable_fn_ = nullptr;
     run_prepared_fn_ = nullptr;
     unregister_callable_fn_ = nullptr;

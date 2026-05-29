@@ -438,8 +438,10 @@ for example `worker_blocks` for `block_dim` and `scheduler_lanes` for
   slots. The Python and nanobind `ChipWorker` boundary now accepts role-keyed
   maps directly, and the CUDA `persistent_device` build publishes a
   `scheduler` role so future scheduler/runtime artifacts do not have to pass
-  through AICPU naming. The remaining compatibility lowering is the C++
-  `ChipWorker` call into the current two-binary `simpler_init` ABI.
+  through AICPU naming. The C++ `ChipWorker` now probes the optional
+  `simpler_init_roles` host-runtime ABI and passes CUDA `device`/`scheduler`
+  role binaries directly when that entry exists; runtimes without it keep the
+  legacy two-binary `simpler_init` path.
 - The backend should use Driver API for module/context ownership because PTO
   is a dynamic plugin-like runtime loaded through `dlopen`.
 - TileLang validates the NVRTC + Driver API model for dynamic CUDA code, but
