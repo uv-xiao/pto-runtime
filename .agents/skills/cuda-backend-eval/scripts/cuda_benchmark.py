@@ -1709,6 +1709,15 @@ def run_single_sample(  # noqa: PLR0912
             baseline=baseline,
             dag_shape="graph_descriptor_diamond",
         )
+    if baseline == "pto_persistent_dag_graph_tagged":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="graph_descriptor_tagged",
+        )
     if baseline == "pto_persistent_dag_graph_tagged_inout":
         return run_persistent_sample(
             device=device,
@@ -1963,6 +1972,7 @@ def run_benchmark(
                     "pto_persistent_dag_graph_chain",
                     "pto_persistent_dag_graph_scratch_reuse",
                     "pto_persistent_dag_graph_diamond",
+                    "pto_persistent_dag_graph_tagged",
                     "pto_persistent_dag_graph_tagged_inout",
                     "pto_persistent_dag_graph_triad",
                     "pto_persistent_dag_graph_quad",
@@ -2543,6 +2553,7 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
         "pto_persistent_dag_graph_chain": "#6d4c41",
         "pto_persistent_dag_graph_scratch_reuse": "#795548",
         "pto_persistent_dag_graph_diamond": "#5d4037",
+        "pto_persistent_dag_graph_tagged": "#704214",
         "pto_persistent_dag_graph_tagged_inout": "#4e342e",
         "pto_persistent_dag_graph_triad": "#6f4e37",
         "pto_persistent_dag_graph_quad": "#3e2723",
@@ -2939,6 +2950,8 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             "  descriptor with scratch-buffer reuse after the last consumer.",
             "- `pto_persistent_dag_graph_diamond` uses a five-task explicit graph",
             "  descriptor with two roots, two fan-out consumers, and a final join.",
+            "- `pto_persistent_dag_graph_tagged` uses explicit input, output,",
+            "  output-existing, and scalar task-argument tags over a three-task graph descriptor.",
             "- `pto_persistent_dag_graph_tagged_inout` uses explicit input, output,",
             "  and inout task-argument tags over a three-task graph descriptor.",
             "- `pto_persistent_dag_graph_triad` uses an explicit graph descriptor",
@@ -3103,6 +3116,7 @@ def main() -> None:
             "pto_persistent_dag_graph_chain",
             "pto_persistent_dag_graph_scratch_reuse",
             "pto_persistent_dag_graph_diamond",
+            "pto_persistent_dag_graph_tagged",
             "pto_persistent_dag_graph_tagged_inout",
             "pto_persistent_dag_graph_triad",
             "pto_persistent_dag_graph_quad",

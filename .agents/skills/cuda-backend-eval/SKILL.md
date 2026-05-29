@@ -1299,6 +1299,9 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_graph_diamond`: five-task generated-dispatch DAG using
   an explicit graph descriptor with two roots, two fan-out consumers, and a
   final join.
+- `pto_persistent_dag_graph_tagged`: three-task generated-dispatch DAG using
+  explicit graph task-argument tags for `input`, `output`,
+  `output_existing`, and scalar inputs.
 - `pto_persistent_dag_graph_tagged_inout`: three-task generated-dispatch DAG
   using explicit graph task-argument tags, including an `inout` producer.
 - `pto_persistent_dag_graph_triad`: three-task generated-dispatch DAG using
@@ -1571,12 +1574,29 @@ PYTHONPATH=$PWD:$PWD/python \
 The historical compact paired benchmark capture with this row is under
 `tmp/cuda-backend/combined-current-dbb01406/`. The current compact selected
 baseline gate is under
-`tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/`
-and also includes the graph tensor-core row. It uses `N=1024`, one repeat,
+`tmp/cuda-backend/tagged-scalar-compact-current-working/combined-current-8c023f59/`
+and also includes the graph tensor-core and tagged scalar graph rows. It uses
+`N=1024`, one repeat,
 `batch_tasks=2`, `worker_blocks_per_task=4`, validates source-paper
 provenance and zero scheduler errors, requires
 `scratch_reuse=reused_buffer=tmp0,reuse_task=4`, and includes Markdown plus
 SVG reports.
+
+Use `--single-baseline pto_persistent_dag_graph_tagged` for a quick benchmark
+path check of explicit graph task-argument tags that include scalar inputs.
+This path validates `input`, `output`, `output_existing`, and scalar mappings
+through the persistent DAG benchmark row with dispatch `9,2,1`.
+Paired-current benchmark validation now requires this row to carry
+`scalar:scalar_args[0]` and `scalar:scalar_args[1]` in
+`graph_task_args`, so a numerically passing row that silently loses scalar
+roles is rejected before docs are refreshed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_tagged \
+    --sizes 1024 --arch compute_80
+```
 
 Use `--single-baseline pto_persistent_dag_graph_tagged_inout` for a quick
 benchmark path check of explicit graph task-argument tags. This path validates
@@ -1884,10 +1904,11 @@ The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the graph tensor-core baseline, the host-schedule
 generic-args baseline, graph generic-args4 baseline, graph-chain baseline,
 graph-scratch-reuse baseline, graph-tagged-inout baseline, graph descriptor
-fan-in/dependent metadata, graph-triad and graph-quad baselines,
-task-argument tags, size `1024`, one repeat, `74` combined samples, and the
-Markdown/SVG report files. The current compact gate artifact is under
-`tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/`.
+fan-in/dependent metadata, graph-triad and graph-quad baselines, the tagged
+scalar graph baseline, task-argument tags, size `1024`, one repeat, `76`
+combined samples, and the Markdown/SVG report files. The current compact gate
+artifact is under
+`tmp/cuda-backend/tagged-scalar-compact-current-working/combined-current-8c023f59/`.
 Validate older captures with explicit `--require-*` checks if the current
 preset has gained new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the

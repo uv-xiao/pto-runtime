@@ -265,11 +265,21 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - `pto_persistent_dag_quad`;
 - `pto_persistent_dag_generic_args`;
 - `pto_persistent_dag_graph`;
+- `pto_persistent_dag_graph_generic_args4`;
+- `pto_persistent_dag_graph_chain`;
+- `pto_persistent_dag_graph_scratch_reuse`;
 - `pto_persistent_dag_graph_diamond`;
+- `pto_persistent_dag_graph_tagged`;
 - `pto_persistent_dag_graph_tagged_inout`;
+- `pto_persistent_dag_graph_triad`;
+- `pto_persistent_dag_graph_quad`;
 - `pto_persistent_dag_unary_square`;
 - `pto_persistent_dag_tensor`;
 - `pto_persistent_dag_graph_tensor`;
+- `pto_persistent_dag_tensor_core`;
+- `pto_persistent_dag_graph_tensor_core`;
+- `cublas_sgemm`;
+- `cublas_sgemm_graph`;
 - same-work batch rows;
 - worker-grid batch rows.
 
@@ -2854,7 +2864,7 @@ A100 reported `device_wall_ns=43008` and `host_wall_ns=58143`; H200 reported
 `device_wall_ns=33664` and `host_wall_ns=43163`.
 
 After promoting the graph tagged-inout, graph triad, and graph quad baselines
-to the selected benchmark matrix, the paired-current validator now expects
+to the selected benchmark matrix, the paired-current validator then expected
 `954` full paired samples or `72` compact paired samples. The focused
 benchmark/report TDD selector passed locally after adding the graph-triad and
 graph-quad rows:
@@ -2922,24 +2932,29 @@ PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
   .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
     --sizes 1024 --repeats 1 --batch-tasks 2 \
     --worker-blocks-per-task 4 --sync-remote-tree \
-    --output-root tmp/cuda-backend/current-head-compact-ca290b2a-working
+    --output-root tmp/cuda-backend/tagged-scalar-compact-current-working
 ```
 
 The paired runner wrote and validated
-`tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark.json`
-with the `compact-current` preset. It required 74 samples, source-paper
+`tmp/cuda-backend/tagged-scalar-compact-current-working/combined-current-8c023f59/cuda-benchmark.json`
+with the `compact-current` preset. It required 76 samples, source-paper
 provenance, sanitized command examples, generated Markdown/SVG reports, zero
-scheduler errors, graph tensor-core dispatch `[10,1,2,1]`, graph fan-in
-`[0,1,1,2]`, graph dependents `[1,2,3,3]`, and tensor tile `16x16x16`.
+scheduler errors, graph tensor-core metadata, and the new tagged scalar graph
+row. The tagged scalar graph row validates dispatch `[9,2,1]`, graph fan-in
+`[0,0,2]`, graph dependents `[2,2]`, scalar args
+`scalar_args[0]=1.5` and `scalar_args[1]=0.25`, and graph task args
+`input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1]`,
+`input:a,input:b,output:tmp2`, and
+`input:tmp1,input:tmp2,output_existing:out`.
 
-| GPU | Scalar tensor ns | Graph tensor ns | Tensor-core ns | Graph tensor-core ns | cuBLAS Graph ns |
-| --- | ---------------- | --------------- | -------------- | -------------------- | --------------- |
-| A100 | 41984 | 36864 | 38912 | 37888 | 11264 |
-| H200 | 40640 | 40608 | 38880 | 39424 | 11615 |
+| GPU | Tagged scalar ns | Tagged inout ns | Graph tensor-core ns | cuBLAS Graph ns |
+| --- | ---------------- | --------------- | -------------------- | --------------- |
+| A100 | 46080 | 52224 | 41984 | 11264 |
+| H200 | 25632 | 28032 | 32288 | 9247 |
 
-Both graph tensor-core rows report `wmma:m16n16k8:tf32->f32`, target-specific
-PTX (`compute_80` on A100 and `compute_90` on H200), graph fan-in
-`[0,1,1,2]`, dependents `[1,2,3,3]`, and zero scheduler errors.
+Both tagged scalar rows use target-specific PTX (`compute_80` on A100 and
+`compute_90` on H200), report zero scheduler errors, and are visible in the
+generated Markdown/SVG compact report beside the tagged-inout graph row.
 
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph

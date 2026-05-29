@@ -45,6 +45,7 @@ BASELINE_ROWS: tuple[str, ...] = (
     "pto_persistent_dag_graph_chain",
     "pto_persistent_dag_graph_scratch_reuse",
     "pto_persistent_dag_graph_diamond",
+    "pto_persistent_dag_graph_tagged",
     "pto_persistent_dag_graph_tagged_inout",
     "pto_persistent_dag_graph_triad",
     "pto_persistent_dag_graph_quad",
@@ -77,6 +78,7 @@ EXPECTED_DISPATCH_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_chain": "1,2,1,2,1",
     "pto_persistent_dag_graph_scratch_reuse": "1,2,1,2,1,1",
     "pto_persistent_dag_graph_diamond": "9,2,1,2,1",
+    "pto_persistent_dag_graph_tagged": "9,2,1",
     "pto_persistent_dag_graph_tagged_inout": "1,1,1",
     "pto_persistent_dag_graph_triad": "6,2,1",
     "pto_persistent_dag_graph_quad": "8,2,1",
@@ -98,6 +100,10 @@ EXPECTED_SCRATCH_REUSE_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_scratch_reuse": "reused_buffer=tmp0,reuse_task=4",
 }
 EXPECTED_GRAPH_TASK_ARGS_BY_BASELINE: dict[str, str] = {
+    "pto_persistent_dag_graph_tagged": (
+        "task0=input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1];"
+        "task1=input:a,input:b,output:tmp2;task2=input:tmp1,input:tmp2,output_existing:out"
+    ),
     "pto_persistent_dag_graph_tagged_inout": (
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,output_existing:out"
     ),
@@ -108,6 +114,7 @@ EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_chain": "0,0,2,1,1",
     "pto_persistent_dag_graph_scratch_reuse": "0,0,2,1,1,2",
     "pto_persistent_dag_graph_diamond": "0,0,2,2,2",
+    "pto_persistent_dag_graph_tagged": "0,0,2",
     "pto_persistent_dag_graph_tagged_inout": "0,1,1",
     "pto_persistent_dag_graph_triad": "0,0,2",
     "pto_persistent_dag_graph_quad": "0,0,2",
@@ -120,6 +127,7 @@ EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_chain": "2,2,3,4",
     "pto_persistent_dag_graph_scratch_reuse": "2,2,3,4,5,5",
     "pto_persistent_dag_graph_diamond": "2,3,2,3,4,4",
+    "pto_persistent_dag_graph_tagged": "2,2",
     "pto_persistent_dag_graph_tagged_inout": "1,2",
     "pto_persistent_dag_graph_triad": "2,2",
     "pto_persistent_dag_graph_quad": "2,2",
