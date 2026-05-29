@@ -244,6 +244,14 @@ The paired `block_dim=128` resource-policy capture under
 Markdown, and SVG artifacts with `scheduler_blocks=1`, `worker_blocks=2`,
 `stream_id=1`, `block_dim=128`, `grid_dim=3`, `repeat_runs=2`, and DAG-chain
 dispatch `1,2,1,2,1`.
+The paired resource-policy diamond capture under
+`tmp/cuda-backend/resource-policy-diamond-working/`
+`persistent-graph_descriptor_diamond-repeat2-smoke-4862b62c/` validated the
+same policy fields on a five-task graph descriptor with `worker_blocks=4`,
+`stream_id=2`, `block_dim=512`, `grid_dim=5`, dispatch `9,2,1,2,1`, fan-in
+`0,0,2,2,2`, dependents `2,3,2,3,4,4`, scalar/tensor arg metadata, repeat
+completions `[5,5]`, and zero scheduler errors. Device times were `72704 ns`
+on A100 and `53728 ns` on H200 for `N=1024`.
 
 Run the bounded-ring persistent smoke with wraparound:
 

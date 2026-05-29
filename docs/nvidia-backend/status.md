@@ -4634,15 +4634,22 @@ Needed:
 - broader resource policy beyond the current single scheduler block,
   configurable queue/DAG worker blocks, direct worker-blocks-per-task,
   callable stream id tracer bullet, and configurable block dimension. The
-  current paired A100/H200 resource-policy smoke validates a five-task
+  paired A100/H200 resource-policy smoke under
+  `tmp/cuda-backend/persistent-block128-working/` validates a five-task
   DAG-chain repeat run with `scheduler_blocks=1`, `worker_blocks=2`,
-  `worker_blocks_per_task=1`, `stream_id=1`, `block_dim=128`, and
-  `grid_dim=3`. The capture under
-  `tmp/cuda-backend/persistent-block128-working/` also validates
-  `repeat_runs=2`, `launch_completed_counts=[5,5]`, dispatch
-  `1,2,1,2,1`, generated Markdown/SVG reports, and zero device scheduler
-  errors on A100 and H200, so the remaining gap is policy breadth rather than
-  artifact validation;
+  `worker_blocks_per_task=1`, `stream_id=1`, `block_dim=128`, `grid_dim=3`,
+  `repeat_runs=2`, dispatch `1,2,1,2,1`, generated Markdown/SVG reports, and
+  zero scheduler errors. The broader resource-policy diamond capture under
+  `tmp/cuda-backend/resource-policy-diamond-working/`
+  `persistent-graph_descriptor_diamond-repeat2-smoke-4862b62c/` validates a
+  five-task graph descriptor with `worker_blocks=4`, `stream_id=2`,
+  `block_dim=512`, `grid_dim=5`, repeat completions `[5,5]`, dispatch
+  `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, dependents `2,3,2,3,4,4`,
+  scalar/tensor arg metadata, generated Markdown/SVG reports, and zero device
+  scheduler errors on A100 and H200. A100 reported `device_wall_ns=72704`;
+  H200 reported `device_wall_ns=53728`, so the remaining policy gap is now
+  multiple scheduler blocks rather than worker-block, stream, block-dim, or
+  graph-shape artifact validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,
   duplicate-dependent, self-dependent, initial-fan-in, and

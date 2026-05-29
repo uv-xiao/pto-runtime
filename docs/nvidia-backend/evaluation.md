@@ -89,6 +89,10 @@ latest multi-size tensor baseline sweep uses `e79edba2`:
 - [Current capture](evaluation-current.md) records the `1c683c1c` lifecycle
   matrix that adds graph tensor-core descriptors to the paired repeat-run
   prepared-callable validation path.
+- [Current capture](evaluation-current.md) records the `4862b62c`
+  resource-policy diamond smoke that validates `worker_blocks=4`,
+  `stream_id=2`, `block_dim=512`, graph topology, scalar/tensor arg metadata,
+  report files, and zero scheduler errors on A100 and H200.
 - [Current capture](evaluation-current.md) records the `35de3303` scheduler
   error matrix that captures all synthetic malformed-DAG diagnostics on A100
   and H200 with JSON, Markdown, and SVG artifacts validated by

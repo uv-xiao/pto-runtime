@@ -712,6 +712,48 @@ graph tensor-core descriptor in the same lifecycle evidence path as direct,
 queue, fixed-DAG, and scratch-reuse executors, so future prepared-callable
 reset regressions are caught by one paired validator.
 
+## Latest Resource-Policy Diamond Smoke
+
+The resource-policy diamond smoke at artifact label `4862b62c` broadens the
+persistent-device policy evidence beyond the earlier `block_dim=128`
+DAG-chain capture. It runs the five-task graph-diamond descriptor with
+`worker_blocks=4`, `stream_id=2`, `block_dim=512`, `grid_dim=5`, queue
+capacity `3`, and `repeat_runs=2` on both A100 and H200.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/resource-policy-diamond-working/persistent-graph_descriptor_diamond-repeat2-smoke-4862b62c/a100.json \
+    tmp/cuda-backend/resource-policy-diamond-working/persistent-graph_descriptor_diamond-repeat2-smoke-4862b62c/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-dag-shape graph_descriptor_diamond --expected-repeat-runs 2 \
+    --expected-completed-count 5 --expected-dispatch 9,2,1,2,1 \
+    --expected-graph-fanin 0,0,2,2,2 \
+    --expected-graph-dependents 2,3,2,3,4,4 \
+    --expected-scheduler-blocks 1 --expected-worker-blocks 4 \
+    --expected-worker-blocks-per-task 1 --expected-stream-id 2 \
+    --expected-block-dim 512 --expected-grid-dim 5 \
+    --require-report-files --require-report-graph-topology \
+    --expected-scalar-args 'scalar_args[0]=1.5,scalar_args[1]=0.25' \
+    --require-report-scalar-args \
+    --expected-tensor-args 'tensor_args[0]=tmp0,tensor_args[1]=tmp3' \
+    --require-report-tensor-args
+```
+
+Selected rows:
+
+| GPU | Device ns | Host ns | Launches ns | Policy |
+| --- | --------- | ------- | ----------- | ------ |
+| A100 | 72704 | 109755 | `43008,29696` | `sched=1,workers=4,stream=2,block=512,grid=5` |
+| H200 | 53728 | 72516 | `30400,23328` | `sched=1,workers=4,stream=2,block=512,grid=5` |
+
+Both artifacts reported zero scheduler errors, repeat completions `[5,5]`,
+dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, graph dependents
+`2,3,2,3,4,4`, scalar args `1.5,0.25`, and tensor args `tmp0,tmp3`.
+
 ## Latest Scheduler Error Matrix
 
 The scheduler error matrix at artifact label `35de3303` captures the
