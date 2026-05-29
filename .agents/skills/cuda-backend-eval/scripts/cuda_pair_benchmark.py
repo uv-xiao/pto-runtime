@@ -46,6 +46,8 @@ BASELINE_ROWS: tuple[str, ...] = (
     "pto_persistent_dag_graph_scratch_reuse",
     "pto_persistent_dag_graph_diamond",
     "pto_persistent_dag_graph_tagged_inout",
+    "pto_persistent_dag_graph_triad",
+    "pto_persistent_dag_graph_quad",
     "pto_persistent_dag_unary_square",
     "pto_persistent_dag_tensor",
     "pto_persistent_dag_graph_tensor",
@@ -75,6 +77,8 @@ EXPECTED_DISPATCH_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_scratch_reuse": "1,2,1,2,1,1",
     "pto_persistent_dag_graph_diamond": "9,2,1,2,1",
     "pto_persistent_dag_graph_tagged_inout": "1,1,1",
+    "pto_persistent_dag_graph_triad": "6,2,1",
+    "pto_persistent_dag_graph_quad": "8,2,1",
     "pto_persistent_dag_unary_square": "7,1,1",
     "pto_persistent_dag_tensor": "3,1,2,1",
     "pto_persistent_dag_graph_tensor": "3,1,2,1",
@@ -102,6 +106,8 @@ EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_scratch_reuse": "0,0,2,1,1,2",
     "pto_persistent_dag_graph_diamond": "0,0,2,2,2",
     "pto_persistent_dag_graph_tagged_inout": "0,1,1",
+    "pto_persistent_dag_graph_triad": "0,0,2",
+    "pto_persistent_dag_graph_quad": "0,0,2",
     "pto_persistent_dag_graph_tensor": "0,1,1,2",
 }
 EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE: dict[str, str] = {
@@ -111,6 +117,8 @@ EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_scratch_reuse": "2,2,3,4,5,5",
     "pto_persistent_dag_graph_diamond": "2,3,2,3,4,4",
     "pto_persistent_dag_graph_tagged_inout": "1,2",
+    "pto_persistent_dag_graph_triad": "2,2",
+    "pto_persistent_dag_graph_quad": "2,2",
     "pto_persistent_dag_graph_tensor": "1,2,3,3",
 }
 

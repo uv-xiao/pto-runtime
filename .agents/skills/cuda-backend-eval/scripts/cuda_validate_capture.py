@@ -47,6 +47,8 @@ PAIRED_CURRENT_BASELINES = (
     "pto_persistent_dag_graph_scratch_reuse",
     "pto_persistent_dag_graph_diamond",
     "pto_persistent_dag_graph_tagged_inout",
+    "pto_persistent_dag_graph_triad",
+    "pto_persistent_dag_graph_quad",
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_unary_square",
     "pto_persistent_device",
@@ -58,8 +60,8 @@ PAIRED_CURRENT_BASELINES = (
 PAIRED_CURRENT_SIZES = (1024, 65536, 1048576)
 COMPACT_CURRENT_SIZES = (1024,)
 COMPACT_CURRENT_EXPECTED_REPEATS = 1
-COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 68
-PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 918
+COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 72
+PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 954
 REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 REPORT_FILES = (
     "cuda-benchmark.md",
@@ -84,6 +86,8 @@ PAIRED_CURRENT_DISPATCH = {
     "pto_persistent_dag_graph_scratch_reuse": "1,2,1,2,1,1",
     "pto_persistent_dag_graph_diamond": "9,2,1,2,1",
     "pto_persistent_dag_graph_tagged_inout": "1,1,1",
+    "pto_persistent_dag_graph_triad": "6,2,1",
+    "pto_persistent_dag_graph_quad": "8,2,1",
     "pto_persistent_dag_unary_square": "7,1,1",
     "pto_persistent_dag_tensor": "3,1,2,1",
     "pto_persistent_dag_graph_tensor": "3,1,2,1",
@@ -111,6 +115,8 @@ PAIRED_CURRENT_GRAPH_FANIN = {
     "pto_persistent_dag_graph_scratch_reuse": "0,0,2,1,1,2",
     "pto_persistent_dag_graph_diamond": "0,0,2,2,2",
     "pto_persistent_dag_graph_tagged_inout": "0,1,1",
+    "pto_persistent_dag_graph_triad": "0,0,2",
+    "pto_persistent_dag_graph_quad": "0,0,2",
     "pto_persistent_dag_graph_tensor": "0,1,1,2",
 }
 PAIRED_CURRENT_GRAPH_DEPENDENTS = {
@@ -120,6 +126,8 @@ PAIRED_CURRENT_GRAPH_DEPENDENTS = {
     "pto_persistent_dag_graph_scratch_reuse": "2,2,3,4,5,5",
     "pto_persistent_dag_graph_diamond": "2,3,2,3,4,4",
     "pto_persistent_dag_graph_tagged_inout": "1,2",
+    "pto_persistent_dag_graph_triad": "2,2",
+    "pto_persistent_dag_graph_quad": "2,2",
     "pto_persistent_dag_graph_tensor": "1,2,3,3",
 }
 

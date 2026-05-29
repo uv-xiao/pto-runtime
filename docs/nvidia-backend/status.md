@@ -2604,9 +2604,53 @@ Result:
 A100 reported `device_wall_ns=43008` and `host_wall_ns=58143`; H200 reported
 `device_wall_ns=33664` and `host_wall_ns=43163`.
 
-After promoting the graph tagged-inout baseline to the selected benchmark
-matrix, the paired-current validator now expects `918` full paired samples or
-`68` compact paired samples.
+After promoting the graph tagged-inout, graph triad, and graph quad baselines
+to the selected benchmark matrix, the paired-current validator now expects
+`954` full paired samples or `72` compact paired samples. The focused
+benchmark/report TDD selector passed locally after adding the graph-triad and
+graph-quad rows:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'graph_triad_dag or graph_quad_dag or \
+      paired_current_requires_generic_args_baseline or \
+      compact_current_preset_matches_docs_gate or \
+      current_a100_h200_workflow or \
+      validate_command_matches_configured_capture or \
+      include_persistent_device_modes or same_work_batch_modes or \
+      omits_empty_batch_sweeps'
+```
+
+Result: `9 passed, 206 deselected`.
+
+The graph tensor-arity rows were then captured through the compact paired
+A100/H200 benchmark gate:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
+    --sizes 1024 --repeats 1 --batch-tasks 2 \
+    --worker-blocks-per-task 4 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-tensor-arity-benchmark-working
+```
+
+The paired runner wrote local A100, remote H200, and merged reports under
+`tmp/cuda-backend/graph-tensor-arity-benchmark-working/`, then validated the
+combined `combined-current-943620bf/cuda-benchmark.json` with the
+`compact-current` preset. It required 72 samples, source-paper provenance,
+sanitized command examples, generated Markdown/SVG reports, zero scheduler
+errors, triad dispatch `[6,2,1]`, quad dispatch `[8,2,1]`, graph fan-in
+`[0,0,2]`, and graph dependents `[2,2]`.
+
+| GPU | Base DAG ns | Fixed triad ns | Graph triad ns | Fixed quad ns | Graph quad ns |
+| --- | ----------- | -------------- | -------------- | ------------- | ------------- |
+| A100 | 47104 | 33792 | 29696 | 39936 | 33792 |
+| H200 | 41472 | 35296 | 30880 | 33376 | 28704 |
+
+The combined report directory contains `cuda-benchmark.json`,
+`cuda-benchmark.md`, `cuda-benchmark.svg`, `cuda-benchmark-ratios.svg`,
+`cuda-benchmark-dag-deltas.svg`, and `cuda-benchmark-throughput.svg`.
 
 Graph-descriptor dependency inference now builds the producer map from the
 whole descriptor before inferring omitted `dependents`, so the scene-test graph

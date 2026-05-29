@@ -1177,6 +1177,12 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_graph_diamond`: five-task generated-dispatch DAG using
   an explicit graph descriptor with two roots, two fan-out consumers, and a
   final join.
+- `pto_persistent_dag_graph_tagged_inout`: three-task generated-dispatch DAG
+  using explicit graph task-argument tags, including an `inout` producer.
+- `pto_persistent_dag_graph_triad`: three-task generated-dispatch DAG using
+  an explicit graph descriptor for the fixed third tensor pointer field.
+- `pto_persistent_dag_graph_quad`: three-task generated-dispatch DAG using an
+  explicit graph descriptor for fixed third and fourth tensor pointer fields.
 - `pto_persistent_dag_unary_square`: generated-dispatch DAG with a one-input
   square task body, validating unary persistent DAG arguments in the
   benchmark path.
@@ -1274,8 +1280,20 @@ Use `--dry-run` to print the commands without launching benchmarks. The paired
 benchmark default tensor descriptor is `16x16x16` so the scalar tensor DAG,
 explicit graph tensor DAG, WMMA tensor-core DAG, and cuBLAS rows can run
 together. The current committed summary keeps the full `61cf96cd` capture plus
-the compact current-head `dbb01406` gate in
-`docs/nvidia-backend/evaluation-current.md`.
+compact current-head gates in `docs/nvidia-backend/evaluation-current.md`.
+
+Use this compact paired gate after changing selected persistent graph
+benchmark rows. It validates 72 samples across A100 and H200, including
+`pto_persistent_dag_graph_triad` and `pto_persistent_dag_graph_quad` with
+dispatch `6,2,1` / `8,2,1` and graph fan-in/dependents `0,0,2` / `2,2`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
+    --sizes 1024 --repeats 1 --batch-tasks 2 \
+    --worker-blocks-per-task 4 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-tensor-arity-benchmark-working
+```
 
 For a lighter no-torch real-data check, run the paired Worker smoke instead of
 the full benchmark:
@@ -1448,6 +1466,22 @@ PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --single-baseline pto_persistent_dag_graph_tagged_inout \
     --sizes 1024 --arch compute_80
+```
+
+Use the graph triad and graph quad single-baseline rows for quick one-GPU
+checks of the explicit graph-descriptor path that carries fixed third and
+fourth tensor pointer fields:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_triad \
+    --sizes 1024 --repeats 1 --arch compute_80
+
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_quad \
+    --sizes 1024 --repeats 1 --arch compute_80
 ```
 
 Use `--single-baseline pto_persistent_dag_unary_square` for a quick
@@ -1706,8 +1740,8 @@ The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the host-schedule generic-args baseline, graph
 generic-args4 baseline, graph-chain baseline, graph-scratch-reuse baseline,
 graph-tagged-inout baseline, graph descriptor fan-in/dependent metadata,
-task-argument tags, size `1024`, one repeat, `68` combined samples, and the
-Markdown/SVG report files.
+graph-triad and graph-quad baselines, task-argument tags, size `1024`, one
+repeat, `72` combined samples, and the Markdown/SVG report files.
 A historical compact gate artifact with graph-scratch-reuse benchmark coverage
 is under `tmp/cuda-backend/combined-current-dbb01406/`; validate older
 captures with explicit `--require-*` checks if the current preset has gained
