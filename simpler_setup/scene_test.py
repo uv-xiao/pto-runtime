@@ -1308,12 +1308,19 @@ class _CudaPersistentDagSceneBuffers:
             raise ValueError("CUDA persistent_dag_graph_f32 graph cannot use both tasks and nodes")
         has_task_list = "tasks" in graph or "nodes" in graph
         has_submit_list = "submits" in graph or "submissions" in graph
-        if has_task_list and has_submit_list:
+        has_submit_group_list = "submit_groups" in graph or "submission_groups" in graph
+        if sum((has_task_list, has_submit_list, has_submit_group_list)) > 1:
             raise ValueError(
-                "CUDA persistent_dag_graph_f32 graph cannot mix task/node descriptors with submit descriptors"
+                "CUDA persistent_dag_graph_f32 graph cannot mix task/node, submit, and submit-group descriptors"
             )
         if "submits" in graph and "submissions" in graph:
             raise ValueError("CUDA persistent_dag_graph_f32 graph cannot use both submits and submissions")
+        if "submit_groups" in graph and "submission_groups" in graph:
+            raise ValueError("CUDA persistent_dag_graph_f32 graph cannot use both submit_groups and submission_groups")
+        if has_submit_group_list:
+            return _CudaPersistentDagSceneBuffers._graph_submit_group_task_specs(
+                graph.get("submit_groups", graph.get("submission_groups", []))
+            )
         tasks = graph.get("tasks", graph.get("nodes", graph.get("submits", graph.get("submissions", []))))
         if isinstance(tasks, dict):
             task_specs = []
@@ -1325,6 +1332,75 @@ class _CudaPersistentDagSceneBuffers:
                 )
             return task_specs
         return [_CudaPersistentDagSceneBuffers._normalize_graph_task_shape(task_spec) for task_spec in tasks]
+
+    @staticmethod
+    def _graph_submit_group_task_specs(submit_groups: Any) -> list[dict[str, Any]]:
+        if isinstance(submit_groups, dict):
+            group_entries = [{"name": group_name, **group_spec} for group_name, group_spec in submit_groups.items()]
+        else:
+            group_entries = list(submit_groups)
+
+        task_specs: list[dict[str, Any]] = []
+        for group_index, group_spec in enumerate(group_entries):
+            if not isinstance(group_spec, dict):
+                raise ValueError("CUDA persistent_dag_graph_f32 submit-group entries must be dictionaries")
+            task_specs.extend(_CudaPersistentDagSceneBuffers._expand_graph_submit_group(group_spec, group_index))
+        return task_specs
+
+    @staticmethod
+    def _expand_graph_submit_group(group_spec: dict[str, Any], group_index: int) -> list[dict[str, Any]]:
+        args_list = group_spec.get("args_list")
+        task_args_list = group_spec.get("task_args_list")
+        if args_list is not None and task_args_list is not None:
+            raise ValueError("CUDA persistent_dag_graph_f32 submit groups cannot use both args_list and task_args_list")
+        if args_list is None:
+            args_list = task_args_list
+        if args_list is None:
+            raise ValueError("CUDA persistent_dag_graph_f32 submit groups require args_list")
+
+        group_defaults = {
+            key: value for key, value in group_spec.items() if key not in {"args_list", "task_args_list", "name", "id"}
+        }
+        group_name = group_spec.get("name", group_spec.get("id"))
+        task_specs: list[dict[str, Any]] = []
+        for member_index, member_args in enumerate(args_list):
+            task_spec = _CudaPersistentDagSceneBuffers._graph_submit_group_member_spec(group_defaults, member_args)
+            if group_name is not None and "name" not in task_spec and "id" not in task_spec:
+                task_spec["name"] = f"{group_name}[{member_index}]"
+            elif group_name is None and "name" not in task_spec and "id" not in task_spec:
+                task_spec["name"] = f"group{group_index}[{member_index}]"
+            task_specs.append(_CudaPersistentDagSceneBuffers._normalize_graph_task_shape(task_spec))
+        return task_specs
+
+    @staticmethod
+    def _graph_submit_group_member_spec(group_defaults: dict[str, Any], member_args: Any) -> dict[str, Any]:
+        if isinstance(member_args, dict) and _CudaPersistentDagSceneBuffers._looks_like_graph_task(member_args):
+            return {**group_defaults, **member_args}
+        return {**group_defaults, "args": member_args}
+
+    @staticmethod
+    def _looks_like_graph_task(task_spec: dict[str, Any]) -> bool:
+        task_fields = {
+            "args",
+            "attrs",
+            "callable",
+            "callable_id",
+            "cid",
+            "data",
+            "dependencies",
+            "depends_on",
+            "dependents",
+            "func_id",
+            "id",
+            "initial_fanin",
+            "name",
+            "op",
+            "task_args",
+        }
+        return bool(
+            task_fields.intersection(task_spec)
+            or any(field in task_spec for field in _CudaPersistentDagSceneBuffers._GRAPH_NODE_IO_FIELDS)
+        )
 
     @staticmethod
     def _graph_edges(graph: dict[str, Any]) -> Any:

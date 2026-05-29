@@ -337,6 +337,13 @@ At the graph level, `submits` and `submissions` are accepted as aliases for
 callable resolution, role-keyed argument normalization, temporary allocation,
 and tensor-flow dependency inference path. A graph descriptor must not mix the
 task/node spelling with the submit/submission spelling.
+`submit_groups` and `submission_groups` are also accepted as a descriptor
+bridge for `submit_next_level_group(callable, args_list, config)`. Each
+`args_list` entry expands to one CUDA DAG task under the current
+persistent-device tracer-bullet scheduler. This preserves callable and
+TaskArgs-like lowering for group members, but it is not yet the final PTO
+single-slot group semantics where one DAG node fans out to multiple workers
+and completes after all group members finish.
 For compact graph specs, an entry may also be a two-item role/name pair such
 as `("input", "a")`, `("output", "tmp0")`, `("inout", "tmp0")`, or
 `("output_existing", "out")`. Pair entries lower through the same role-keyed

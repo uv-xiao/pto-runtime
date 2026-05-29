@@ -1420,6 +1420,13 @@ when a scene descriptor should mirror
 the same `callable` resolution, `args`/`task_args` role lowering, temporary
 allocation, and tensor-flow edge inference as task entries. Do not mix submit
 and task/node list spellings in the same graph descriptor.
+Use `graph.submit_groups` or `graph.submission_groups` for descriptor tests
+that should mirror
+`submit_next_level_group(callable, args_list, config)`. The current CUDA
+adapter expands each `args_list` entry into one DAG task, preserving callable
+metadata and role-keyed TaskArgs lowering for group members. Treat this as a
+tracer-bullet descriptor bridge; it is not yet the final one-DAG-slot PTO
+group execution model.
 List-shaped graph nodes may use `id` as a `name` alias when the source graph
 schema calls node identity `id`.
 Graph nodes may use top-level `inputs`, `outputs`, `output_existing`,

@@ -2283,6 +2283,38 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
 
 also reported `4 passed, 135 deselected`, after the known PTO-ISA SSH refresh
 warning.
+Graph descriptors now also accept `graph.submit_groups` or
+`graph.submission_groups` as a bridge toward
+`submit_next_level_group(callable, args_list, config)`. The current CUDA
+persistent-device tracer bullet expands each `args_list` entry into one CUDA
+DAG task while preserving callable resolution, TaskArgs-like role lowering,
+temporary allocation, and tensor-flow dependency inference. This is not yet
+the final PTO one-slot group semantics. The focused regression first failed
+with `CUDA persistent_dag_graph_f32 requires at least one graph task` because
+the adapter ignored `submit_groups`. After adding group expansion, the local
+A100 selector:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k 'submit_groups or submits_alias' --platform cuda
+```
+
+reported `4 passed, 137 deselected`, covering descriptor construction and
+ctypes-backed real-data persistent-device graph scenes. The same synced
+working tree on H200:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && CUDA_HOME=/usr/local/cuda \
+   PATH=/usr/local/cuda/bin:$PATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+   PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+   tests/ut/py/test_cuda_scene_test.py -q \
+   -k "submit_groups or submits_alias" --platform cuda'
+```
+
+also reported `4 passed, 137 deselected`, after the known PTO-ISA SSH refresh
+warning.
 Graph task descriptors now also accept two-item role/name pairs in the
 `task_args` list, such as `("input", "a")`, `("output", "tmp0")`,
 `("inout", "tmp0")`, and `("output_existing", "out")`. These pair entries
@@ -4341,9 +4373,9 @@ Needed:
   node-link `links` and dictionary-valued node IO port maps,
   dictionary-keyed graph task descriptors,
   tagged TaskArgs-like graph task lowering including `inout` producer
-  chaining, submit-shaped graph descriptors, named graph-callable resolution,
-  explicit unary square graph dispatch, tagged graph-descriptor paired smoke,
-  and five-task chain,
+  chaining, submit-shaped graph descriptors, expanded submit-group descriptor
+  coverage, named graph-callable resolution, explicit unary square graph
+  dispatch, tagged graph-descriptor paired smoke, and five-task chain,
   five-task fan-out/fan-in, and six-task scratch-reuse graph descriptor smokes;
 - broader lifecycle validation beyond the current scratch-reuse,
   graph-descriptor and generic-argument repeat-run, tensor-core graph, and
