@@ -385,6 +385,50 @@ def _expected_graph_node_ops(config: PairedPersistentSmokeConfig) -> str | None:
     }.get(config.dag_shape)
 
 
+def _expected_scalar_args(config: PairedPersistentSmokeConfig) -> str | None:
+    if config.mode != "dag":
+        return None
+    return {
+        "generic_args": "scalar_args[0]=1.5,scalar_args[1]=0.25",
+        "generic_args4": "scalar_args[0]=1.5,scalar_args[1]=0.25,scalar_args[2]=0.125,scalar_args[3]=0.0625",
+        "graph_descriptor": "scalar_args[0]=1.5,scalar_args[1]=0.25",
+        "graph_descriptor_diamond": "scalar_args[0]=1.5,scalar_args[1]=0.25",
+        "graph_descriptor_generic_args4": (
+            "scalar_args[0]=1.5,scalar_args[1]=0.25,scalar_args[2]=0.125,scalar_args[3]=0.0625"
+        ),
+        "graph_descriptor_node_attrs": "scalar_args[0]=1.5,scalar_args[1]=0.25",
+        "graph_descriptor_reordered": "scalar_args[0]=1.5,scalar_args[1]=0.25",
+        "graph_descriptor_scalar_affine": "scalar0=1.5,scalar1=0.5",
+        "graph_descriptor_scalar_axpy": "scalar0=1.5",
+        "graph_descriptor_scalar_scale": "scalar0=2.0",
+        "graph_descriptor_tagged": "scalar_args[0]=1.5,scalar_args[1]=0.25",
+        "scalar_affine": "scalar0=1.5,scalar1=0.5",
+        "scalar_axpy": "scalar0=1.5",
+        "scalar_scale": "scalar0=2.0",
+    }.get(config.dag_shape)
+
+
+def _expected_tensor_args(config: PairedPersistentSmokeConfig) -> str | None:
+    if config.mode != "dag":
+        return None
+    return {
+        "generic_args": "tensor_args[0]=tmp0,tensor_args[1]=tmp3",
+        "generic_args4": "tensor_args[0]=tmp0,tensor_args[1]=tmp3,tensor_args[2]=a,tensor_args[3]=b",
+        "graph_descriptor": "tensor_args[0]=tmp0,tensor_args[1]=tmp3",
+        "graph_descriptor_diamond": "tensor_args[0]=tmp0,tensor_args[1]=tmp3",
+        "graph_descriptor_generic_args4": (
+            "tensor_args[0]=tmp0,tensor_args[1]=tmp3,tensor_args[2]=a,tensor_args[3]=b"
+        ),
+        "graph_descriptor_node_attrs": "tensor_args[0]=tmp0,tensor_args[1]=tmp3",
+        "graph_descriptor_reordered": "tensor_args[0]=tmp0,tensor_args[1]=tmp3",
+        "graph_descriptor_tagged": "tensor_args[0]=tmp0,tensor_args[1]=tmp3",
+        "graph_descriptor_triad": "c=tmp0",
+        "graph_descriptor_quad": "c=tmp0,d=tmp3",
+        "quad": "c=tmp0,d=tmp3",
+        "triad": "c=tmp0",
+    }.get(config.dag_shape)
+
+
 def _expected_scratch_reuse(config: PairedPersistentSmokeConfig) -> str | None:
     if config.mode != "dag":
         return None
@@ -452,6 +496,24 @@ def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> 
     expected_tensor_tile = _expected_tensor_tile(config)
     if expected_tensor_tile is not None:
         command.extend(["--expected-tensor-tile", expected_tensor_tile])
+    expected_scalar_args = _expected_scalar_args(config)
+    if expected_scalar_args is not None:
+        command.extend(
+            [
+                "--expected-scalar-args",
+                expected_scalar_args,
+                "--require-report-scalar-args",
+            ]
+        )
+    expected_tensor_args = _expected_tensor_args(config)
+    if expected_tensor_args is not None:
+        command.extend(
+            [
+                "--expected-tensor-args",
+                expected_tensor_args,
+                "--require-report-tensor-args",
+            ]
+        )
     expected_graph_descriptor = _expected_graph_descriptor(config)
     if expected_graph_descriptor is not None:
         fanin, dependents = expected_graph_descriptor

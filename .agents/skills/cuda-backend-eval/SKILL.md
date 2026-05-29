@@ -396,6 +396,11 @@ dependents `[2,2]`, tensor slots `tensor_args[0]=tmp0,tensor_args[1]=tmp3`,
 scalar slots `scalar_args[0]=1.5,scalar_args[1]=0.25`, and graph-node attrs
 `task0=attrs:tensor_args,scalar_args`. Device times were `67584 ns` on A100
 and `42144 ns` on H200 for `N=1024`.
+The stricter paired validator capture under
+`tmp/cuda-backend/persistent-node-attrs-args-smoke-working/` also requires
+the scalar and tensor slot metadata in JSON plus generated Markdown/SVG
+reports. It validated the same dispatch/topology with device times
+`62464 ns` on A100 and `40672 ns` on H200 for `N=1024`.
 
 Use `--dag-shape graph_descriptor_node_op` to capture graph node `op`
 callable aliases over the add/mul/add descriptor shape. The paired validator

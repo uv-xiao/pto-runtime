@@ -2013,6 +2013,15 @@ repeat completions `[3,3]`, resource policy `scheduler_blocks=1`,
 `task0=attrs:tensor_args,scalar_args`, and zero scheduler errors. A100
 reported `device_wall_ns=67584`, `host_wall_ns=99134`; H200 reported
 `device_wall_ns=42144`, `host_wall_ns=60174`.
+The paired smoke validator now also has first-class scalar/tensor argument
+checks, so the attrs path cannot silently lose the payload it is meant to
+carry. The stricter working-tree capture under
+`tmp/cuda-backend/persistent-node-attrs-args-smoke-working/`
+`persistent-graph_descriptor_node_attrs-repeat2-smoke-46c2f848/` validated
+the same dispatch/topology, report-visible graph-node attrs, scalar slots,
+and tensor slots on A100 and H200. A100 reported `device_wall_ns=62464`,
+`host_wall_ns=93490`; H200 reported `device_wall_ns=40672`,
+`host_wall_ns=57904`.
 The same shape is also promoted into the selected benchmark matrix as
 `pto_persistent_dag_graph_node_attrs`. The compact paired A100/H200 capture
 under

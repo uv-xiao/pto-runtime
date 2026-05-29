@@ -3571,6 +3571,95 @@ def test_cuda_smoke_validator_checks_graph_node_attrs_metadata(tmp_path):
     )
 
 
+def test_cuda_smoke_validator_checks_scalar_and_tensor_arg_metadata(tmp_path):
+    cuda_validate_smoke = _load_smoke_validator_module()
+    artifact_dir = tmp_path / "persistent-graph-descriptor-node-attrs-smoke"
+    artifact_dir.mkdir()
+    payload = {
+        "status": "pass",
+        "runtime": "persistent_device",
+        "mode": "dag",
+        "dag_shape": "graph_descriptor_node_attrs",
+        "n": 1024,
+        "repeat_runs": 2,
+        "launch_completed_counts": [3, 3],
+        "dispatch_func_ids": [9, 2, 1],
+        "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+        "tensor_args": {
+            "tensor_args[0]": "tmp0",
+        },
+        "scalar_args": {
+            "scalar_args[0]": 1.5,
+        },
+    }
+    (artifact_dir / "a100.json").write_text(json.dumps(payload) + "\n")
+    (artifact_dir / "cuda-smoke-report.md").write_text("# CUDA Smoke Report\n\nstale table\n")
+    (artifact_dir / "cuda-smoke-report.svg").write_text("<svg>stale chart</svg>\n")
+
+    payloads = cuda_validate_smoke.load_smoke_payloads([artifact_dir / "a100.json"])
+    expected_tensor_args = "tensor_args[0]=tmp0,tensor_args[1]=tmp3"
+    expected_scalar_args = "scalar_args[0]=1.5,scalar_args[1]=0.25"
+    errors = cuda_validate_smoke.validate_smoke(
+        payloads,
+        expectation=cuda_validate_smoke.SmokeValidationExpectation(
+            scalar_args=expected_scalar_args,
+            tensor_args=expected_tensor_args,
+        ),
+    )
+
+    assert (
+        "expected scalar_args scalar_args[0]=1.5,scalar_args[1]=0.25 "
+        "for artifact=a100, found scalar_args[0]=1.5"
+    ) in errors
+    assert (
+        "expected tensor_args tensor_args[0]=tmp0,tensor_args[1]=tmp3 "
+        "for artifact=a100, found tensor_args[0]=tmp0"
+    ) in errors
+
+    payload["tensor_args"]["tensor_args[1]"] = "tmp3"
+    payload["scalar_args"]["scalar_args[1]"] = 0.25
+    (artifact_dir / "a100.json").write_text(json.dumps(payload) + "\n")
+    payloads = cuda_validate_smoke.load_smoke_payloads([artifact_dir / "a100.json"])
+    errors = cuda_validate_smoke.validate_smoke(
+        payloads,
+        expectation=cuda_validate_smoke.SmokeValidationExpectation(
+            artifact_dir=artifact_dir,
+            scalar_args=expected_scalar_args,
+            tensor_args=expected_tensor_args,
+            require_report_files=True,
+            require_report_scalar_args=True,
+            require_report_tensor_args=True,
+        ),
+    )
+
+    assert "missing report scalar args in cuda-smoke-report.md" in errors
+    assert "missing report scalar args in cuda-smoke-report.svg" in errors
+    assert "missing report tensor args in cuda-smoke-report.md" in errors
+    assert "missing report tensor args in cuda-smoke-report.svg" in errors
+
+    (artifact_dir / "cuda-smoke-report.md").write_text(
+        f"| Scalar args | Tensor args |\n| `{expected_scalar_args}` | `{expected_tensor_args}` |\n"
+    )
+    (artifact_dir / "cuda-smoke-report.svg").write_text(
+        f"<svg>scalars: {expected_scalar_args} tensors: {expected_tensor_args}</svg>\n"
+    )
+
+    assert (
+        cuda_validate_smoke.validate_smoke(
+            payloads,
+            expectation=cuda_validate_smoke.SmokeValidationExpectation(
+                artifact_dir=artifact_dir,
+                scalar_args=expected_scalar_args,
+                tensor_args=expected_tensor_args,
+                require_report_files=True,
+                require_report_scalar_args=True,
+                require_report_tensor_args=True,
+            ),
+        )
+        == []
+    )
+
+
 def test_cuda_smoke_validator_checks_scratch_reuse_metadata(tmp_path):
     cuda_validate_smoke = _load_smoke_validator_module()
     artifact_dir = tmp_path / "persistent-graph-descriptor-scratch-reuse-smoke"
@@ -5904,6 +5993,12 @@ def test_cuda_pair_persistent_smoke_accepts_node_attrs_graph_descriptor_workflow
     assert "--expected-graph-node-attrs" in validate
     assert "task0=attrs:tensor_args,scalar_args" in validate
     assert "--require-report-graph-node-attrs" in validate
+    assert "--expected-scalar-args" in validate
+    assert "scalar_args[0]=1.5,scalar_args[1]=0.25" in validate
+    assert "--require-report-scalar-args" in validate
+    assert "--expected-tensor-args" in validate
+    assert "tensor_args[0]=tmp0,tensor_args[1]=tmp3" in validate
+    assert "--require-report-tensor-args" in validate
 
 
 def test_cuda_pair_persistent_smoke_accepts_depends_on_graph_descriptor_workflow(tmp_path):

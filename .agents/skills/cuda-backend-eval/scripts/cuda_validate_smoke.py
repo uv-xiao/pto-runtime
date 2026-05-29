@@ -64,6 +64,8 @@ class SmokeValidationExpectation:
     completed_count: int | None = None
     dispatch: str | None = None
     tensor_tile: str | None = None
+    scalar_args: str | None = None
+    tensor_args: str | None = None
     graph_fanin: str | None = None
     graph_dependents: str | None = None
     graph_task_arg_key: str | None = None
@@ -73,6 +75,8 @@ class SmokeValidationExpectation:
     scratch_reuse: str | None = None
     resource_policy: ResourcePolicyExpectation | None = None
     require_report_files: bool = False
+    require_report_scalar_args: bool = False
+    require_report_tensor_args: bool = False
     require_report_graph_topology: bool = False
     require_report_graph_task_args: bool = False
     require_report_graph_node_attrs: bool = False
@@ -121,6 +125,13 @@ def _int_list(row: dict[str, Any], field_name: str) -> str | None:
     if not isinstance(values, list):
         return None
     return ",".join(str(value) for value in values)
+
+
+def _mapping_text(row: dict[str, Any], field_name: str) -> str | None:
+    values = row.get(field_name)
+    if not isinstance(values, dict):
+        return None
+    return ",".join(f"{key}={values[key]}" for key in sorted(values))
 
 
 def load_smoke_payloads(paths: Sequence[Path]) -> list[dict[str, Any]]:
@@ -247,6 +258,23 @@ def _validate_graph_descriptor(
                 errors.append(
                     f"expected graph_descriptor.{field_name} {expected} for artifact={artifact}, found {actual}"
                 )
+    return errors
+
+
+def _validate_mapping_field(
+    payloads: list[dict[str, Any]],
+    *,
+    field_name: str,
+    expected_value: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if expected_value is None:
+        return errors
+    for payload in payloads:
+        artifact = payload.get("_artifact", "unknown")
+        actual = _mapping_text(payload, field_name)
+        if actual != expected_value:
+            errors.append(f"expected {field_name} {expected_value} for artifact={artifact}, found {actual}")
     return errors
 
 
@@ -395,6 +423,39 @@ def _validate_report_files(artifact_dir: Path | None) -> list[str]:
     if artifact_dir is None:
         return ["missing artifact directory for report-file validation"]
     return [f"missing report file {file_name}" for file_name in REPORT_FILES if not (artifact_dir / file_name).exists()]
+
+
+def _validate_report_mapping_field(
+    artifact_dir: Path | None,
+    *,
+    field_name: str,
+    report_label: str,
+    svg_label: str,
+    expected_value: str | None,
+) -> list[str]:
+    if artifact_dir is None:
+        return [f"missing artifact directory for report {field_name} validation"]
+
+    checks = {
+        "cuda-smoke-report.md": [
+            report_label,
+            f"`{expected_value}`" if expected_value is not None else None,
+        ],
+        "cuda-smoke-report.svg": [
+            f"{svg_label}: {expected_value}" if expected_value is not None else None,
+        ],
+    }
+
+    errors: list[str] = []
+    for file_name, needles in checks.items():
+        path = artifact_dir / file_name
+        if not path.exists():
+            errors.append(f"missing report {field_name} in {file_name}")
+            continue
+        content = path.read_text()
+        if any(needle is not None and needle not in content for needle in needles):
+            errors.append(f"missing report {field_name} in {file_name}")
+    return errors
 
 
 def _validate_report_graph_topology(
@@ -561,6 +622,20 @@ def validate_smoke(
         )
     )
     errors.extend(_validate_graph_task_arg_key(payloads, expected_key=expectation.graph_task_arg_key))
+    errors.extend(
+        _validate_mapping_field(
+            payloads,
+            field_name="scalar_args",
+            expected_value=expectation.scalar_args,
+        )
+    )
+    errors.extend(
+        _validate_mapping_field(
+            payloads,
+            field_name="tensor_args",
+            expected_value=expectation.tensor_args,
+        )
+    )
     errors.extend(_validate_graph_task_args(payloads, expected_task_args=expectation.graph_task_args))
     errors.extend(_validate_graph_node_attrs(payloads, expected_node_attrs=expectation.graph_node_attrs))
     errors.extend(_validate_graph_node_ops(payloads, expected_node_ops=expectation.graph_node_ops))
@@ -574,6 +649,26 @@ def validate_smoke(
     )
     if expectation.require_report_files:
         errors.extend(_validate_report_files(expectation.artifact_dir))
+    if expectation.require_report_scalar_args:
+        errors.extend(
+            _validate_report_mapping_field(
+                expectation.artifact_dir,
+                field_name="scalar args",
+                report_label="Scalar args",
+                svg_label="scalars",
+                expected_value=expectation.scalar_args,
+            )
+        )
+    if expectation.require_report_tensor_args:
+        errors.extend(
+            _validate_report_mapping_field(
+                expectation.artifact_dir,
+                field_name="tensor args",
+                report_label="Tensor args",
+                svg_label="tensors",
+                expected_value=expectation.tensor_args,
+            )
+        )
     if expectation.require_report_graph_topology:
         errors.extend(
             _validate_report_graph_topology(
@@ -618,6 +713,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-completed-count", type=int)
     parser.add_argument("--expected-dispatch")
     parser.add_argument("--expected-tensor-tile")
+    parser.add_argument("--expected-scalar-args")
+    parser.add_argument("--expected-tensor-args")
     parser.add_argument("--expected-graph-fanin")
     parser.add_argument("--expected-graph-dependents")
     parser.add_argument("--expected-graph-task-arg-key")
@@ -632,6 +729,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-block-dim", type=int)
     parser.add_argument("--expected-grid-dim", type=int)
     parser.add_argument("--require-report-files", action="store_true")
+    parser.add_argument("--require-report-scalar-args", action="store_true")
+    parser.add_argument("--require-report-tensor-args", action="store_true")
     parser.add_argument("--require-report-graph-topology", action="store_true")
     parser.add_argument("--require-report-graph-task-args", action="store_true")
     parser.add_argument("--require-report-graph-node-attrs", action="store_true")
@@ -666,6 +765,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             completed_count=args.expected_completed_count,
             dispatch=args.expected_dispatch,
             tensor_tile=args.expected_tensor_tile,
+            scalar_args=args.expected_scalar_args,
+            tensor_args=args.expected_tensor_args,
             graph_fanin=args.expected_graph_fanin,
             graph_dependents=args.expected_graph_dependents,
             graph_task_arg_key=args.expected_graph_task_arg_key,
@@ -675,6 +776,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             scratch_reuse=args.expected_scratch_reuse,
             resource_policy=_resource_policy_expectation(args),
             require_report_files=args.require_report_files,
+            require_report_scalar_args=args.require_report_scalar_args,
+            require_report_tensor_args=args.require_report_tensor_args,
             require_report_graph_topology=args.require_report_graph_topology,
             require_report_graph_task_args=args.require_report_graph_task_args,
             require_report_graph_node_attrs=args.require_report_graph_node_attrs,
