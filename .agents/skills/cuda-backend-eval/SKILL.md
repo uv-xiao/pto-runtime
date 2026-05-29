@@ -523,6 +523,21 @@ PYTHONPATH=$PWD:$PWD/python \
     --repeat-runs 2 --sync-remote-tree
 ```
 
+Use `--dag-shape graph_descriptor_depends_on --repeat-runs 2` to validate
+incoming-edge graph notation. This shape records graph fan-in `0,0,2`,
+dependents `2,2`, and dispatch `1,2,1`, while the final consumer keeps
+`a`/`b` bound to original inputs instead of producer temporaries:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_depends_on --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree
+```
+
+The current working-tree paired capture is under
+`tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`.
+
 This writes `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
 `cuda-smoke-report.svg` under
 `tmp/cuda-backend/persistent-<shape>-smoke-<commit>/`, validates the paired
@@ -554,8 +569,9 @@ For generated-dispatch DAG shapes, the paired runner passes
 tensor-core-tile, scalar AXPY/scale/affine, triad, quad, unary-square,
 `generic_args`,
 `generic_args4`, `graph_descriptor`, `graph_descriptor_chain`,
-`graph_descriptor_generic_args4`, `graph_descriptor_reordered`,
-`graph_descriptor_diamond`, `graph_descriptor_scratch_reuse`,
+`graph_descriptor_depends_on`, `graph_descriptor_generic_args4`,
+`graph_descriptor_reordered`, `graph_descriptor_diamond`,
+`graph_descriptor_scratch_reuse`,
 `graph_descriptor_tagged`, `graph_descriptor_tagged_inout`,
 `graph_descriptor_unary_square`, `graph_tensor_tile`, and
 `graph_tensor_core_tile`. The validator therefore rejects A100/H200 artifacts
@@ -567,10 +583,10 @@ whose recorded descriptor shape does not match the requested
 `--tensor-rows`, `--tensor-cols`, and `--tensor-inner`.
 For explicit graph-descriptor smokes, it also passes
 `--expected-graph-fanin` and `--expected-graph-dependents`, so reordered,
-diamond, scratch-reuse, and graph tensor captures must prove the recorded
-runtime graph topology. It also passes `--require-report-graph-topology`, so
-the Markdown and SVG smoke reports must visibly carry the same fan-in and
-dependent arrays.
+depends-on, diamond, scratch-reuse, and graph tensor captures must prove the
+recorded runtime graph topology. It also passes
+`--require-report-graph-topology`, so the Markdown and SVG smoke reports must
+visibly carry the same fan-in and dependent arrays.
 For `graph_descriptor_tagged` and `graph_descriptor_tagged_inout`, it
 additionally passes `--expected-graph-task-args`, so tagged graph captures
 must prove the TaskArgs-like roles that were lowered into the runtime

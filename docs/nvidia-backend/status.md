@@ -1826,6 +1826,16 @@ or `dependencies`, lowering consumer-side task IDs into the same flattened
 dependent array. That lets scene tests express graph edges independently from
 the task's tensor pointer layout, which is closer to normal task-graph
 metadata than CUDA-specific outgoing edge lists.
+The incoming-edge path is now covered by both a real-data L2 ctypes scene and
+paired persistent-device smoke. The working-tree smoke capture under
+`tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`
+contains A100/H200 JSON, Markdown, and SVG artifacts for
+`graph_descriptor_depends_on` with dispatch `[1,2,1]`, graph fan-in
+`[0,0,2]`, graph dependents `[2,2]`, `launch_completed_counts=[3,3]`,
+resource policy `scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`,
+`grid_dim=4`, and zero scheduler errors. This proves the CUDA runtime can
+schedule edges supplied as consumer-side metadata even when the consumer's
+tensor pointers stay bound to the original graph inputs.
 The graph adapter now accepts a role-keyed `task_args` task form as a first
 TaskArgs-like lowering slice: `input`, `output`, `output_existing`, and
 `inout` roles are lowered to the existing bounded CUDA graph descriptor fields
@@ -3497,11 +3507,11 @@ Needed:
   `persistent_dag_graph_f32` descriptor adapter, which already covers
   automatic default temporary allocation, logical-output/storage-output
   separation for scratch reuse, order-independent tensor-flow dependency
-  inference, tagged TaskArgs-like graph task lowering including `inout`
-  producer chaining, named graph-callable resolution, explicit unary square
-  graph dispatch, tagged graph-descriptor paired smoke, and five-task chain,
-  five-task fan-out/fan-in, and six-task scratch-reuse graph descriptor
-  smokes;
+  inference, incoming-edge `depends_on` lowering with paired smoke,
+  tagged TaskArgs-like graph task lowering including `inout` producer
+  chaining, named graph-callable resolution, explicit unary square graph
+  dispatch, tagged graph-descriptor paired smoke, and five-task chain,
+  five-task fan-out/fan-in, and six-task scratch-reuse graph descriptor smokes;
 - broader lifecycle validation beyond the current scratch-reuse,
   graph-descriptor and generic-argument repeat-run, and direct/queue/DAG
   prepared-callable repeat-run smokes. The paired lifecycle matrix runner now

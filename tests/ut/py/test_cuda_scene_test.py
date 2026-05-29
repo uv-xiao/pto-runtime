@@ -1371,6 +1371,19 @@ def _cuda_persistent_mixed_graph_generic_args_spec(
     return spec
 
 
+def _cuda_persistent_depends_on_graph_spec(add_source, mul_source, *, arch="compute_80", block_dim=256):
+    spec = _cuda_persistent_dag_spec(add_source, mul_source, arch=arch, block_dim=block_dim)
+    spec["cuda"]["arg_builder"] = "persistent_dag_graph_f32"
+    spec["cuda"]["graph"] = {
+        "tasks": [
+            {"func_id": 1, "a": "a", "b": "b", "out": "tmp0"},
+            {"func_id": 2, "a": "a", "b": "b", "out": "tmp1"},
+            {"func_id": 1, "a": "a", "b": "b", "out": "out", "depends_on": [0, 1]},
+        ]
+    }
+    return spec
+
+
 def _cuda_persistent_auto_temp_graph_generic_args_spec(
     generic_source,
     add_source,
@@ -5406,6 +5419,58 @@ def test_scene_test_runs_cuda_persistent_device_mixed_graph_with_ctypes_data(tmp
             1.5 * a_values[idx] + c_values[idx] + 0.25 * d_values[idx] + a_values[idx] * b_values[idx]
             for idx in range(len(actual))
         ]
+        assert actual == pytest.approx(expected)
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_persistent_device_depends_on_graph_with_ctypes_data(tmp_path):
+    add_source = tmp_path / "add.pto.cu"
+    mul_source = tmp_path / "mul.pto.cu"
+    add_source.write_text(_PERSISTENT_ADD_BODY)
+    mul_source.write_text(_PERSISTENT_MUL_BODY)
+
+    @scene_test(level=2, runtime="persistent_device")
+    class CudaPersistentDependsOnGraphCtypesScene(SceneTestCase):
+        CALLABLE = _cuda_persistent_depends_on_graph_spec(add_source, mul_source)
+        CASES = [
+            {
+                "name": "n1024",
+                "platforms": ["cuda"],
+                "params": {"n": 1024},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            n = params["n"]
+            args = TaskArgsBuilder(
+                Tensor("a", _CtypesFloatTensor(float(i + 1) for i in range(n))),
+                Tensor("b", _CtypesFloatTensor(float(i) * 0.5 for i in range(n))),
+                Tensor("out", _CtypesFloatTensor(0.0 for _ in range(n))),
+            )
+            self.last_args = args
+            return args
+
+        def compute_golden(self, args, params):
+            raise AssertionError("ctypes scene uses explicit post-run validation")
+
+    scene = CudaPersistentDependsOnGraphCtypesScene()
+    worker = CudaPersistentDependsOnGraphCtypesScene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(
+            worker,
+            callable_obj,
+            CudaPersistentDependsOnGraphCtypesScene.CASES[0],
+            skip_golden=True,
+        )
+        args = scene.last_args
+        a_values = args.a.to_list()
+        b_values = args.b.to_list()
+        actual = args.out.to_list()
+        expected = [a_values[idx] + b_values[idx] for idx in range(len(actual))]
         assert actual == pytest.approx(expected)
     finally:
         worker.close()

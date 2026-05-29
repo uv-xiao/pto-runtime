@@ -275,6 +275,7 @@ def _expected_dispatch(config: PairedPersistentSmokeConfig) -> str | None:
         "graph_descriptor": "9,2,1",
         "graph_descriptor_chain": "1,2,1,2,1",
         "graph_descriptor_compact_role_inout": "1,1,1",
+        "graph_descriptor_depends_on": "1,2,1",
         "graph_descriptor_diamond": "9,2,1,2,1",
         "graph_descriptor_generic_args4": "9,2,1",
         "graph_descriptor_quad": "8,2,1",
@@ -314,6 +315,7 @@ def _expected_graph_descriptor(config: PairedPersistentSmokeConfig) -> tuple[str
     return {
         "graph_descriptor": ("0,0,2", "2,2"),
         "graph_descriptor_chain": ("0,0,2,1,1", "2,2,3,4"),
+        "graph_descriptor_depends_on": ("0,0,2", "2,2"),
         "graph_descriptor_diamond": ("0,0,2,2,2", "2,3,2,3,4,4"),
         "graph_descriptor_generic_args4": ("0,0,2", "2,2"),
         "graph_descriptor_quad": ("0,0,2", "2,2"),
@@ -530,6 +532,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "graph_descriptor",
             "graph_descriptor_chain",
             "graph_descriptor_compact_role_inout",
+            "graph_descriptor_depends_on",
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
             "graph_descriptor_quad",
