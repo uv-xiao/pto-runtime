@@ -1901,6 +1901,13 @@ ctypes-backed `edge_list_graph_with_ctypes_data` scene passed locally on A100
 with pytest reporting `5 passed, 102 deselected` for the focused selector and
 remotely on H200 with pytest reporting `1 passed, 106 deselected`; the H200
 run printed the known PTO-ISA SSH refresh warning first.
+The same graph-shaped path now accepts `graph.tasks` as a dictionary keyed by
+task name, so descriptor specs can keep node names in one place and reference
+those names from top-level edges. The ctypes-backed
+`task_dict_graph_with_ctypes_data` scene passed locally on A100 with pytest
+reporting `2 passed, 107 deselected` and remotely on H200 with pytest
+reporting `1 passed, 108 deselected`; the H200 run printed the known PTO-ISA
+SSH refresh warning first.
 The incoming-edge path is now covered by both a real-data L2 ctypes scene and
 paired persistent-device smoke. The working-tree smoke capture under
 `tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`
@@ -3623,7 +3630,7 @@ Needed:
   separation for scratch reuse, order-independent tensor-flow dependency
   inference, explicit outgoing and incoming graph edges with scalar or
   list-valued named task dependencies, top-level graph edge lists, and paired
-  smoke,
+  smoke, dictionary-keyed graph task descriptors,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, named graph-callable resolution, explicit unary square graph
   dispatch, tagged graph-descriptor paired smoke, and five-task chain,

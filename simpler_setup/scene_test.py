@@ -1215,7 +1215,7 @@ class _CudaPersistentDagSceneBuffers:
         graph = self.cuda_spec.get("graph")
         if not isinstance(graph, dict):
             raise ValueError("CUDA persistent_dag_graph_f32 requires a graph descriptor")
-        task_specs = list(graph.get("tasks", []))
+        task_specs = self._graph_task_specs(graph)
         if not task_specs:
             raise ValueError("CUDA persistent_dag_graph_f32 requires at least one graph task")
         task_specs = [self._resolve_graph_task_callable(graph, task_spec) for task_spec in task_specs]
@@ -1288,6 +1288,18 @@ class _CudaPersistentDagSceneBuffers:
         self.host_tasks = task_t(*task_values)
         fanin_t = ctypes_module.c_uint32 * len(fanin)
         self.host_fanin = fanin_t(*fanin)
+
+    @staticmethod
+    def _graph_task_specs(graph: dict[str, Any]) -> list[dict[str, Any]]:
+        tasks = graph.get("tasks", [])
+        if isinstance(tasks, dict):
+            task_specs = []
+            for task_name, task_spec in tasks.items():
+                if not isinstance(task_spec, dict):
+                    raise ValueError("CUDA persistent_dag_graph_f32 graph task dictionary values must be dictionaries")
+                task_specs.append({"name": task_name, **task_spec})
+            return task_specs
+        return list(tasks)
 
     @staticmethod
     def _resolve_graph_task_callable(graph: dict[str, Any], task_spec: dict[str, Any]) -> dict[str, Any]:

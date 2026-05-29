@@ -1262,6 +1262,9 @@ tasks.
 Each edge field may be a single task name/id or a list of task names/ids.
 For a more graph-shaped descriptor, use top-level `graph.edges` entries such
 as `{"from": "producer", "to": "consumer"}` or two-item endpoint pairs.
+`graph.tasks` may be a list of task dictionaries or a dictionary keyed by task
+name; in the dictionary form, the key becomes the task name used by edge
+metadata.
 Graph tasks may alternatively pass role-keyed `task_args` entries with
 `input`, `output`, `output_existing`, or `inout` roles. The adapter prefers
 the `role` key and still accepts the older `tag` spelling for compatibility.

@@ -356,6 +356,9 @@ The graph descriptor may also carry a top-level `edges` list, where each edge
 is either `{"from": <task>, "to": <task>}` or a two-item endpoint pair. This
 keeps node/task metadata separate from dependency metadata when a scene test
 needs a more graph-shaped descriptor.
+`graph.tasks` may be a list of task dictionaries or a dictionary keyed by task
+name. In the dictionary form, the key becomes the task `name` used by
+`graph.edges`, `dependents`, and `depends_on` / `dependencies`.
 Integer task IDs remain accepted, and tensor-flow inference remains the
 fallback when neither outgoing `dependents` nor incoming dependencies are
 provided.
