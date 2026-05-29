@@ -8744,6 +8744,8 @@ def test_cuda_current_summary_renders_graph_metadata_table():
                 "dispatch_func_ids": [9, 2, 1],
                 "graph_descriptor": {"tasks": 3, "fanin": [0, 0, 2], "dependents": [2, 2]},
                 "graph_node_attrs": {"task0": "attrs:tensor_args,scalar_args"},
+                "scalar_args": {"scalar_args[0]": 1.5, "scalar_args[1]": 0.25},
+                "tensor_args": {"tensor_args[0]": "tmp0", "tensor_args[1]": "tmp3"},
                 "status": "pass",
             },
             {
@@ -8790,35 +8792,36 @@ def test_cuda_current_summary_renders_graph_metadata_table():
 
     expected_header = (
         "| GPU | N | Baseline | Dispatch | Tasks | Fan-in | Dependents | "
-        "Task arg key | Task args | Node attrs | Node ops | Scalar args | Tensor tile |"
+        "Task arg key | Task args | Node attrs | Node ops | Scalar args | Tensor args | Tensor tile |"
     )
 
     assert expected_header in table
     assert (
         "| A100 | 1024 | pto_persistent_dag_graph_role_keyed_inout | 1,1,1 | 3 | 0,1,1 | 1,2 | role | "
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,"
-        "output_existing:out | - | - | - | - |" in table
+        "output_existing:out | - | - | - | - | - |" in table
     )
     assert (
         "| H200 | 1024 | pto_persistent_dag_graph_tensor_core | 10,2,4,1 | 4 | 0,0,1,2 | 2,3,3 | - | "
-        "- | - | - | - | 16x16x16 |" in table
+        "- | - | - | - | - | 16x16x16 |" in table
     )
     assert (
         "| A100 | 1024 | pto_persistent_dag_graph_node_op | 1,2,1 | 3 | 0,0,2 | 2,2 | - | - | - | "
-        "task0=op:add=1;task1=op:mul=2;task2=op:add=1 | - | - |" in table
+        "task0=op:add=1;task1=op:mul=2;task2=op:add=1 | - | - | - |" in table
     )
     assert (
         "| A100 | 1024 | pto_persistent_dag_graph_node_attrs | 9,2,1 | 3 | 0,0,2 | 2,2 | - | - | "
-        "task0=attrs:tensor_args,scalar_args | - | - | - |" in table
+        "task0=attrs:tensor_args,scalar_args | - | scalar_args[0]=1.5,scalar_args[1]=0.25 | "
+        "tensor_args[0]=tmp0,tensor_args[1]=tmp3 | - |" in table
     )
     assert (
         "| A100 | 1024 | pto_persistent_dag_graph_scalar_scale | 11,2,1 | 3 | 0,0,2 | 2,2 | - | - | "
-        "- | - | scalar0=2.0 | - |" in table
+        "- | - | scalar0=2.0 | - | - |" in table
     )
     assert (
         "| A100 | 1024 | pto_persistent_dag_graph_compact_role_inout | 1,1,1 | 3 | 0,1,1 | 1,2 | "
         "compact | task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,"
-        "output_existing:out | - | - | - | - |" in table
+        "output_existing:out | - | - | - | - | - |" in table
     )
     assert "## Graph Descriptor Metadata" in report
     assert "pto_persistent_dag_graph_role_keyed_inout" in report

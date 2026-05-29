@@ -2267,7 +2267,8 @@ depends-on and scratch-reuse rows when the capture has
 `pto_persistent_dag_graph_scratch_reuse`, avoiding hand-calculated
 current-evaluation ratios from raw JSON. The graph-metadata section lists
 explicit graph descriptor dispatch IDs, fan-in/dependent arrays, task-argument
-keying, tagged task arguments, and tensor-tile shape per GPU. The
+keying, tagged task arguments, scalar/tensor descriptor argument maps, and
+tensor-tile shape per GPU. The
 graph-role-spelling section focuses on tagged, role-keyed, and compact
 role-entry graph rows when checking TaskArgs spelling compatibility. The
 full benchmark Markdown report also includes the same `Graph Role Spelling

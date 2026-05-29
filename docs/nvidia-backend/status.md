@@ -632,9 +632,9 @@ Evidence:
   and compact tensor-sweep median table used by
   [evaluation-current.md](evaluation-current.md) from raw JSON artifacts,
   including graph scratch-reuse ratios in the DAG-shapes table, explicit
-  graph descriptor dispatch/fan-in/task-argument metadata in the
-  graph-metadata table, and cuBLAS Graph replay columns in tensor-sweep
-  summaries.
+  graph descriptor dispatch/fan-in/task-argument metadata plus scalar/tensor
+  descriptor argument maps in the graph-metadata table, and cuBLAS Graph
+  replay columns in tensor-sweep summaries.
 - `.agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py`
   checks paired benchmark captures for expected machines, selected baselines,
   sizes, repeats, sample count, generated report files, source-paper
@@ -2034,6 +2034,9 @@ validator now also requires the row and generated Markdown/SVG reports to
 carry `scalar_args[0]=1.5,scalar_args[1]=0.25` and
 `tensor_args[0]=tmp0,tensor_args[1]=tmp3`, so the selected benchmark gate
 cannot preserve the node-attrs label while losing its descriptor payload.
+The compact `cuda_current_summary.py --section graph-metadata` table now
+renders those scalar/tensor descriptor maps as well, so copied evaluation
+tables keep the payload visible.
 Device times were `40960 ns` on A100 and `33152 ns` on H200 for `N=1024`.
 The graph-node callable-alias path is now also promoted into the selected
 benchmark matrix as `pto_persistent_dag_graph_node_op`. The compact paired
