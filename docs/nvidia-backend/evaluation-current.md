@@ -1087,6 +1087,21 @@ for both GPUs, so this artifact can catch regressions where role-keyed
 TaskArgs-like metadata is accidentally reported only as generic tagged
 metadata.
 
+A current-head rerun at commit `8030fc57` refreshed the same role-keyed smoke
+after lifecycle-matrix artifact indexing landed.
+
+Artifact:
+`tmp/cuda-backend/current-head-role-keyed-working/persistent-graph_descriptor_role_keyed_inout-repeat2-smoke-8030fc57/`
+
+Its local index row records `graph_task_arg_key=role`, dispatch `1,1,1`,
+fan-in `0,1,1`, dependents `1,2`, repeat completions `3,3`, and the resource
+policy `sched=1,workers=3,wp=1,stream=0,block=256,grid=4`.
+
+| GPU | Device ns | Host ns | Per-launch device ns | PTX |
+| --- | --------- | ------- | -------------------- | --- |
+| A100 | 76800 | 110128 | `50176,26624` | `compute_80` |
+| H200 | 42112 | 4943838 | `21664,20448` | `compute_90` |
+
 The role-keyed graph descriptor is also in the compact selected-benchmark
 path as `pto_persistent_dag_graph_role_keyed_inout`. The artifact under
 `tmp/cuda-backend/role-keyed-benchmark-working/combined-current-a7787008/`

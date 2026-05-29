@@ -2014,6 +2014,30 @@ and zero scheduler errors on both GPUs. A100 reported per-launch device times
 `[43008,26624]` and H200 reported `[41792,25440]`. The generated smoke report
 adds a visible `Graph task arg key` column, so the artifact distinguishes the
 preferred `role` spelling from the older `tag` spelling.
+
+The same role-keyed graph smoke was rerun at current head after lifecycle
+matrix indexing landed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_role_keyed_inout --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/current-head-role-keyed-working
+```
+
+Artifact:
+`tmp/cuda-backend/current-head-role-keyed-working/persistent-graph_descriptor_role_keyed_inout-repeat2-smoke-8030fc57/`
+
+It contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The paired validator again required dispatch
+`[1,1,1]`, fan-in `[0,1,1]`, dependents `[1,2]`,
+`graph_task_arg_key=role`, repeat completions `[3,3]`, resource policy
+`scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`, and zero scheduler
+errors. A100 reported per-launch device times `[50176,26624]`; H200 reported
+`[21664,20448]`. The refreshed local index for that output root records the
+same role-keyed graph metadata in one row.
+
 The same role-keyed graph shape is also part of the selected paired benchmark
 matrix as `pto_persistent_dag_graph_role_keyed_inout`. A compact A100/H200
 capture:
