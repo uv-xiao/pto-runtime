@@ -1320,11 +1320,10 @@ class _CudaPersistentDagSceneBuffers:
         for index, entry in enumerate(graph_callables):
             if not isinstance(entry, dict):
                 raise ValueError("CUDA persistent_dag_graph_f32 graph callable list entries must be dictionaries")
-            if "name" not in entry:
-                raise ValueError("CUDA persistent_dag_graph_f32 graph callable list entries must include name")
             callable_spec = dict(entry)
-            name = str(callable_spec.pop("name"))
-            resolved[name] = callable_spec
+            name = callable_spec.pop("name", None)
+            if name is not None:
+                resolved[str(name)] = callable_spec
             resolved[str(index)] = callable_spec
         return resolved
 

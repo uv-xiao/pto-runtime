@@ -338,12 +338,14 @@ Graph tasks can now name a callable through `callable` when
 callable specs with `name` fields, which matches the list-shaped callable
 registries used by normal scene tests. For list-shaped registries, graph tasks
 may reference a callable by `name` or by zero-based list index, matching the
-callable-id shape used elsewhere in scene tests. The task-local fields
-override callable defaults before tagged `task_args` are lowered, so a scene
-graph can use named or indexed callables plus TaskArgs-like roles instead of
-repeating raw generated-dispatch IDs on every task. This is still not full
-capture of a live PTO orchestrator graph, but it moves descriptor construction
-closer to the normal
+callable-id shape used elsewhere in scene tests. A list entry only needs
+`name` when graph tasks reference it by name; pure index-based graphs may use
+unnamed callable specs. The task-local fields override callable defaults
+before tagged `task_args` are lowered, so a scene graph can use named or
+indexed callables plus TaskArgs-like roles instead of repeating raw
+generated-dispatch IDs on every task. This is still not full capture of a live
+PTO orchestrator graph, but it moves descriptor construction closer to the
+normal
 `submit_next_level(callable, TaskArgs, ...)` shape.
 Tagged `output` is the only role that may allocate a new default-sized
 temporary. Tagged `output_existing` and `inout` must name storage that is
