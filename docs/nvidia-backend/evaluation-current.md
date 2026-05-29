@@ -2,12 +2,15 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus compact current-head validation captures. The
-latest compact gate is artifact label `a9d028de`, which revalidates the
-current selected baseline matrix after adding the visible tensor-throughput
-report gate. The previous compact-role gate at `30a8974f` remains the
-task-argument spelling comparison for tagged, role-keyed, and compact graph
-entries. The raw JSON, Markdown, and SVG reports are generated locally under
-`tmp/cuda-backend/` and intentionally remain uncommitted.
+latest compact graph gate is the working-tree capture under
+`tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/`,
+which promotes the reordered explicit graph descriptor into the selected
+benchmark matrix. The previous tensor-throughput gate at `a9d028de` remains
+the visible tensor-throughput report check, and the compact-role gate at
+`30a8974f` remains the task-argument spelling comparison for tagged,
+role-keyed, and compact graph entries. The raw JSON, Markdown, and SVG reports
+are generated locally under `tmp/cuda-backend/` and intentionally remain
+uncommitted.
 
 The capture uses `nvcc` for target-specific PTX on both machines:
 
@@ -144,6 +147,14 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/tagged-scalar-compact-current-working/combined-current-8c023f59/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/tagged-scalar-compact-current-working/combined-current-8c023f59/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/tagged-scalar-compact-current-working/combined-current-8c023f59/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/graph-reordered-benchmark-working/a100-current-e038c96a/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-reordered-benchmark-working/h200-current-e038c96a/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark.md`
+- `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark.svg`
+- `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.json`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-current-a46db551/cuda-benchmark.json`
@@ -260,6 +271,46 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-throughput.svg`
+
+## Latest Reordered Graph Benchmark Gate
+
+The compact paired gate under
+`tmp/cuda-backend/graph-reordered-benchmark-working/` promotes
+`pto_persistent_dag_graph_reordered` into the selected benchmark matrix. This
+baseline uses the explicit graph descriptor whose final consumer appears
+before its two producers, so the required metadata is intentionally different
+from the normal fork-join graph: dispatch `1,9,2`, graph fan-in `2,0,0`, and
+dependents `0,0`.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/cuda-benchmark.json \
+    --require-size 1024 --expected-repeats 1 \
+    --expected-result-count 86 \
+    --require-baseline pto_persistent_dag_graph_reordered \
+    --require-dispatch pto_persistent_dag_graph_reordered=1,9,2 \
+    --require-graph-fanin pto_persistent_dag_graph_reordered=2,0,0 \
+    --require-graph-dependents pto_persistent_dag_graph_reordered=0,0 \
+    --require-report-files --require-report-graph-topology \
+    --require-command-examples --require-zero-scheduler-errors \
+    --require-source-papers
+```
+
+Selected reordered graph rows:
+
+| GPU | N | Device ns | Host ns | Dispatch | Fan-in | Dependents |
+| --- | - | --------- | ------- | -------- | ------ | ---------- |
+| A100 | 1024 | 35840 | 47574 | `1,9,2` | `2,0,0` | `0,0` |
+| H200 | 1024 | 25856 | 36223 | `1,9,2` | `2,0,0` | `0,0` |
+
+The full paired command used `--sizes 1024 --repeats 1 --batch-tasks ''`
+and `--worker-blocks-per-task ''` with `--sync-remote-tree`, producing `86`
+samples across A100 and H200. The combined report also validates generated
+Markdown/SVG files, source-paper provenance, sanitized reconstruction
+commands, and zero scheduler errors for the PTO persistent rows.
 
 ## Latest Tensor Throughput Report Gate
 

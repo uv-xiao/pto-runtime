@@ -384,6 +384,11 @@ PYTHONPATH=$PWD:$PWD/python \
     --preset compact-current
 ```
 
+The compact-current preset now expects `pto_persistent_dag_graph_reordered`
+in the selected matrix. For no-batch graph-row gates, the paired runner should
+validate `86` samples across A100 and H200 and require dispatch `1,9,2`, graph
+fan-in `2,0,0`, and dependents `0,0` for that baseline.
+
 The default full paired benchmark shape uses:
 
 - sizes: `1024,65536,1048576`

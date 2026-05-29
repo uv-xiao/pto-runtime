@@ -1510,6 +1510,10 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_graph_depends_on`: generated-dispatch DAG using an
   explicit graph descriptor whose edges come from incoming `depends_on`
   metadata while the final consumer reads original input tensors.
+- `pto_persistent_dag_graph_reordered`: generated-dispatch DAG using an
+  explicit graph descriptor where the final consumer appears before its
+  producers. It validates order-independent tensor-flow dependency inference
+  with dispatch `1,9,2`, graph fan-in `2,0,0`, and dependents `0,0`.
 - `pto_persistent_dag_graph_chain`: five-task generated-dispatch DAG using
   an explicit graph descriptor with the same chain dependency shape as
   `pto_persistent_dag_chain`.
@@ -1628,19 +1632,22 @@ together. The current committed summary keeps the full `61cf96cd` capture plus
 compact current-head gates in `docs/nvidia-backend/evaluation-current.md`.
 
 Use this compact paired gate after changing selected persistent graph
-benchmark rows. With no batch rows, it validates 84 samples across A100 and
+benchmark rows. With no batch rows, it validates 86 samples across A100 and
 H200, including `pto_persistent_dag_graph_node_attrs`,
 `pto_persistent_dag_graph_depends_on`,
 `pto_persistent_dag_graph_scalar_axpy`,
 `pto_persistent_dag_graph_scalar_scale`,
 `pto_persistent_dag_graph_scalar_affine`,
+`pto_persistent_dag_graph_reordered`,
 `pto_persistent_dag_graph_triad`, `pto_persistent_dag_graph_quad`, and
 `pto_persistent_dag_graph_compact_role_inout` with dispatch `9,2,1`,
-`1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `6,2,1`, `8,2,1`, and `1,1,1`.
+`1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `1,9,2`, `6,2,1`,
+`8,2,1`, and `1,1,1`.
 The node-attrs row requires
 `graph_node_attrs=task0=attrs:tensor_args,scalar_args`; the depends-on and
 graph scalar rows require graph fan-in `0,0,2` and dependents `2,2`; the
-compact role row requires graph fan-in `0,1,1`, dependents `1,2`, and
+reordered row requires graph fan-in `2,0,0` and dependents `0,0`; the compact
+role row requires graph fan-in `0,1,1`, dependents `1,2`, and
 `graph_task_arg_key=compact`:
 
 ```bash

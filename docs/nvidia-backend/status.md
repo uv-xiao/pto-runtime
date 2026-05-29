@@ -3851,6 +3851,16 @@ Needed:
 The persistent-device scheduler is proven for small generated descriptors, but
 it is not yet a full TensorMap/ringbuffer analogue.
 
+The selected benchmark gate now includes the reordered explicit graph
+descriptor as `pto_persistent_dag_graph_reordered`, not only the paired smoke
+artifact. The compact no-batch A100/H200 capture under
+`tmp/cuda-backend/graph-reordered-benchmark-working/combined-current-e038c96a/`
+validated `86` rows, source-paper provenance, generated reports, zero device
+scheduler errors, dispatch `1,9,2`, graph fan-in `2,0,0`, and dependents
+`0,0`. At `N=1024`, A100 reported `35840 ns` device time and H200 reported
+`25856 ns`, so order-independent graph dependency inference is covered by the
+selected benchmark matrix as well as by the repeat-run smoke.
+
 Needed:
 
 - full graph construction from normal PTO task graphs;
