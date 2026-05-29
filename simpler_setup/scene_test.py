@@ -1583,6 +1583,7 @@ class _CudaPersistentDagSceneBuffers:
 
     @staticmethod
     def _normalize_graph_task_spec(task_spec: dict[str, Any]) -> dict[str, Any]:
+        task_spec = _CudaPersistentDagSceneBuffers._expand_graph_task_attrs(task_spec)
         task_args = _CudaPersistentDagSceneBuffers._graph_task_args_for_normalization(task_spec)
         if task_args is None:
             return task_spec
@@ -1641,6 +1642,18 @@ class _CudaPersistentDagSceneBuffers:
             normalized["_out_requires_existing"] = True
         if inout_names:
             normalized["_inout_names"] = inout_names
+        return normalized
+
+    @staticmethod
+    def _expand_graph_task_attrs(task_spec: dict[str, Any]) -> dict[str, Any]:
+        attrs = task_spec.get("attrs")
+        if attrs is None:
+            return task_spec
+        if not isinstance(attrs, dict):
+            raise ValueError("CUDA persistent_dag_graph_f32 graph task attrs must be a dictionary")
+        normalized = dict(attrs)
+        normalized.update(task_spec)
+        normalized.pop("attrs", None)
         return normalized
 
     @staticmethod

@@ -1937,6 +1937,14 @@ generated-dispatch `func_id` task array. The ctypes-backed
 deselected`; the full local A100 CUDA scene-test file passed with
 `119 passed`; and the H200 selector passed with `1 passed, 118 deselected`
 while still emitting the known PTO-ISA SSH refresh warning.
+Graph nodes may now keep non-IO metadata under an `attrs` dictionary. The
+adapter merges `attrs` before node IO lowering, so a node can spell
+`op`, `inputs`, and `outputs` as graph structure while keeping auxiliary
+runtime payloads such as `tensor_args` and `scalar_args` out of the edge
+metadata. The ctypes-backed `node_attrs_graph_with_ctypes_data` scene passed
+locally with `2 passed, 119 deselected`; the full local A100 CUDA scene-test
+file passed with `121 passed`; and the H200 selector passed with `1 passed,
+120 deselected` while still emitting the known PTO-ISA SSH refresh warning.
 The incoming-edge path is now covered by both a real-data L2 ctypes scene and
 paired persistent-device smoke. The working-tree smoke capture under
 `tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`

@@ -1272,6 +1272,10 @@ Graph nodes may use top-level `inputs`, `outputs`, `output_existing`,
 `inouts`, and `scalars` fields when the descriptor should look like node IO
 metadata instead of a task-arg list. The adapter expands those fields into the
 same role-keyed `task_args` lowering path.
+Graph nodes may keep non-IO metadata under an `attrs` dictionary. Use this for
+node metadata such as `tensor_args` and `scalar_args` that should not be
+treated as graph IO edges. The adapter merges `attrs` before node IO lowering,
+with task-local fields taking precedence over conflicting attribute values.
 Graph tasks may alternatively pass role-keyed `task_args` entries with
 `input`, `output`, `output_existing`, or `inout` roles. The adapter prefers
 the `role` key and still accepts the older `tag` spelling for compatibility.

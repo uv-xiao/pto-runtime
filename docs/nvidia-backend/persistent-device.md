@@ -369,6 +369,11 @@ Graph nodes may also spell task arguments as top-level `inputs`, `outputs`,
 `output_existing`, `inouts`, and `scalars` fields. The adapter expands these
 node IO fields into the same role-keyed `task_args` lowering path before
 temporary allocation and task-struct construction.
+Graph nodes may keep non-IO metadata under an `attrs` dictionary. The adapter
+merges those attributes before node IO lowering, so metadata such as
+`tensor_args` and `scalar_args` stays separate from `op`, `inputs`, and
+`outputs` while still producing the same bounded CUDA task descriptor fields.
+Task-local fields override conflicting `attrs` entries.
 Integer task IDs remain accepted, and tensor-flow inference remains the
 fallback when neither outgoing `dependents` nor incoming dependencies are
 provided.
