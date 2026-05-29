@@ -2,9 +2,9 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus compact current-head validation captures. The
-latest compact gate is artifact label `01ddf564`, which promotes the
-incoming-edge `depends_on` graph descriptor row into the selected baseline
-matrix. The previous compact-role gate at `30a8974f` remains the
+latest compact gate is artifact label `a9d028de`, which revalidates the
+current selected baseline matrix after adding the visible tensor-throughput
+report gate. The previous compact-role gate at `30a8974f` remains the
 task-argument spelling comparison for tagged, role-keyed, and compact graph
 entries. The raw JSON, Markdown, and SVG reports are generated locally under
 `tmp/cuda-backend/` and intentionally remain uncommitted.
@@ -245,8 +245,83 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/a100-current-a9d028de/cuda-benchmark.json`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/h200-current-a9d028de/cuda-benchmark.json`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark.json`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark.md`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark.svg`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark-throughput.svg`
 
-## Latest Graph Depends-On Benchmark Gate
+## Latest Tensor Throughput Report Gate
+
+The compact paired gate at artifact label `a9d028de` revalidates the current
+selected benchmark matrix after adding `--require-report-tensor-throughput`.
+It uses the default `16x16x16` tensor descriptor, `N=1024`, one repeat,
+`batch_tasks=2`, and `worker_blocks_per_task=4`. The paired runner synced the
+local tree to `bizhaoh200`, captured local A100 and remote H200 reports,
+merged them, generated Markdown/SVG reports, and validated the combined JSON
+with the compact-current preset.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark.json \
+    --preset compact-current
+```
+
+The combined JSON has `84` samples. The validator checked A100/H200 machine
+names, size `1024`, one repeat, selected tensor baselines, source-paper
+provenance, sanitized command examples, generated Markdown/SVG reports,
+expected generated-dispatch sequences, tensor descriptor metadata, graph
+descriptor fan-in/dependent metadata, graph task-argument metadata, visible
+tensor throughput rows in `cuda-benchmark.md` and
+`cuda-benchmark-throughput.svg`, and zero scheduler errors for PTO persistent
+DAG rows.
+
+Launch baseline comparison from the same raw JSON:
+
+| GPU | N | PTO host ns | Compiler ns | Driver ns | Graph ns | Compiler/PTO | Graph/PTO |
+| --- | - | ----------- | ----------- | --------- | -------- | ------------ | --------- |
+| A100 | 1024 | 19456 | 19456 | 33792 | 23552 | 1.00x | 1.21x |
+| H200 | 1024 | 13984 | 12832 | 15839 | 15007 | 0.92x | 1.07x |
+
+Selected tensor throughput from the same raw JSON:
+
+| GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | Graph tensor-core ns | cuBLAS ns | cuBLAS graph ns |
+| --- | - | ----- | --------- | -------- | -------------- | -------------------- | --------- | --------------- |
+| A100 | 1024 | 16x16x16 | 36864 | 37888 | 38912 | 37888 | 51199 | 11264 |
+| H200 | 1024 | 16x16x16 | 32832 | 32224 | 32320 | 32288 | 37760 | 9472 |
+
+| GPU | Scalar GF/s | Graph GF/s | Tensor-core GF/s | Graph tensor-core GF/s | cuBLAS GF/s | cuBLAS graph GF/s |
+| --- | ----------- | ---------- | ---------------- | ---------------------- | ----------- | ----------------- |
+| A100 | 0.89 | 0.86 | 0.84 | 0.86 | 0.64 | 2.91 |
+| H200 | 1.00 | 1.02 | 1.01 | 1.01 | 0.87 | 3.46 |
+
+Worker-grid result:
+
+| GPU | N | Tasks | Best worker blocks/task | Device ns | Vs host batch |
+| --- | - | ----- | ----------------------- | --------- | ------------- |
+| A100 | 1024 | 2 | 4 | 35840 | 1.09x |
+| H200 | 1024 | 2 | 4 | 28128 | 1.36x |
+
+Selected graph tensor-core metadata:
+
+- A100 graph tensor-core: dispatch `10,1,2,1`, fan-in `0,1,1,2`,
+  dependents `1,2,3,3`, tensor tile `16x16x16`, device `37888 ns`.
+- H200 graph tensor-core: dispatch `10,1,2,1`, fan-in `0,1,1,2`,
+  dependents `1,2,3,3`, tensor tile `16x16x16`, device `32288 ns`.
+- Both rows reported `device_scheduler_errors={count:0, code:0, task_id:0}`.
+
+This gate is still a compact microbenchmark. It proves current report
+publication checks and selected baseline plumbing on A100/H200, while the
+broader full-capture trend view remains the three-size, three-repeat
+`61cf96cd` capture.
+
+## Previous Graph Depends-On Benchmark Gate
 
 The compact paired gate at artifact label `01ddf564` adds
 `pto_persistent_dag_graph_depends_on` to the selected benchmark matrix. It
@@ -800,7 +875,7 @@ three-repeat rows below for broad trend reading. The `2aedb40f` gate was
 captured after adding the host-schedule generic-args benchmark row; all PTO
 persistent DAG rows reported zero device scheduler errors.
 
-## Current Compact Paired Gate
+## Previous Graph Scratch-Reuse Compact Gate
 
 The compact paired gate at artifact label `dbb01406` promotes
 `pto_persistent_dag_graph_scratch_reuse` into the selected benchmark path

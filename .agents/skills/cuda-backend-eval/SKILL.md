@@ -2093,7 +2093,7 @@ topology and task-argument metadata, visible Markdown/SVG tensor throughput
 rows for required tensor/cuBLAS descriptors, size `1024`, one repeat, `84`
 combined samples, and the Markdown/SVG report files. The current compact gate
 artifact is under
-`tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/`.
+`tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/`.
 Validate older captures with explicit `--require-*` checks if the current
 preset has gained new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the

@@ -3166,17 +3166,37 @@ The paired-current validator now also rejects stale tensor reports with
 `cuda-benchmark.md` contains the `Tensor Throughput Rows` table and that
 `cuda-benchmark-throughput.svg` visibly includes each required tensor/core and
 cuBLAS baseline with the requested tensor descriptor shape.
+The gate was validated on the current compact paired A100/H200 capture at
+artifact label `a9d028de`:
 
 ```bash
-PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
-  tests/ut/py/test_cuda_benchmark_report.py -q \
-  -k 'pair_benchmark_builds_current_a100_h200_workflow or \
-      pair_benchmark_validate_command_matches_configured_capture'
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
+    --sizes 1024 --repeats 1 --batch-tasks 2 \
+    --worker-blocks-per-task 4 --sync-remote-tree \
+    --output-root tmp/cuda-backend/tensor-throughput-gate-current-working
 ```
 
-Result: `2 passed, 221 deselected`.
+The paired runner wrote and validated
+`tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/cuda-benchmark.json`
+with the `compact-current` preset. It required `84` samples, source-paper
+provenance, sanitized command examples, generated Markdown/SVG reports,
+visible tensor throughput rows, zero scheduler errors, graph descriptor
+topology, graph task-argument metadata, and selected tensor/cuBLAS baseline
+rows. Selected rows:
 
-The current compact paired A100/H200 capture is:
+| GPU | Host ns | Base DAG ns | Graph tensor-core ns | cuBLAS graph ns | Grid batch ns |
+| --- | ------- | ----------- | -------------------- | --------------- | ------------- |
+| A100 | 19456 | 46080 | 37888 | 11264 | 35840 |
+| H200 | 13984 | 39904 | 32288 | 9472 | 28128 |
+
+The graph tensor-core row validates dispatch `10,1,2,1`, fan-in
+`0,1,1,2`, dependents `1,2,3,3`, tensor tile `16x16x16`, and zero scheduler
+errors on both GPUs. The tensor-throughput table reports A100
+`0.86 GF/s` for graph tensor-core and `2.91 GF/s` for cuBLAS Graph; H200
+reports `1.01 GF/s` for graph tensor-core and `3.46 GF/s` for cuBLAS Graph.
+
+The previous graph-unary compact paired A100/H200 capture is:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python .venv/bin/python \

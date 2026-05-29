@@ -144,6 +144,9 @@ committed:
 - `tmp/cuda-backend/graph-depends-benchmark-working/a100-current-01ddf564/`
 - `tmp/cuda-backend/graph-depends-benchmark-working/h200-current-01ddf564/`
 - `tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/a100-current-a9d028de/`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/h200-current-a9d028de/`
+- `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/`
 - `tmp/cuda-backend/lifecycle-tensor-core-working/persistent-lifecycle-matrix-1c683c1c/`
 - `tmp/cuda-backend/index.md`
 
