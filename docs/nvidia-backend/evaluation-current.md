@@ -271,6 +271,10 @@ provenance, sanitized command examples, generated Markdown/SVG reports,
 expected generated-dispatch sequences, tensor descriptor metadata, graph
 descriptor fan-in/dependent metadata, graph task-argument metadata, and zero
 scheduler errors for PTO persistent DAG rows.
+The current validator also requires the selected tensor/cuBLAS rows to be
+visible in both the Markdown `Tensor Throughput Rows` table and
+`cuda-benchmark-throughput.svg`, so the published capture has checked GF/s
+evidence rather than only raw JSON tensor metadata.
 
 Selected incoming-edge graph rows:
 

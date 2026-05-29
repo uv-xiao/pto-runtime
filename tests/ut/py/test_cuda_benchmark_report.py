@@ -2024,6 +2024,80 @@ def test_cuda_capture_validator_checks_graph_role_spelling_in_reports(tmp_path):
     )
 
 
+def test_cuda_capture_validator_checks_tensor_throughput_in_reports(tmp_path):
+    cuda_validate_capture = _load_capture_validator_module()
+    artifact_dir = tmp_path / "combined-current-tensor-throughput"
+    artifact_dir.mkdir()
+    payload = _paired_capture_payload()
+    payload["results"].extend(
+        [
+            {
+                "machine": "hina",
+                "baseline": "pto_persistent_dag_tensor_core",
+                "n": 1024,
+                "repeat": 0,
+                "status": "pass",
+                "device_wall_ns": 1024,
+                "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 1},
+            },
+            {
+                "machine": "hina",
+                "baseline": "cublas_sgemm_graph",
+                "n": 1024,
+                "repeat": 0,
+                "status": "pass",
+                "device_wall_ns": 2048,
+                "tensor_tile": {"rows": 16, "cols": 16, "inner": 16, "tile_count": 1},
+            },
+        ]
+    )
+    (artifact_dir / "cuda-benchmark.md").write_text("# report\n")
+    (artifact_dir / "cuda-benchmark.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-ratios.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-dag-deltas.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-throughput.svg").write_text("<svg>stale chart</svg>\n")
+
+    errors = cuda_validate_capture.validate_capture(
+        payload,
+        artifact_dir=artifact_dir,
+        require_report_files=True,
+        require_report_tensor_throughput=True,
+        required_tensor_tiles={
+            "pto_persistent_dag_tensor_core": "16x16x16",
+            "cublas_sgemm_graph": "16x16x16",
+        },
+    )
+
+    assert "missing report tensor throughput in cuda-benchmark.md" in errors
+    assert "missing report tensor throughput in cuda-benchmark-throughput.svg" in errors
+
+    (artifact_dir / "cuda-benchmark.md").write_text(
+        "## Tensor Throughput Rows\n"
+        "| Machine | Baseline | N | Tensor tile | Median device ns | Median GF/s |\n"
+        "| hina | pto_persistent_dag_tensor_core | 1024 | 16x16x16 | 1024 | 32.00 |\n"
+        "| hina | cublas_sgemm_graph | 1024 | 16x16x16 | 2048 | 16.00 |\n"
+    )
+    (artifact_dir / "cuda-benchmark-throughput.svg").write_text(
+        "<svg><text>Tensor throughput by baseline</text>"
+        "<text>hina n=1024 16x16x16 pto_persistent_dag_tensor_core</text>"
+        "<text>hina n=1024 16x16x16 cublas_sgemm_graph</text></svg>\n"
+    )
+
+    assert (
+        cuda_validate_capture.validate_capture(
+            payload,
+            artifact_dir=artifact_dir,
+            require_report_files=True,
+            require_report_tensor_throughput=True,
+            required_tensor_tiles={
+                "pto_persistent_dag_tensor_core": "16x16x16",
+                "cublas_sgemm_graph": "16x16x16",
+            },
+        )
+        == []
+    )
+
+
 def test_cuda_capture_validator_requires_graph_task_arg_key_metadata():
     cuda_validate_capture = _load_capture_validator_module()
     payload = _paired_capture_payload()
@@ -2149,6 +2223,7 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert args.require_report_graph_topology is True
     assert args.require_report_graph_task_args is True
     assert args.require_report_graph_role_spelling is True
+    assert args.require_report_tensor_throughput is True
 
 
 def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
@@ -2168,6 +2243,7 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert args.require_report_graph_topology is True
     assert args.require_report_graph_task_args is True
     assert args.require_report_graph_role_spelling is True
+    assert args.require_report_tensor_throughput is True
     assert "pto_host_schedule_generic_args" in args.require_baseline
     assert "pto_persistent_dag_scalar_scale" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4" in args.require_baseline
@@ -3447,6 +3523,7 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert "--require-source-papers" in validate
     assert "--require-report-graph-topology" in validate
     assert "--require-report-graph-task-args" in validate
+    assert "--require-report-tensor-throughput" in validate
     assert "--require-zero-scheduler-errors" in validate
     assert index[-2:] == ["--root", str(tmp_path / "cuda-backend")]
 
@@ -3538,6 +3615,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_compact_role_inout=compact" in graph_task_arg_keys
     assert "--require-report-graph-topology" in validate
     assert "--require-report-graph-task-args" in validate
+    assert "--require-report-tensor-throughput" in validate
 
 
 def test_cuda_pair_benchmark_omits_empty_batch_sweeps(tmp_path):

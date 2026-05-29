@@ -489,6 +489,7 @@ def build_validate_command(
         "--require-report-files",
         "--require-report-graph-topology",
         "--require-report-graph-task-args",
+        "--require-report-tensor-throughput",
         "--require-command-examples",
         "--require-zero-scheduler-errors",
         "--require-source-papers",

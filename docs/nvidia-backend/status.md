@@ -3161,6 +3161,12 @@ The selected paired benchmark gate now includes
 under TDD because it still omitted the row from its selected baseline list
 even though the benchmark and validator accepted it. The focused tests passed:
 
+The paired-current validator now also rejects stale tensor reports with
+`--require-report-tensor-throughput`. That gate checks that
+`cuda-benchmark.md` contains the `Tensor Throughput Rows` table and that
+`cuda-benchmark-throughput.svg` visibly includes each required tensor/core and
+cuBLAS baseline with the requested tensor descriptor shape.
+
 ```bash
 PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
   tests/ut/py/test_cuda_benchmark_report.py -q \

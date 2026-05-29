@@ -2089,9 +2089,10 @@ graph-depends-on baseline, graph-scratch-reuse baseline,
 graph-tagged-inout baseline, graph descriptor fan-in/dependent metadata,
 graph-triad and graph-quad baselines, the tagged scalar graph baseline, the
 graph unary-square baseline, task-argument tags, visible Markdown/SVG graph
-topology and task-argument metadata, size `1024`, one repeat, `84` combined
-samples, and the Markdown/SVG report files. The current compact gate artifact
-is under
+topology and task-argument metadata, visible Markdown/SVG tensor throughput
+rows for required tensor/cuBLAS descriptors, size `1024`, one repeat, `84`
+combined samples, and the Markdown/SVG report files. The current compact gate
+artifact is under
 `tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/`.
 Validate older captures with explicit `--require-*` checks if the current
 preset has gained new selected rows since that capture.
@@ -2120,7 +2121,10 @@ It also passes `--require-report-graph-topology` and
 `--require-report-graph-role-spelling`, so paired benchmark Markdown and SVG
 reports must show the same graph topology, TaskArgs-like metadata, and
 focused tag/role/compact graph task-argument spelling rows that the JSON
-payload carries.
+payload carries. They also pass `--require-report-tensor-throughput`, so
+`cuda-benchmark.md` and `cuda-benchmark-throughput.svg` must show the required
+tensor/core/cuBLAS baselines and the requested tensor tile shape before the
+capture is publishable.
 
 Use `cuda_validate_smoke.py` for paired smoke artifacts. It checks required
 artifacts, pass status, zero device scheduler errors, expected runtime/mode,

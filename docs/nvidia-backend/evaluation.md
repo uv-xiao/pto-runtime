@@ -207,9 +207,11 @@ explicit `--require-report-graph-topology` and
 `--require-report-graph-task-args` gates for visible graph topology and
 task-argument metadata in `cuda-benchmark.md` and `cuda-benchmark.svg`.
 Current paired presets also use `--require-report-graph-role-spelling` for
-the focused tag/role/compact graph rows, so a report captured with the wrong
-`--tensor-rows`, `--tensor-cols`, `--tensor-inner`, or stale graph metadata
-does not get copied into the current-evaluation tables.
+the focused tag/role/compact graph rows and
+`--require-report-tensor-throughput` for the Markdown/SVG tensor throughput
+view, so a report captured with the wrong `--tensor-rows`, `--tensor-cols`,
+`--tensor-inner`, missing GF/s rows, or stale graph metadata does not get
+copied into the current-evaluation tables.
 
 ## Baselines
 
