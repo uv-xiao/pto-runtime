@@ -315,6 +315,7 @@ class CudaPersistentDagState(ctypes.Structure):
         ("error_code", ctypes.c_void_p),
         ("error_task_id", ctypes.c_void_p),
         ("scheduler_blocks", ctypes.c_uint32),
+        ("scheduler_init_count", ctypes.c_void_p),
     ]
 
 
@@ -653,6 +654,7 @@ struct PtoCudaPersistentDagState {{
     unsigned int *error_code;
     unsigned int *error_task_id;
     unsigned int scheduler_blocks;
+    unsigned int *scheduler_init_count;
 }};
 
 __device__ void pto_dag_record_error(
@@ -729,18 +731,21 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
     unsigned int scheduler_blocks = state->scheduler_blocks == 0U ? 1U : state->scheduler_blocks;
     if (blockIdx.x < scheduler_blocks) {{
         if (blockIdx.x == 0 && threadIdx.x == 0) {{
-            unsigned int initial_ready_count = 0U;
-            for (unsigned int idx = 0; static_cast<unsigned long long>(idx) < state->task_count; ++idx) {{
+            for (unsigned int idx = 0; static_cast<unsigned long long>(idx) < state->task_count;
+                 idx += scheduler_blocks) {{
                 if (state->fanin[idx] != state->tasks[idx].initial_fanin) {{
                     pto_dag_record_error(state, 5U, idx);
                     continue;
                 }}
                 if (state->tasks[idx].initial_fanin == 0U) {{
-                    ++initial_ready_count;
                     pto_dag_push_ready(state, idx);
                 }}
             }}
-            if (state->task_count != 0ULL && initial_ready_count == 0U) {{
+            atomicAdd(state->scheduler_init_count, 1U);
+            while (atomicAdd(state->scheduler_init_count, 0U) < scheduler_blocks &&
+                   atomicAdd(state->error_count, 0U) == 0U) {{
+            }}
+            if (state->task_count != 0ULL && atomicAdd(state->queue_tail, 0U) == 0U) {{
                 pto_dag_record_error(state, 6U, 0U);
             }}
             while (atomicAdd(state->completed_count, 0U) < state->task_count &&
@@ -752,6 +757,18 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
                     break;
                 }}
             }}
+        }} else if (threadIdx.x == 0) {{
+            for (unsigned int idx = blockIdx.x; static_cast<unsigned long long>(idx) < state->task_count;
+                 idx += scheduler_blocks) {{
+                if (state->fanin[idx] != state->tasks[idx].initial_fanin) {{
+                    pto_dag_record_error(state, 5U, idx);
+                    continue;
+                }}
+                if (state->tasks[idx].initial_fanin == 0U) {{
+                    pto_dag_push_ready(state, idx);
+                }}
+            }}
+            atomicAdd(state->scheduler_init_count, 1U);
         }}
         return;
     }}

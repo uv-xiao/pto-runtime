@@ -112,6 +112,7 @@ struct PtoCudaPersistentDagState {
     uint32_t *error_code;
     uint32_t *error_task_id;
     uint32_t scheduler_blocks;
+    uint32_t *scheduler_init_count;
 };
 
 struct PtoCudaPersistentDagArgs {

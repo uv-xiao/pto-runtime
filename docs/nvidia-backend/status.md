@@ -4647,18 +4647,18 @@ Needed:
   `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, dependents `2,3,2,3,4,4`,
   scalar/tensor arg metadata, generated Markdown/SVG reports, and zero device
   scheduler errors on A100 and H200. A100 reported `device_wall_ns=72704`;
-  H200 reported `device_wall_ns=53728`. The multi-scheduler diamond capture
-  under `tmp/cuda-backend/multi-scheduler-policy-working/`
-  `persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/` validates the
-  same graph shape with `scheduler_blocks=2`, `worker_blocks=3`,
-  `stream_id=2`, `block_dim=256`, `grid_dim=5`, repeat completions `[5,5]`,
-  dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, dependents
-  `2,3,2,3,4,4`, scalar/tensor arg metadata, generated Markdown/SVG reports,
-  and zero device scheduler errors on A100 and H200. A100 reported
-  `device_wall_ns=79872`; H200 reported `device_wall_ns=57952`, so the
-  remaining policy gap is now scheduler-work distribution across multiple
-  scheduler blocks rather than launch resource partitioning or artifact
-  validation;
+  H200 reported `device_wall_ns=53728`. The scheduler-distribution diamond
+  capture under `tmp/cuda-backend/scheduler-distribution-policy-working/`
+  `persistent-graph_descriptor_diamond-repeat2-smoke-93e0a299/` validates the
+  same graph shape with `scheduler_blocks=2`, `scheduler_init_count=2`,
+  `worker_blocks=3`, `stream_id=2`, `block_dim=256`, `grid_dim=5`, repeat
+  completions `[5,5]`, dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`,
+  dependents `2,3,2,3,4,4`, scalar/tensor arg metadata, generated
+  Markdown/SVG reports, and zero device scheduler errors on A100 and H200.
+  A100 reported `device_wall_ns=77824`; H200 reported
+  `device_wall_ns=52768`, so the remaining policy gap is now deeper
+  scheduler-loop sharding beyond distributed root seeding rather than launch
+  resource partitioning or artifact validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,
   duplicate-dependent, self-dependent, initial-fan-in, and

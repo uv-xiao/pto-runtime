@@ -3512,6 +3512,36 @@ def test_cuda_smoke_validator_checks_resource_policy(tmp_path):
     assert "expected resource_policy.scheduler_blocks 1 for artifact=a100" not in errors
 
 
+def test_cuda_smoke_validator_checks_scheduler_init_count(tmp_path):
+    cuda_validate_smoke = _load_smoke_validator_module()
+    artifact_dir = tmp_path / "persistent-scheduler-init-smoke"
+    artifact_dir.mkdir()
+    payload = {
+        "status": "pass",
+        "runtime": "persistent_device",
+        "mode": "dag",
+        "dag_shape": "graph_descriptor_diamond",
+        "n": 1024,
+        "repeat_runs": 1,
+        "completed_count": 5,
+        "scheduler_init_count": 1,
+        "launch_completed_counts": [5],
+        "dispatch_func_ids": [9, 2, 1, 2, 1],
+        "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+    }
+    (artifact_dir / "a100.json").write_text(json.dumps(payload) + "\n")
+
+    payloads = cuda_validate_smoke.load_smoke_payloads([artifact_dir / "a100.json"])
+    errors = cuda_validate_smoke.validate_smoke(
+        payloads,
+        expectation=cuda_validate_smoke.SmokeValidationExpectation(
+            scheduler_init_count=2,
+        ),
+    )
+
+    assert "expected scheduler_init_count 2 for artifact=a100, found 1" in errors
+
+
 def test_cuda_smoke_validator_checks_graph_descriptor_metadata(tmp_path):
     cuda_validate_smoke = _load_smoke_validator_module()
     artifact_dir = tmp_path / "persistent-graph-descriptor-smoke"
@@ -5806,6 +5836,7 @@ def test_cuda_pair_persistent_smoke_passes_scheduler_blocks(tmp_path):
     assert "3" in validate
     assert "--expected-grid-dim" in validate
     assert "5" in validate
+    assert "--expected-scheduler-init-count" in validate
 
 
 def test_cuda_pair_persistent_smoke_passes_repeat_runs(tmp_path):

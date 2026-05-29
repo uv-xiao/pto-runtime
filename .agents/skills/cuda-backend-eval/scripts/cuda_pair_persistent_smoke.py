@@ -549,7 +549,14 @@ def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> 
         "--require-report-files",
     ]
     if config.mode == "dag":
-        command.extend(["--expected-dag-shape", config.dag_shape])
+        command.extend(
+            [
+                "--expected-dag-shape",
+                config.dag_shape,
+                "--expected-scheduler-init-count",
+                str(expected_scheduler_blocks),
+            ]
+        )
     expected_dispatch = _expected_dispatch(config)
     if expected_dispatch is not None:
         command.extend(["--expected-dispatch", expected_dispatch])

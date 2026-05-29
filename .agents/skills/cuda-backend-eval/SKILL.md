@@ -253,14 +253,14 @@ same policy fields on a five-task graph descriptor with `worker_blocks=4`,
 `0,0,2,2,2`, dependents `2,3,2,3,4,4`, scalar/tensor arg metadata, repeat
 completions `[5,5]`, and zero scheduler errors. Device times were `72704 ns`
 on A100 and `53728 ns` on H200 for `N=1024`.
-The paired multi-scheduler resource-policy capture under
-`tmp/cuda-backend/multi-scheduler-policy-working/`
-`persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/` validated the
-same graph shape with `scheduler_blocks=2`, `worker_blocks=3`, `stream_id=2`,
-`block_dim=256`, `grid_dim=5`, repeat completions `[5,5]`, dispatch
-`9,2,1,2,1`, fan-in `0,0,2,2,2`, dependents `2,3,2,3,4,4`,
-scalar/tensor arg metadata, and zero scheduler errors. Device times were
-`79872 ns` on A100 and `57952 ns` on H200 for `N=1024`.
+The paired scheduler-distribution resource-policy capture under
+`tmp/cuda-backend/scheduler-distribution-policy-working/`
+`persistent-graph_descriptor_diamond-repeat2-smoke-93e0a299/` validated the
+same graph shape with `scheduler_blocks=2`, `scheduler_init_count=2`,
+`worker_blocks=3`, `stream_id=2`, `block_dim=256`, `grid_dim=5`, repeat
+completions `[5,5]`, dispatch `9,2,1,2,1`, fan-in `0,0,2,2,2`, dependents
+`2,3,2,3,4,4`, scalar/tensor arg metadata, and zero scheduler errors. Device
+times were `77824 ns` on A100 and `52768 ns` on H200 for `N=1024`.
 
 Run the bounded-ring persistent smoke with wraparound:
 

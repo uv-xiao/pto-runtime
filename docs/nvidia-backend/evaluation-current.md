@@ -754,27 +754,29 @@ Both artifacts reported zero scheduler errors, repeat completions `[5,5]`,
 dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, graph dependents
 `2,3,2,3,4,4`, scalar args `1.5,0.25`, and tensor args `tmp0,tmp3`.
 
-## Latest Multi-Scheduler Resource-Policy Smoke
+## Latest Scheduler-Distribution Resource-Policy Smoke
 
-The multi-scheduler resource-policy smoke at artifact label `a5c35b50`
-validates that persistent-device launch partitioning no longer assumes a
-single scheduler block. It runs the five-task graph-diamond descriptor with
-`scheduler_blocks=2`, `worker_blocks=3`, `stream_id=2`, `block_dim=256`,
-`grid_dim=5`, queue capacity `3`, and `repeat_runs=2` on both A100 and H200.
-Only scheduler block `0` seeds and monitors the queue today; the extra
-scheduler block is reserved out of the worker pool, proving the ABI and launch
-partition before scheduler-work sharding is introduced.
+The scheduler-distribution resource-policy smoke at artifact label
+`93e0a299` validates that persistent-device launch partitioning no longer only
+reserves extra scheduler blocks. It runs the five-task graph-diamond
+descriptor with `scheduler_blocks=2`, `worker_blocks=3`, `stream_id=2`,
+`block_dim=256`, `grid_dim=5`, queue capacity `3`, and `repeat_runs=2` on both
+A100 and H200. The DAG scheduler now stripes root-task validation and ready
+queue seeding across scheduler blocks, while scheduler block `0` still owns
+the global no-root/unreachable-task monitor after all scheduler blocks report
+initialization.
 
 Validation command:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
-    tmp/cuda-backend/multi-scheduler-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/a100.json \
-    tmp/cuda-backend/multi-scheduler-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/h200.json \
+    tmp/cuda-backend/scheduler-distribution-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-93e0a299/a100.json \
+    tmp/cuda-backend/scheduler-distribution-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-93e0a299/h200.json \
     --require-artifact a100 --require-artifact h200 \
     --expected-runtime persistent_device --expected-mode dag \
     --expected-dag-shape graph_descriptor_diamond --expected-repeat-runs 2 \
+    --expected-scheduler-init-count 2 \
     --expected-completed-count 5 --expected-dispatch 9,2,1,2,1 \
     --expected-graph-fanin 0,0,2,2,2 \
     --expected-graph-dependents 2,3,2,3,4,4 \
@@ -792,12 +794,13 @@ Selected rows:
 
 | GPU | Device ns | Host ns | Launches ns | Policy |
 | --- | --------- | ------- | ----------- | ------ |
-| A100 | 79872 | 111442 | `49152,30720` | `sched=2,workers=3,stream=2,block=256,grid=5` |
-| H200 | 57952 | 77382 | `33920,24032` | `sched=2,workers=3,stream=2,block=256,grid=5` |
+| A100 | 77824 | 111013 | `47104,30720` | `sched=2,workers=3,stream=2,block=256,grid=5` |
+| H200 | 52768 | 72119 | `29184,23584` | `sched=2,workers=3,stream=2,block=256,grid=5` |
 
 Both artifacts reported zero scheduler errors, repeat completions `[5,5]`,
-dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, graph dependents
-`2,3,2,3,4,4`, scalar args `1.5,0.25`, and tensor args `tmp0,tmp3`.
+`scheduler_init_count=2`, dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`,
+graph dependents `2,3,2,3,4,4`, scalar args `1.5,0.25`, and tensor args
+`tmp0,tmp3`.
 
 ## Latest Scheduler Error Matrix
 
