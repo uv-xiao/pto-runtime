@@ -1550,7 +1550,7 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
-    if dag_shape == "unary_square":
+    if dag_shape in {"unary_square", "graph_descriptor_unary_square"}:
         task_count = 3
         host_fanin_t = ctypes.c_uint32 * task_count
         dependents_t = ctypes.c_uint32 * 2
@@ -2524,7 +2524,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     expected_tmp0 = [_f32(expected_tmp1[i] + expected_tmp2[i]) for i in range(n)]
                     expected_tmp3 = [_f32(expected_tmp1[i] * expected_tmp2[i]) for i in range(n)]
                     expected_out = [_f32(expected_tmp0[i] + expected_tmp3[i]) for i in range(n)]
-            if config.dag_shape == "unary_square":
+            if config.dag_shape in {"unary_square", "graph_descriptor_unary_square"}:
                 expected_tmp0 = [_f32(host_a[i] * host_a[i]) for i in range(n)]
                 expected_tmp1 = [_f32(expected_tmp0[i] + host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp1[i] + host_a[i]) for i in range(n)]
@@ -2675,6 +2675,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             "graph_descriptor_tagged",
             "graph_descriptor_tagged_inout",
             "graph_descriptor_triad",
+            "graph_descriptor_unary_square",
             "graph_tensor_tile",
         }:
             result["graph_descriptor"] = {
@@ -2802,6 +2803,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "graph_descriptor_tagged",
         "graph_descriptor_tagged_inout",
         "graph_descriptor_triad",
+        "graph_descriptor_unary_square",
         "graph_tensor_tile",
         "quad",
         "scalar_affine",
@@ -2863,8 +2865,12 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         and ptx_source.startswith("embedded-")
     ):
         raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
-    if mode == "dag" and dag_shape == "unary_square" and ptx_source.startswith("embedded-"):
-        raise RuntimeError("unary_square DAG shape requires nvcc-built generated-dispatch PTX")
+    if (
+        mode == "dag"
+        and dag_shape in {"unary_square", "graph_descriptor_unary_square"}
+        and ptx_source.startswith("embedded-")
+    ):
+        raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
     if (
         mode == "dag"
         and dag_shape in {"scalar_scale", "graph_descriptor_scalar_scale"}
@@ -3076,6 +3082,7 @@ def main() -> None:
             "graph_descriptor_tagged",
             "graph_descriptor_tagged_inout",
             "graph_descriptor_triad",
+            "graph_descriptor_unary_square",
             "graph_tensor_tile",
             "quad",
             "scalar_affine",

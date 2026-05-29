@@ -446,6 +446,19 @@ PYTHONPATH=$PWD:$PWD/python \
     --mode dag --queue-capacity 2 --dag-shape unary_square
 ```
 
+Use `--dag-shape graph_descriptor_unary_square` when the same one-input
+generated-dispatch DAG should be represented as explicit runtime graph
+metadata. The paired validator requires dispatch `7,1,1`,
+`graph_descriptor.fanin=0,1,1`, and `graph_descriptor.dependents=1,2`.
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_unary_square --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-unary-square-working
+```
+
 Run the corresponding benchmark baseline directly after changing a scalar DAG
 descriptor or generated-dispatch benchmark wiring:
 
@@ -527,9 +540,10 @@ AXPY/scale/affine, triad, quad, unary-square, `generic_args`,
 `generic_args4`, `graph_descriptor`, `graph_descriptor_chain`,
 `graph_descriptor_generic_args4`, `graph_descriptor_reordered`,
 `graph_descriptor_diamond`, `graph_descriptor_scratch_reuse`,
-`graph_descriptor_tagged`, `graph_descriptor_tagged_inout`, and
-`graph_tensor_tile`. The validator therefore rejects A100/H200 artifacts that
-pass numerically through a different generated task path.
+`graph_descriptor_tagged`, `graph_descriptor_tagged_inout`,
+`graph_descriptor_unary_square`, and `graph_tensor_tile`. The validator
+therefore rejects A100/H200 artifacts that pass numerically through a
+different generated task path.
 
 For tensor-tile smokes, the paired runner also passes
 `--expected-tensor-tile ROWSxCOLSxINNER` so the validator rejects artifacts
@@ -619,6 +633,9 @@ PYTHONPATH=$PWD:$PWD/python \
 
 The current working-tree capture is under
 `tmp/cuda-backend/persistent-graph_tensor_tile-16x16x16-repeat2-working/`.
+
+The current graph-descriptor unary-square repeat-run capture is under
+`tmp/cuda-backend/graph-unary-square-working/persistent-graph_descriptor_unary_square-repeat2-smoke-02c99b5c/`.
 
 The generated-dispatch DAG smoke also carries device-side scheduler
 diagnostics. A normal pass returns `device_scheduler_errors` with zero counts.

@@ -1519,6 +1519,48 @@ ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
 
 Result: `2 passed, 28 deselected`.
 
+The unary graph descriptor path was then promoted from a fixed
+`persistent_dag_unary_square_f32` builder to an explicit runtime graph shape
+named `graph_descriptor_unary_square`. The focused TDD check first failed
+because the paired A100/H200 smoke runner rejected that shape at argument
+parsing. After adding the smoke shape and graph-metadata expectations, the
+focused local checks passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'graph_descriptor_unary_square or unary_square_dag_shape'
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py -q \
+  -k 'graph_unary_square or unary_square'
+```
+
+Results: `3 passed, 215 deselected` for the smoke workflow tests, and
+`4 passed, 71 deselected` for the SceneTestCase tests. The paired A100/H200
+repeat-run smoke was captured with:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_unary_square --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-unary-square-working
+```
+
+Result:
+`tmp/cuda-backend/graph-unary-square-working/persistent-graph_descriptor_unary_square-repeat2-smoke-02c99b5c/`
+contains `a100.json`, `h200.json`, `cuda-smoke-report.md`, and
+`cuda-smoke-report.svg`. The validator required dispatch `[7,1,1]`,
+`graph_descriptor.fanin=[0,1,1]`, `graph_descriptor.dependents=[1,2]`,
+`launch_completed_counts=[3,3]`, zero scheduler errors,
+`scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`, and `grid_dim=4`.
+
+| GPU | Device ns | Host ns | Per-launch device ns |
+| --- | --------- | ------- | -------------------- |
+| A100 | 75776 | 106800 | `[49152,26624]` |
+| H200 | 57056 | 74823 | `[36960,20096]` |
+
 After adding the four-input host-schedule ABI, the no-torch Worker quad smoke
 was captured on local A100 and remote H200 with runtime rebuild enabled:
 

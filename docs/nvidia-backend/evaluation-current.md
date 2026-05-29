@@ -175,6 +175,10 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/h200.json`
 - `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/cuda-smoke-report.md`
 - `tmp/cuda-backend/graph-tensor-arity-working/persistent-graph_descriptor_quad-repeat2-smoke-4cd73e6a/cuda-smoke-report.svg`
+- `tmp/cuda-backend/graph-unary-square-working/persistent-graph_descriptor_unary_square-repeat2-smoke-02c99b5c/a100.json`
+- `tmp/cuda-backend/graph-unary-square-working/persistent-graph_descriptor_unary_square-repeat2-smoke-02c99b5c/h200.json`
+- `tmp/cuda-backend/graph-unary-square-working/persistent-graph_descriptor_unary_square-repeat2-smoke-02c99b5c/cuda-smoke-report.md`
+- `tmp/cuda-backend/graph-unary-square-working/persistent-graph_descriptor_unary_square-repeat2-smoke-02c99b5c/cuda-smoke-report.svg`
 
 ## Latest Tensor-Arity Graph Benchmark Gate
 
@@ -309,6 +313,42 @@ Both shapes validated `graph_descriptor.fanin=[0,0,2]`,
 zero device scheduler errors. The report directories contain paired JSON,
 Markdown, and SVG files under
 `tmp/cuda-backend/graph-tensor-arity-working/`.
+
+## Latest Graph Unary Descriptor Smoke
+
+The paired smoke gate at artifact label `02c99b5c` validates the one-input
+generated-dispatch square task through explicit runtime graph metadata. It
+uses `N=1024`, two repeat launches, queue capacity `2`, `block_dim=256`, and
+one scheduler block plus three worker blocks on local A100 and remote H200.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/graph-unary-square-working/persistent-graph_descriptor_unary_square-repeat2-smoke-02c99b5c/a100.json \
+    tmp/cuda-backend/graph-unary-square-working/persistent-graph_descriptor_unary_square-repeat2-smoke-02c99b5c/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-repeat-runs 2 --expected-completed-count 3 \
+    --expected-scheduler-blocks 1 --expected-worker-blocks 3 \
+    --expected-worker-blocks-per-task 1 --expected-stream-id 0 \
+    --expected-block-dim 256 --expected-grid-dim 4 \
+    --require-report-files --expected-dag-shape graph_descriptor_unary_square \
+    --expected-dispatch 7,1,1 --expected-graph-fanin 0,1,1 \
+    --expected-graph-dependents 1,2
+```
+
+Results:
+
+| Shape | GPU | Dispatch | Graph fan-in | Dependents | Device ns | Host ns |
+| ----- | --- | -------- | ------------ | ---------- | --------- | ------- |
+| `graph_descriptor_unary_square` | A100 | `7,1,1` | `0,1,1` | `1,2` | 75776 | 106800 |
+| `graph_descriptor_unary_square` | H200 | `7,1,1` | `0,1,1` | `1,2` | 57056 | 74823 |
+
+Both artifacts validated `launch_completed_counts=[3,3]`, zero device
+scheduler errors, and generated Markdown/SVG report files under
+`tmp/cuda-backend/graph-unary-square-working/`.
 
 ## Previous Graph-Generic Compact Gate
 
