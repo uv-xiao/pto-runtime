@@ -279,6 +279,7 @@ def _expected_dispatch(config: PairedPersistentSmokeConfig) -> str | None:
         "graph_descriptor_diamond": "9,2,1,2,1",
         "graph_descriptor_generic_args4": "9,2,1",
         "graph_descriptor_node_attrs": "9,2,1",
+        "graph_descriptor_node_io": "1,2,1",
         "graph_descriptor_node_op": "1,2,1",
         "graph_descriptor_quad": "8,2,1",
         "graph_descriptor_reordered": "1,9,2",
@@ -321,6 +322,7 @@ def _expected_graph_descriptor(config: PairedPersistentSmokeConfig) -> tuple[str
         "graph_descriptor_diamond": ("0,0,2,2,2", "2,3,2,3,4,4"),
         "graph_descriptor_generic_args4": ("0,0,2", "2,2"),
         "graph_descriptor_node_attrs": ("0,0,2", "2,2"),
+        "graph_descriptor_node_io": ("0,0,2", "2,2"),
         "graph_descriptor_node_op": ("0,0,2", "2,2"),
         "graph_descriptor_quad": ("0,0,2", "2,2"),
         "graph_descriptor_reordered": ("2,0,0", "0,0"),
@@ -357,6 +359,9 @@ def _expected_graph_task_args(config: PairedPersistentSmokeConfig) -> str | None
         "graph_descriptor_role_keyed_inout": (
             "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,output_existing:out"
         ),
+        "graph_descriptor_node_io": (
+            "task0=input:a,input:b,output:tmp0;task1=input:a,input:b,output:tmp1;task2=input:a,input:b,output:out"
+        ),
     }.get(config.dag_shape)
 
 
@@ -365,6 +370,7 @@ def _expected_graph_task_arg_key(config: PairedPersistentSmokeConfig) -> str | N
         return None
     return {
         "graph_descriptor_compact_role_inout": "compact",
+        "graph_descriptor_node_io": "node_io",
         "graph_descriptor_role_keyed_inout": "role",
     }.get(config.dag_shape)
 
@@ -637,6 +643,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
             "graph_descriptor_node_attrs",
+            "graph_descriptor_node_io",
             "graph_descriptor_node_op",
             "graph_descriptor_quad",
             "graph_descriptor_reordered",

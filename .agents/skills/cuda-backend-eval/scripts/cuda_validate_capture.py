@@ -49,6 +49,7 @@ PAIRED_CURRENT_BASELINES = (
     "pto_persistent_dag_graph",
     "pto_persistent_dag_graph_generic_args4",
     "pto_persistent_dag_graph_node_attrs",
+    "pto_persistent_dag_graph_node_io",
     "pto_persistent_dag_graph_node_op",
     "pto_persistent_dag_graph_depends_on",
     "pto_persistent_dag_graph_scalar_axpy",
@@ -77,8 +78,8 @@ PAIRED_CURRENT_BASELINES = (
 PAIRED_CURRENT_SIZES = (1024, 65536, 1048576)
 COMPACT_CURRENT_SIZES = (1024,)
 COMPACT_CURRENT_EXPECTED_REPEATS = 1
-COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 96
-PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 1170
+COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 98
+PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 1188
 REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 REPORT_FILES = (
     "cuda-benchmark.md",
@@ -100,6 +101,7 @@ PAIRED_CURRENT_DISPATCH = {
     "pto_persistent_dag_graph": "9,2,1",
     "pto_persistent_dag_graph_generic_args4": "9,2,1",
     "pto_persistent_dag_graph_node_attrs": "9,2,1",
+    "pto_persistent_dag_graph_node_io": "1,2,1",
     "pto_persistent_dag_graph_node_op": "1,2,1",
     "pto_persistent_dag_graph_depends_on": "1,2,1",
     "pto_persistent_dag_graph_scalar_axpy": "4,2,1",
@@ -147,11 +149,15 @@ PAIRED_CURRENT_GRAPH_TASK_ARGS = {
     "pto_persistent_dag_graph_compact_role_inout": (
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,output_existing:out"
     ),
+    "pto_persistent_dag_graph_node_io": (
+        "task0=input:a,input:b,output:tmp0;task1=input:a,input:b,output:tmp1;task2=input:a,input:b,output:out"
+    ),
 }
 PAIRED_CURRENT_GRAPH_TASK_ARG_KEYS = {
     "pto_persistent_dag_graph_tagged_inout": "tag",
     "pto_persistent_dag_graph_role_keyed_inout": "role",
     "pto_persistent_dag_graph_compact_role_inout": "compact",
+    "pto_persistent_dag_graph_node_io": "node_io",
 }
 PAIRED_CURRENT_GRAPH_NODE_ATTRS = {
     "pto_persistent_dag_graph_node_attrs": "task0=attrs:tensor_args,scalar_args",
@@ -174,6 +180,7 @@ PAIRED_CURRENT_GRAPH_FANIN = {
     "pto_persistent_dag_graph": "0,0,2",
     "pto_persistent_dag_graph_generic_args4": "0,0,2",
     "pto_persistent_dag_graph_node_attrs": "0,0,2",
+    "pto_persistent_dag_graph_node_io": "0,0,2",
     "pto_persistent_dag_graph_node_op": "0,0,2",
     "pto_persistent_dag_graph_depends_on": "0,0,2",
     "pto_persistent_dag_graph_scalar_axpy": "0,0,2",
@@ -197,6 +204,7 @@ PAIRED_CURRENT_GRAPH_DEPENDENTS = {
     "pto_persistent_dag_graph": "2,2",
     "pto_persistent_dag_graph_generic_args4": "2,2",
     "pto_persistent_dag_graph_node_attrs": "2,2",
+    "pto_persistent_dag_graph_node_io": "2,2",
     "pto_persistent_dag_graph_node_op": "2,2",
     "pto_persistent_dag_graph_depends_on": "2,2",
     "pto_persistent_dag_graph_scalar_axpy": "2,2",
