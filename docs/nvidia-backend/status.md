@@ -1885,6 +1885,10 @@ or `dependencies`, lowering consumer-side task IDs into the same flattened
 dependent array. That lets scene tests express graph edges independently from
 the task's tensor pointer layout, which is closer to normal task-graph
 metadata than CUDA-specific outgoing edge lists.
+Those incoming edges may now reference named graph tasks as well as integer
+task IDs. The named form keeps descriptor tests stable when tasks are inserted
+or reordered and moves the CUDA graph adapter closer to normal named PTO task
+graphs.
 The incoming-edge path is now covered by both a real-data L2 ctypes scene and
 paired persistent-device smoke. The working-tree smoke capture under
 `tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`
@@ -1895,6 +1899,10 @@ resource policy `scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`,
 `grid_dim=4`, and zero scheduler errors. This proves the CUDA runtime can
 schedule edges supplied as consumer-side metadata even when the consumer's
 tensor pointers stay bound to the original graph inputs.
+The same real-data scene fixture now uses named `depends_on` entries. It
+passed locally on A100 and remotely on H200 with selector
+`depends_on_graph_with_ctypes_data`; the H200 run printed the known PTO-ISA
+SSH refresh warning before pytest reported `1 passed, 101 deselected`.
 The same graph notation is now promoted into the selected benchmark path as
 `pto_persistent_dag_graph_depends_on`. The compact paired capture under
 `tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/`
@@ -3601,7 +3609,8 @@ Needed:
   `persistent_dag_graph_f32` descriptor adapter, which already covers
   automatic default temporary allocation, logical-output/storage-output
   separation for scratch reuse, order-independent tensor-flow dependency
-  inference, incoming-edge `depends_on` lowering with paired smoke,
+  inference, incoming-edge `depends_on` lowering with named task dependencies
+  and paired smoke,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, named graph-callable resolution, explicit unary square graph
   dispatch, tagged graph-descriptor paired smoke, and five-task chain,

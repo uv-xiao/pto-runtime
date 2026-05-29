@@ -1362,6 +1362,7 @@ class _CudaPersistentDagSceneBuffers:
 
     @staticmethod
     def _graph_dependents_from_task_specs(task_specs: list[dict[str, Any]]) -> list[list[int]]:
+        task_name_to_id = _CudaPersistentDagSceneBuffers._graph_task_name_to_id(task_specs)
         producers: dict[str, list[int]] = {}
         for task_id, task_spec in enumerate(task_specs):
             out_name = task_spec.get("out")
@@ -1371,7 +1372,10 @@ class _CudaPersistentDagSceneBuffers:
         dependents = [[] for _ in task_specs]
 
         for task_id, task_spec in enumerate(task_specs):
-            if "dependents" in task_spec and _CudaPersistentDagSceneBuffers._graph_task_dependencies(task_spec):
+            if "dependents" in task_spec and _CudaPersistentDagSceneBuffers._graph_task_dependencies(
+                task_spec,
+                task_name_to_id,
+            ):
                 raise ValueError(
                     "CUDA persistent_dag_graph_f32 graph tasks cannot mix dependents with depends_on/dependencies"
                 )
@@ -1379,7 +1383,7 @@ class _CudaPersistentDagSceneBuffers:
                 dependents[task_id].extend(int(dependent) for dependent in task_spec["dependents"])
 
         for task_id, task_spec in enumerate(task_specs):
-            dependency_ids = _CudaPersistentDagSceneBuffers._graph_task_dependencies(task_spec)
+            dependency_ids = _CudaPersistentDagSceneBuffers._graph_task_dependencies(task_spec, task_name_to_id)
             if dependency_ids is None:
                 continue
             for dependency_id in dependency_ids:
@@ -1392,7 +1396,10 @@ class _CudaPersistentDagSceneBuffers:
                     dependents[dependency_id].append(task_id)
 
         for task_id, task_spec in enumerate(task_specs):
-            if "dependents" in task_spec or _CudaPersistentDagSceneBuffers._graph_task_dependencies(task_spec):
+            if "dependents" in task_spec or _CudaPersistentDagSceneBuffers._graph_task_dependencies(
+                task_spec,
+                task_name_to_id,
+            ):
                 continue
             producer_ids = {
                 producer_id
@@ -1406,7 +1413,23 @@ class _CudaPersistentDagSceneBuffers:
         return dependents
 
     @staticmethod
-    def _graph_task_dependencies(task_spec: dict[str, Any]) -> list[int] | None:
+    def _graph_task_name_to_id(task_specs: list[dict[str, Any]]) -> dict[str, int]:
+        task_name_to_id: dict[str, int] = {}
+        for task_id, task_spec in enumerate(task_specs):
+            name = task_spec.get("name")
+            if name is None:
+                continue
+            key = str(name)
+            if key in task_name_to_id:
+                raise ValueError(f"CUDA persistent_dag_graph_f32 duplicate graph task name: {key}")
+            task_name_to_id[key] = task_id
+        return task_name_to_id
+
+    @staticmethod
+    def _graph_task_dependencies(
+        task_spec: dict[str, Any],
+        task_name_to_id: dict[str, int] | None = None,
+    ) -> list[int] | None:
         dependencies = task_spec.get("depends_on")
         dependency_alias = task_spec.get("dependencies")
         if dependencies is not None and dependency_alias is not None:
@@ -1415,9 +1438,24 @@ class _CudaPersistentDagSceneBuffers:
             dependencies = dependency_alias
         if dependencies is None:
             return None
-        if isinstance(dependencies, int):
-            return [dependencies]
-        return [int(dependency) for dependency in dependencies]
+        if isinstance(dependencies, (int, str)):
+            dependencies = [dependencies]
+        return [
+            _CudaPersistentDagSceneBuffers._graph_dependency_task_id(dependency, task_name_to_id or {})
+            for dependency in dependencies
+        ]
+
+    @staticmethod
+    def _graph_dependency_task_id(dependency: Any, task_name_to_id: dict[str, int]) -> int:
+        if isinstance(dependency, int):
+            return dependency
+        key = str(dependency)
+        if key in task_name_to_id:
+            return task_name_to_id[key]
+        try:
+            return int(key)
+        except ValueError as exc:
+            raise ValueError(f"CUDA persistent_dag_graph_f32 unknown dependency task name: {key}") from exc
 
     @staticmethod
     def _graph_read_producer(producers: dict[str, list[int]], name: str, task_id: int) -> int | None:
