@@ -1515,6 +1515,8 @@ def run_persistent_sample(
             "graph_descriptor",
             "graph_descriptor_generic_args4",
             "graph_descriptor_scalar_scale",
+            "graph_descriptor_scalar_axpy",
+            "graph_descriptor_scalar_affine",
             "graph_descriptor_triad",
             "graph_descriptor_quad",
             "unary_square",
@@ -1714,6 +1716,24 @@ def run_single_sample(  # noqa: PLR0912
             mode="dag",
             baseline=baseline,
             dag_shape="graph_descriptor_scalar_scale",
+        )
+    if baseline == "pto_persistent_dag_graph_scalar_axpy":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="graph_descriptor_scalar_axpy",
+        )
+    if baseline == "pto_persistent_dag_graph_scalar_affine":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="graph_descriptor_scalar_affine",
         )
     if baseline == "pto_persistent_dag_graph_chain":
         return run_persistent_sample(
@@ -2031,7 +2051,9 @@ def run_benchmark(
                     "pto_persistent_dag_graph_generic_args4",
                     "pto_persistent_dag_graph_node_attrs",
                     "pto_persistent_dag_graph_depends_on",
+                    "pto_persistent_dag_graph_scalar_axpy",
                     "pto_persistent_dag_graph_scalar_scale",
+                    "pto_persistent_dag_graph_scalar_affine",
                     "pto_persistent_dag_graph_chain",
                     "pto_persistent_dag_graph_scratch_reuse",
                     "pto_persistent_dag_graph_diamond",
@@ -3329,7 +3351,9 @@ def main() -> None:
             "pto_persistent_dag_graph_generic_args4",
             "pto_persistent_dag_graph_node_attrs",
             "pto_persistent_dag_graph_depends_on",
+            "pto_persistent_dag_graph_scalar_axpy",
             "pto_persistent_dag_graph_scalar_scale",
+            "pto_persistent_dag_graph_scalar_affine",
             "pto_persistent_dag_graph_chain",
             "pto_persistent_dag_graph_scratch_reuse",
             "pto_persistent_dag_graph_diamond",

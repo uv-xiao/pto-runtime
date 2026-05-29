@@ -2475,7 +2475,9 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4" in args.require_baseline
     assert "pto_persistent_dag_graph_depends_on" in args.require_baseline
+    assert "pto_persistent_dag_graph_scalar_axpy" in args.require_baseline
     assert "pto_persistent_dag_graph_scalar_scale" in args.require_baseline
+    assert "pto_persistent_dag_graph_scalar_affine" in args.require_baseline
     assert "pto_persistent_dag_graph_chain" in args.require_baseline
     assert "pto_persistent_dag_graph_scratch_reuse" in args.require_baseline
     assert "pto_persistent_dag_graph_tagged" in args.require_baseline
@@ -2492,7 +2494,9 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "cublas_sgemm_graph" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4=9,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_depends_on=1,2,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_scalar_axpy=4,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scalar_scale=11,2,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_scalar_affine=5,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4" in args.require_scratch_reuse
@@ -2509,8 +2513,12 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_quad=2,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_depends_on=0,0,2" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_depends_on=2,2" in args.require_graph_dependents
+    assert "pto_persistent_dag_graph_scalar_axpy=0,0,2" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_scalar_axpy=2,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_scalar_scale=0,0,2" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_scalar_scale=2,2" in args.require_graph_dependents
+    assert "pto_persistent_dag_graph_scalar_affine=0,0,2" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_scalar_affine=2,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_unary_square=0,1,1" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_unary_square=1,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_role_keyed_inout=0,1,1" in args.require_graph_fanin
@@ -2556,7 +2564,7 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_node_attrs=0,0,2" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_node_attrs=2,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_node_attrs=task0=attrs:tensor_args,scalar_args" in args.require_graph_node_attrs
-    assert args.expected_result_count == 1098
+    assert args.expected_result_count == 1134
     assert args.require_report_graph_topology is True
     assert args.require_report_graph_task_args is True
     assert args.require_report_graph_role_spelling is True
@@ -2572,7 +2580,7 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert args.require_machine == ["hina", "dasys-h200x8"]
     assert args.require_size == ["1024"]
     assert args.expected_repeats == 1
-    assert args.expected_result_count == 88
+    assert args.expected_result_count == 92
     assert args.require_report_files is True
     assert args.require_command_examples is True
     assert args.require_zero_scheduler_errors is True
@@ -2585,7 +2593,9 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_scalar_scale" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4" in args.require_baseline
     assert "pto_persistent_dag_graph_depends_on" in args.require_baseline
+    assert "pto_persistent_dag_graph_scalar_axpy" in args.require_baseline
     assert "pto_persistent_dag_graph_scalar_scale" in args.require_baseline
+    assert "pto_persistent_dag_graph_scalar_affine" in args.require_baseline
     assert "pto_persistent_dag_graph_chain" in args.require_baseline
     assert "pto_persistent_dag_graph_scratch_reuse" in args.require_baseline
     assert "pto_persistent_dag_graph_diamond" in args.require_baseline
@@ -2601,7 +2611,9 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "cublas_sgemm_graph" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4=9,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_depends_on=1,2,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_scalar_axpy=4,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scalar_scale=11,2,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_scalar_affine=5,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4" in args.require_scratch_reuse
@@ -2614,8 +2626,12 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_graph_diamond=2,3,2,3,4,4" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_depends_on=0,0,2" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_depends_on=2,2" in args.require_graph_dependents
+    assert "pto_persistent_dag_graph_scalar_axpy=0,0,2" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_scalar_axpy=2,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_scalar_scale=0,0,2" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_scalar_scale=2,2" in args.require_graph_dependents
+    assert "pto_persistent_dag_graph_scalar_affine=0,0,2" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_scalar_affine=2,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_unary_square=0,1,1" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_unary_square=1,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_role_keyed_inout=0,1,1" in args.require_graph_fanin
@@ -3831,7 +3847,7 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert ".agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py" in validate
     assert str(tmp_path / "cuda-backend" / "combined-current-abc123" / "cuda-benchmark.json") in validate
     assert "--expected-result-count" in validate
-    assert "1098" in validate
+    assert "1134" in validate
     _assert_contains_all(
         validate,
         (
@@ -3840,7 +3856,9 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
             "pto_persistent_dag_graph_generic_args4",
             "pto_persistent_dag_graph_node_attrs",
             "pto_persistent_dag_graph_depends_on",
+            "pto_persistent_dag_graph_scalar_axpy",
             "pto_persistent_dag_graph_scalar_scale",
+            "pto_persistent_dag_graph_scalar_affine",
             "pto_persistent_dag_graph_chain",
             "pto_persistent_dag_graph_scratch_reuse",
             "pto_persistent_dag_graph_diamond",
@@ -3860,7 +3878,9 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
             "pto_persistent_dag_graph_generic_args4=9,2,1",
             "pto_persistent_dag_graph_node_attrs=9,2,1",
             "pto_persistent_dag_graph_depends_on=1,2,1",
+            "pto_persistent_dag_graph_scalar_axpy=4,2,1",
             "pto_persistent_dag_graph_scalar_scale=11,2,1",
+            "pto_persistent_dag_graph_scalar_affine=5,2,1",
             "pto_persistent_dag_graph_chain=1,2,1,2,1",
             "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1",
             "pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4",
@@ -3880,8 +3900,12 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
             "pto_persistent_dag_graph_node_attrs=2,2",
             "pto_persistent_dag_graph_depends_on=0,0,2",
             "pto_persistent_dag_graph_depends_on=2,2",
+            "pto_persistent_dag_graph_scalar_axpy=0,0,2",
+            "pto_persistent_dag_graph_scalar_axpy=2,2",
             "pto_persistent_dag_graph_scalar_scale=0,0,2",
             "pto_persistent_dag_graph_scalar_scale=2,2",
+            "pto_persistent_dag_graph_scalar_affine=0,0,2",
+            "pto_persistent_dag_graph_scalar_affine=2,2",
             "pto_persistent_dag_graph_diamond=0,0,2,2,2",
             "pto_persistent_dag_graph_diamond=2,3,2,3,4,4",
             "pto_persistent_dag_graph_unary_square=0,1,1",
@@ -3948,14 +3972,16 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "--expected-repeats" in validate
     assert "2" in validate
     assert "--expected-result-count" in validate
-    assert "360" in validate
+    assert "376" in validate
     assert "--require-baseline" in validate
     baselines = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-baseline"]
     assert "pto_host_schedule_generic_args" in baselines
     assert "pto_persistent_dag_graph_generic_args4" in baselines
     assert "pto_persistent_dag_graph_node_attrs" in baselines
     assert "pto_persistent_dag_graph_depends_on" in baselines
+    assert "pto_persistent_dag_graph_scalar_axpy" in baselines
     assert "pto_persistent_dag_graph_scalar_scale" in baselines
+    assert "pto_persistent_dag_graph_scalar_affine" in baselines
     assert "pto_persistent_dag_graph_chain" in baselines
     assert "pto_persistent_dag_graph_scratch_reuse" in baselines
     assert "pto_persistent_dag_graph_diamond" in baselines
@@ -3975,7 +4001,9 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_generic_args4=9,2,1" in dispatch
     assert "pto_persistent_dag_graph_node_attrs=9,2,1" in dispatch
     assert "pto_persistent_dag_graph_depends_on=1,2,1" in dispatch
+    assert "pto_persistent_dag_graph_scalar_axpy=4,2,1" in dispatch
     assert "pto_persistent_dag_graph_scalar_scale=11,2,1" in dispatch
+    assert "pto_persistent_dag_graph_scalar_affine=5,2,1" in dispatch
     assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in dispatch
     assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in dispatch
@@ -3992,8 +4020,12 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_depends_on=2,2" in validate
     assert "pto_persistent_dag_graph_node_attrs=0,0,2" in validate
     assert "pto_persistent_dag_graph_node_attrs=2,2" in validate
+    assert "pto_persistent_dag_graph_scalar_axpy=0,0,2" in validate
+    assert "pto_persistent_dag_graph_scalar_axpy=2,2" in validate
     assert "pto_persistent_dag_graph_scalar_scale=0,0,2" in validate
     assert "pto_persistent_dag_graph_scalar_scale=2,2" in validate
+    assert "pto_persistent_dag_graph_scalar_affine=0,0,2" in validate
+    assert "pto_persistent_dag_graph_scalar_affine=2,2" in validate
     tensor_tiles = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-tensor-tile"]
     assert "pto_persistent_dag_tensor=16x16x16" in tensor_tiles
     assert "pto_persistent_dag_graph_tensor_core=16x16x16" in tensor_tiles
@@ -4050,7 +4082,7 @@ def test_cuda_pair_benchmark_omits_empty_batch_sweeps(tmp_path):
     assert "pto_host_schedule_batch" not in validate
     assert "pto_persistent_device_grid_batch" not in validate
     assert "--expected-result-count" in validate
-    assert "80" in validate
+    assert "84" in validate
 
 
 def test_cuda_pair_benchmark_merge_command_records_sanitized_examples(tmp_path):
@@ -9840,7 +9872,9 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "pto_persistent_dag_graph_generic_args4",
         "pto_persistent_dag_graph_node_attrs",
         "pto_persistent_dag_graph_depends_on",
+        "pto_persistent_dag_graph_scalar_axpy",
         "pto_persistent_dag_graph_scalar_scale",
+        "pto_persistent_dag_graph_scalar_affine",
         "pto_persistent_dag_graph_chain",
         "pto_persistent_dag_graph_scratch_reuse",
         "pto_persistent_dag_graph_diamond",
@@ -9859,7 +9893,7 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "cublas_sgemm",
         "cublas_sgemm_graph",
     ]
-    assert len(payload["results"]) == 40
+    assert len(payload["results"]) == 42
 
 
 def test_run_single_sample_dispatches_cublas_sgemm(monkeypatch):
@@ -10692,6 +10726,140 @@ def test_run_single_sample_dispatches_graph_scalar_scale_dag(monkeypatch):
     assert result["dispatch_func_ids"] == [11, 2, 1]
     assert result["graph_descriptor"] == {"tasks": 3, "dependents": [2, 2], "fanin": [0, 0, 2]}
     assert result["scalar_args"] == {"scalar0": 2.0}
+
+
+def test_run_single_sample_dispatches_graph_scalar_axpy_dag(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = {}
+
+    def fake_run_persistent_sample(
+        device,
+        n,
+        arch,
+        mode="direct",
+        task_count=None,
+        baseline=None,
+        worker_blocks_per_task=1,
+        dag_shape="fork_join",
+        tensor_tile=None,
+    ):
+        seen.update(
+            {
+                "device": device,
+                "n": n,
+                "arch": arch,
+                "mode": mode,
+                "task_count": task_count,
+                "baseline": baseline,
+                "worker_blocks_per_task": worker_blocks_per_task,
+                "dag_shape": dag_shape,
+                "tensor_tile": tensor_tile,
+            }
+        )
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count or 3,
+            "dag_shape": dag_shape,
+            "dispatch_func_ids": [4, 2, 1],
+            "graph_descriptor": {"tasks": 3, "dependents": [2, 2], "fanin": [0, 0, 2]},
+            "scalar_args": {"scalar0": 1.5},
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    monkeypatch.setattr(cuda_benchmark, "run_persistent_sample", fake_run_persistent_sample)
+
+    result = cuda_benchmark.run_single_sample(
+        baseline="pto_persistent_dag_graph_scalar_axpy",
+        device=3,
+        n=1024,
+        block_dim=128,
+        arch="compute_80",
+    )
+
+    assert seen == {
+        "device": 3,
+        "n": 1024,
+        "arch": "compute_80",
+        "mode": "dag",
+        "task_count": None,
+        "baseline": "pto_persistent_dag_graph_scalar_axpy",
+        "worker_blocks_per_task": 1,
+        "dag_shape": "graph_descriptor_scalar_axpy",
+        "tensor_tile": None,
+    }
+    assert result["baseline"] == "pto_persistent_dag_graph_scalar_axpy"
+    assert result["dispatch_func_ids"] == [4, 2, 1]
+    assert result["graph_descriptor"] == {"tasks": 3, "dependents": [2, 2], "fanin": [0, 0, 2]}
+    assert result["scalar_args"] == {"scalar0": 1.5}
+
+
+def test_run_single_sample_dispatches_graph_scalar_affine_dag(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = {}
+
+    def fake_run_persistent_sample(
+        device,
+        n,
+        arch,
+        mode="direct",
+        task_count=None,
+        baseline=None,
+        worker_blocks_per_task=1,
+        dag_shape="fork_join",
+        tensor_tile=None,
+    ):
+        seen.update(
+            {
+                "device": device,
+                "n": n,
+                "arch": arch,
+                "mode": mode,
+                "task_count": task_count,
+                "baseline": baseline,
+                "worker_blocks_per_task": worker_blocks_per_task,
+                "dag_shape": dag_shape,
+                "tensor_tile": tensor_tile,
+            }
+        )
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count or 3,
+            "dag_shape": dag_shape,
+            "dispatch_func_ids": [5, 2, 1],
+            "graph_descriptor": {"tasks": 3, "dependents": [2, 2], "fanin": [0, 0, 2]},
+            "scalar_args": {"scalar0": 1.5, "scalar1": 0.25},
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    monkeypatch.setattr(cuda_benchmark, "run_persistent_sample", fake_run_persistent_sample)
+
+    result = cuda_benchmark.run_single_sample(
+        baseline="pto_persistent_dag_graph_scalar_affine",
+        device=3,
+        n=1024,
+        block_dim=128,
+        arch="compute_80",
+    )
+
+    assert seen == {
+        "device": 3,
+        "n": 1024,
+        "arch": "compute_80",
+        "mode": "dag",
+        "task_count": None,
+        "baseline": "pto_persistent_dag_graph_scalar_affine",
+        "worker_blocks_per_task": 1,
+        "dag_shape": "graph_descriptor_scalar_affine",
+        "tensor_tile": None,
+    }
+    assert result["baseline"] == "pto_persistent_dag_graph_scalar_affine"
+    assert result["dispatch_func_ids"] == [5, 2, 1]
+    assert result["graph_descriptor"] == {"tasks": 3, "dependents": [2, 2], "fanin": [0, 0, 2]}
+    assert result["scalar_args"] == {"scalar0": 1.5, "scalar1": 0.25}
 
 
 def test_run_single_sample_dispatches_graph_triad_dag(monkeypatch):
@@ -11869,7 +12037,9 @@ def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
         ("pto_persistent_dag_graph_generic_args4", 1),
         ("pto_persistent_dag_graph_node_attrs", 1),
         ("pto_persistent_dag_graph_depends_on", 1),
+        ("pto_persistent_dag_graph_scalar_axpy", 1),
         ("pto_persistent_dag_graph_scalar_scale", 1),
+        ("pto_persistent_dag_graph_scalar_affine", 1),
         ("pto_persistent_dag_graph_chain", 1),
         ("pto_persistent_dag_graph_scratch_reuse", 1),
         ("pto_persistent_dag_graph_diamond", 1),
@@ -11892,7 +12062,7 @@ def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
         ("pto_persistent_queue_batch", 6),
     ]
     assert payload["metadata"]["batch_tasks"] == 6
-    assert len(payload["results"]) == 43
+    assert len(payload["results"]) == 45
 
 
 def test_run_benchmark_can_include_worker_grid_batch_mode(monkeypatch):

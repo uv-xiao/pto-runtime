@@ -1098,6 +1098,46 @@ and scalar metadata, so this scalar graph path is visible in the same reports
 as the selected task-argument, node-attrs, tensor, tensor-core, and cuBLAS
 rows.
 
+## Supplemental Graph Scalar Variant Benchmark
+
+The explicit graph-descriptor scalar AXPY and affine rows are now in the
+selected paired benchmark path as `pto_persistent_dag_graph_scalar_axpy` and
+`pto_persistent_dag_graph_scalar_affine`. They validate the remaining fixed
+scalar task bodies through runtime graph metadata. The compact paired artifact
+is under
+`tmp/cuda-backend/graph-scalar-variants-benchmark-working/combined-current-93fc927d/`.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/graph-scalar-variants-benchmark-working/combined-current-93fc927d/cuda-benchmark.json \
+    --require-size 1024 --expected-repeats 1 --expected-result-count 84 \
+    --require-baseline pto_persistent_dag_graph_scalar_axpy \
+    --require-baseline pto_persistent_dag_graph_scalar_affine \
+    --require-dispatch pto_persistent_dag_graph_scalar_axpy=4,2,1 \
+    --require-dispatch pto_persistent_dag_graph_scalar_affine=5,2,1 \
+    --require-graph-fanin pto_persistent_dag_graph_scalar_axpy=0,0,2 \
+    --require-graph-fanin pto_persistent_dag_graph_scalar_affine=0,0,2 \
+    --require-graph-dependents pto_persistent_dag_graph_scalar_axpy=2,2 \
+    --require-graph-dependents pto_persistent_dag_graph_scalar_affine=2,2 \
+    --require-report-files --require-zero-scheduler-errors \
+    --require-command-examples --require-source-papers
+```
+
+| GPU | N | Baseline | Dispatch | Fan-in | Dependents | Scalar args | Device ns |
+| --- | - | -------- | -------- | ------ | ---------- | ----------- | --------- |
+| A100 | 1024 | `pto_persistent_dag_graph_scalar_axpy` | `4,2,1` | `0,0,2` | `2,2` | `scalar0=1.5` | 28672 |
+| A100 | 1024 | `pto_persistent_dag_graph_scalar_affine` | `5,2,1` | `0,0,2` | `2,2` | `scalar0=1.5,scalar1=0.5` | 34816 |
+| H200 | 1024 | `pto_persistent_dag_graph_scalar_axpy` | `4,2,1` | `0,0,2` | `2,2` | `scalar0=1.5` | 25280 |
+| H200 | 1024 | `pto_persistent_dag_graph_scalar_affine` | `5,2,1` | `0,0,2` | `2,2` | `scalar0=1.5,scalar1=0.5` | 25600 |
+
+All rows reported zero device scheduler errors. The combined report also
+keeps the graph scalar-scale row visible with dispatch `11,2,1` and
+`scalar0=2.0`, so the selected benchmark now covers all fixed scalar DAG
+task bodies on the explicit graph-descriptor path.
+
 ## Supplemental Scalar-Scale Smoke
 
 The scalar-scale persistent DAG smoke at artifact label `e9c9f5f2` validates a

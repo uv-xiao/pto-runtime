@@ -3364,6 +3364,72 @@ The generated benchmark Markdown and SVG graph-metadata sections now render a
 `Scalar args` column, so the scalar descriptor value is visible outside the
 raw JSON artifact.
 
+The graph scalar AXPY and affine DAGs are now selected benchmark rows as
+`pto_persistent_dag_graph_scalar_axpy` and
+`pto_persistent_dag_graph_scalar_affine`. They use the same generated task
+bodies as the fixed scalar DAG rows, but run through explicit graph descriptor
+metadata. The first focused TDD run failed because the paired benchmark row
+list, capture preset, and `run_single_sample(...)` dispatcher did not include
+the two graph scalar rows. After wiring them, the focused regression subset
+passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'paired_current_requires_generic_args_baseline or \
+      compact_current_preset_matches_docs_gate or \
+      pair_benchmark_builds_current_a100_h200_workflow or \
+      pair_benchmark_validate_command_matches_configured_capture or \
+      omits_empty_batch_sweeps or include_persistent_device_modes or \
+      same_work_batch_modes or graph_scalar_axpy_dag or \
+      graph_scalar_affine_dag'
+```
+
+Result: `9 passed, 257 deselected`.
+
+A100 single-row checks validated the two promoted rows before the paired gate:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_scalar_axpy \
+    --sizes 4096 --repeats 1 --arch compute_80 \
+    --output-dir tmp/cuda-backend/graph-scalar-variants-benchmark-working/a100-axpy-single
+
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_scalar_affine \
+    --sizes 4096 --repeats 1 --arch compute_80 \
+    --output-dir tmp/cuda-backend/graph-scalar-variants-benchmark-working/a100-affine-single
+```
+
+The compact selected-baseline gate then validated `84` A100/H200 samples with
+source-paper provenance, command examples, generated Markdown/SVG reports,
+visible graph topology, scalar metadata, tensor throughput rows, and zero
+scheduler errors:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
+    --sizes 1024 --repeats 1 --batch-tasks '' \
+    --worker-blocks-per-task '' --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-scalar-variants-benchmark-working
+```
+
+Artifacts:
+
+- `tmp/cuda-backend/graph-scalar-variants-benchmark-working/a100-current-93fc927d/`
+- `tmp/cuda-backend/graph-scalar-variants-benchmark-working/h200-current-93fc927d/`
+- `tmp/cuda-backend/graph-scalar-variants-benchmark-working/combined-current-93fc927d/`
+- `tmp/cuda-backend/graph-scalar-variants-benchmark-working/index.md`
+
+| GPU | N | Baseline | Dispatch | Fan-in | Dependents | Scalar args | Device ns |
+| --- | - | -------- | -------- | ------ | ---------- | ----------- | --------- |
+| A100 | 1024 | `pto_persistent_dag_graph_scalar_axpy` | `4,2,1` | `0,0,2` | `2,2` | `scalar0=1.5` | 28672 |
+| A100 | 1024 | `pto_persistent_dag_graph_scalar_affine` | `5,2,1` | `0,0,2` | `2,2` | `scalar0=1.5,scalar1=0.5` | 34816 |
+| H200 | 1024 | `pto_persistent_dag_graph_scalar_axpy` | `4,2,1` | `0,0,2` | `2,2` | `scalar0=1.5` | 25280 |
+| H200 | 1024 | `pto_persistent_dag_graph_scalar_affine` | `5,2,1` | `0,0,2` | `2,2` | `scalar0=1.5,scalar1=0.5` | 25600 |
+
 The selected paired benchmark gate now includes
 `pto_persistent_dag_graph_tensor_core`. The paired runner was first updated
 under TDD because it still omitted the row from its selected baseline list
