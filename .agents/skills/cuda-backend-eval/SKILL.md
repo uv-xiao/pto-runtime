@@ -373,6 +373,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --dag-shape graph_descriptor_generic_args4
 ```
 
+Use `--dag-shape graph_descriptor_node_attrs` to capture the same three-task
+generic graph descriptor while recording that the auxiliary tensor/scalar
+slots came from graph-node `attrs` metadata rather than graph IO fields. The
+generated smoke report includes a `Graph node attrs` column:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_node_attrs --task-count 3 \
+    --queue-capacity 2 --repeat-runs 2 --sync-remote-tree
+```
+
 Use `--dag-shape graph_descriptor_triad` and
 `--dag-shape graph_descriptor_quad` when the graph descriptor path should
 prove the fixed third and fourth tensor task descriptor fields. These reuse
@@ -624,6 +636,8 @@ The current four-slot generic-argument repeat-run capture is under
 The current graph-descriptor four-slot generic-argument repeat-run capture is
 under
 `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/`.
+The current graph-node attrs repeat-run capture is under
+`tmp/cuda-backend/persistent-graph_descriptor_node_attrs-repeat2-smoke-b1b3e28c/`.
 Use `--dag-shape graph_descriptor_tagged --repeat-runs 2` to validate the
 same three-task graph descriptor shape after lowering tagged TaskArgs-like
 entries (`input`, `output`, `output_existing`, and scalar inputs) into the

@@ -1056,6 +1056,9 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
             "task0": "input:a,input:b,output:tmp1",
             "task1": "input:a,input:b,output:tmp2",
         },
+        "graph_node_attrs": {
+            "task0": "attrs:tensor_args,scalar_args",
+        },
         "tensor_core": {
             "api": "wmma",
             "mma_shape": "m16n16k8",
@@ -1089,7 +1092,7 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
     assert (
         "| Tensor core | Dispatch | Graph fan-in | Graph dependents | Scheduler errors | "
         "Repeat runs | Launch completions | Resource policy | Scalar args | Tensor args | "
-        "Scratch reuse | Graph task arg key | Graph task args |" in markdown
+        "Scratch reuse | Graph task arg key | Graph task args | Graph node attrs |" in markdown
     )
     assert "| a100 | pass | persistent_device | dag/tensor_tile | 4096 | `compute_80` | 102400 | 122260 |" in markdown
     assert "| h200 | pass | persistent_device | dag/tensor_tile | 4096 | `compute_90` | 70464 | 79788 |" in markdown
@@ -1100,7 +1103,8 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
         "`scalar0=1.5` | `c=tmp0` | "
         "`reused_buffer=tmp0,reuse_task=4` | "
         "`role` | "
-        "`task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2` |" in markdown
+        "`task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2` | "
+        "`task0=attrs:tensor_args,scalar_args` |" in markdown
     )
     assert (
         "| `3,1,2,1` | `0,1,1,2` | `1,2,3,3` | "
@@ -1121,6 +1125,7 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
     assert "graph: fanin=0,1,1,2,dependents=1,2,3,3" in svg
     assert "task arg key: role" in svg
     assert "task args: task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2" in svg
+    assert "node attrs: task0=attrs:tensor_args,scalar_args" in svg
 
 
 def test_cuda_smoke_scripts_use_shared_callable_manifest_types():

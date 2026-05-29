@@ -1945,6 +1945,16 @@ metadata. The ctypes-backed `node_attrs_graph_with_ctypes_data` scene passed
 locally with `2 passed, 119 deselected`; the full local A100 CUDA scene-test
 file passed with `121 passed`; and the H200 selector passed with `1 passed,
 120 deselected` while still emitting the known PTO-ISA SSH refresh warning.
+The same graph-node attrs shape is now capturable through the paired
+persistent-smoke workflow as `graph_descriptor_node_attrs`. The capture under
+`tmp/cuda-backend/persistent-graph_descriptor_node_attrs-repeat2-smoke-b1b3e28c/`
+contains A100/H200 JSON plus Markdown/SVG reports with dispatch `[9,2,1]`,
+graph fan-in `[0,0,2]`, graph dependents `[2,2]`, repeat completions
+`[3,3]`, zero scheduler errors, tensor slots
+`tensor_args[0]=tmp0,tensor_args[1]=tmp3`, scalar slots
+`scalar_args[0]=1.5,scalar_args[1]=0.25`, and report metadata
+`graph_node_attrs.task0=attrs:tensor_args,scalar_args`. Device times were
+`72704 ns` on A100 and `45408 ns` on H200 for `N=1024`.
 The incoming-edge path is now covered by both a real-data L2 ctypes scene and
 paired persistent-device smoke. The working-tree smoke capture under
 `tmp/cuda-backend/depends-on-graph-working/persistent-graph_descriptor_depends_on-repeat2-smoke-06b988b5/`

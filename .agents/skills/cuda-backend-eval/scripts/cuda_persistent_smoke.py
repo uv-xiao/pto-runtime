@@ -1839,6 +1839,7 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
         "generic_args4",
         "graph_descriptor",
         "graph_descriptor_generic_args4",
+        "graph_descriptor_node_attrs",
         "graph_descriptor_tagged",
     }:
         task_count = 3
@@ -2320,6 +2321,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         "graph_descriptor",
         "graph_descriptor_diamond",
         "graph_descriptor_generic_args4",
+        "graph_descriptor_node_attrs",
         "graph_descriptor_reordered",
         "graph_descriptor_tagged",
     }
@@ -2629,6 +2631,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     "graph_descriptor",
                     "graph_descriptor_diamond",
                     "graph_descriptor_generic_args4",
+                    "graph_descriptor_node_attrs",
                     "graph_descriptor_reordered",
                     "graph_descriptor_scratch_reuse",
                     "graph_descriptor_tagged",
@@ -2742,6 +2745,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             "graph_descriptor_depends_on",
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
+            "graph_descriptor_node_attrs",
             "graph_descriptor_quad",
             "graph_descriptor_reordered",
             "graph_descriptor_role_keyed_inout",
@@ -2763,6 +2767,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 "graph_descriptor",
                 "graph_descriptor_diamond",
                 "graph_descriptor_generic_args4",
+                "graph_descriptor_node_attrs",
                 "graph_descriptor_reordered",
                 "graph_descriptor_tagged",
             }:
@@ -2773,6 +2778,8 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     scalar_args.update({"scalar_args[2]": 0.125, "scalar_args[3]": 0.0625})
                 result["tensor_args"] = tensor_args
                 result["scalar_args"] = scalar_args
+            if config.dag_shape == "graph_descriptor_node_attrs":
+                result["graph_node_attrs"] = {"task0": "attrs:tensor_args,scalar_args"}
             if config.dag_shape == "graph_descriptor_tagged":
                 result["graph_task_args"] = {
                     "task0": "input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1]",
@@ -2882,6 +2889,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "graph_descriptor_depends_on",
         "graph_descriptor_diamond",
         "graph_descriptor_generic_args4",
+        "graph_descriptor_node_attrs",
         "graph_descriptor_quad",
         "graph_descriptor_reordered",
         "graph_descriptor_scalar_affine",
@@ -2947,6 +2955,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
             "graph_descriptor_depends_on",
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
+            "graph_descriptor_node_attrs",
             "graph_descriptor_reordered",
             "graph_descriptor_scalar_affine",
             "graph_descriptor_scalar_axpy",
@@ -3169,6 +3178,7 @@ def main() -> None:
             "graph_descriptor_depends_on",
             "graph_descriptor_diamond",
             "graph_descriptor_generic_args4",
+            "graph_descriptor_node_attrs",
             "graph_descriptor_quad",
             "graph_descriptor_reordered",
             "graph_descriptor_scalar_affine",
