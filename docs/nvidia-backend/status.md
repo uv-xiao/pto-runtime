@@ -1810,20 +1810,21 @@ producer for that tensor name, or to a later producer when the descriptor is
 intentionally out of topological order. The inference is per task, so mixed
 descriptors can keep explicit dependency lists for some tasks while inferring
 omitted edges for the remaining tasks.
-The graph adapter now accepts a tagged `task_args` task form as a first
+The graph adapter now accepts a role-keyed `task_args` task form as a first
 TaskArgs-like lowering slice: `input`, `output`, `output_existing`, and
-`inout` tags are lowered to the existing bounded CUDA graph descriptor fields
+`inout` roles are lowered to the existing bounded CUDA graph descriptor fields
 before temporary allocation, tensor-flow dependency inference, and task struct
-construction. This lets a scene test describe a persistent graph in terms of
-task-argument roles while still using the current statically compiled
-generated-dispatch callable.
-The tagged `task_args` form also accepts scalar inputs, lowering them through
-the same bounded `scalar_args` slots as explicit graph descriptors. Scalar
-entries still resolve through normal `TaskArgsBuilder` scalar names before the
-descriptor is launched, so a tagged graph can now keep tensor roles and scalar
-inputs in one TaskArgs-like list.
+construction. The adapter prefers the `role` key and still accepts the older
+`tag` spelling for compatibility. This lets a scene test describe a
+persistent graph in terms of task-argument roles while still using the current
+statically compiled generated-dispatch callable.
+The role-keyed `task_args` form also accepts scalar inputs, lowering them
+through the same bounded `scalar_args` slots as explicit graph descriptors.
+Scalar entries still resolve through normal `TaskArgsBuilder` scalar names
+before the descriptor is launched, so a graph descriptor can now keep tensor
+roles and scalar inputs in one TaskArgs-like list.
 The graph adapter now also resolves named graph callables before lowering
-tagged `task_args`: a descriptor may define `graph.callables` as either a
+role-keyed `task_args`: a descriptor may define `graph.callables` as either a
 dictionary keyed by callable name or a list of callable specs with `name`
 fields, then each graph task can use `callable: "name"` or, for list-shaped
 registries, the zero-based callable index instead of embedding the raw
@@ -1849,13 +1850,20 @@ The compact callable-registry slice is covered by
 lower directly to generated-dispatch `func_id` values for index-referenced
 graphs. That selector passed on the local A100 and remote H200, again with the
 known H200 PTO-ISA SSH refresh warning.
+The role-keyed task-argument slice is covered by descriptor and real-data
+selectors
+`role_keyed_task_args` and `role_keyed_inout_graph_with_ctypes_data`. These
+first failed because `role` was ignored and `tmp0` was treated as an input
+before it existed. After adding shared `role`/`tag` normalization, the focused
+local A100 selector reported `2 passed, 91 deselected`; the remote H200
+real-data selector reported `1 passed, 92 deselected` with the known PTO-ISA
+SSH refresh warning.
 The role mapping now preserves the lifecycle distinction needed by CUDA
-memory planning: tagged `output` may create a default-sized temporary, but
-tagged `output_existing` and `inout` must name storage that is already known
-at that point in descriptor order. Descriptor construction raises before
-launch if either role references an unknown tensor or temporary, avoiding a
-silent scratch allocation for values that are supposed to alias existing
-storage.
+memory planning: role `output` may create a default-sized temporary, but
+roles `output_existing` and `inout` must name storage that is already known at
+that point in descriptor order. Descriptor construction raises before launch
+if either role references an unknown tensor or temporary, avoiding a silent
+scratch allocation for values that are supposed to alias existing storage.
 The same lifecycle rule is now applied to explicit graph `out_storage`.
 Logical `out` names still create default-sized temporaries, but an
 `out_storage` alias must point at storage that has already been allocated or

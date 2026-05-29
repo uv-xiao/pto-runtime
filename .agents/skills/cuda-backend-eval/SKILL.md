@@ -1154,11 +1154,12 @@ Use `persistent_dag_graph_f32` when a test should pass an explicit runtime
 graph descriptor with per-task `func_id`, `a`/`b`/`c`/`d`/`out`,
 `dependents`, optional `initial_fanin`, `tensor_args`, and `scalar_args`
 fields instead of selecting one of the fixed tracer-bullet DAG adapters.
-Graph tasks may alternatively pass tagged `task_args` entries with
-`input`, `output`, `output_existing`, or `inout` tags. The adapter lowers the
-first four inputs to `a`/`b`/`c`/`d`, appends any additional inputs to
-`tensor_args`, and lowers the single output to `out`; this is the preferred
-test form when checking the first TaskArgs-like lowering slice.
+Graph tasks may alternatively pass role-keyed `task_args` entries with
+`input`, `output`, `output_existing`, or `inout` roles. The adapter prefers
+the `role` key and still accepts the older `tag` spelling for compatibility.
+It lowers the first four inputs to `a`/`b`/`c`/`d`, appends any additional
+inputs to `tensor_args`, and lowers the single output to `out`; this is the
+preferred test form when checking the first TaskArgs-like lowering slice.
 Graph tasks may use a `callable` name instead of embedding `func_id` directly
 when `graph.callables` maps that name to callable metadata such as
 `{"func_id": 9}`. `graph.callables` may be either a dictionary keyed by
@@ -1169,9 +1170,9 @@ index. A list entry only needs `name` when tasks reference it by name; pure
 index-based graphs may use unnamed callable specs, or the compact integer
 form where each list element is the generated-dispatch `func_id`. The
 task-local fields override callable defaults, and the adapter resolves the
-callable before tagged `task_args`, temporary allocation, and tensor-flow edge
-inference. Use this form when checking the scene-test step toward normal PTO
-task graphs with indexed or named callables and tagged arguments.
+callable before role-keyed `task_args`, temporary allocation, and tensor-flow
+edge inference. Use this form when checking the scene-test step toward normal
+PTO task graphs with indexed or named callables and task-argument roles.
 Validate the list-shaped callable registry path with:
 
 ```bash
@@ -1219,7 +1220,7 @@ duplicate logical tensor producers or in-place graph updates:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
-    -q -k tagged_inout_graph --platform cuda
+    -q -k 'tagged_inout_graph or role_keyed_inout_graph' --platform cuda
 ```
 
 Run the named-callable graph selector after changing callable-name resolution

@@ -1458,13 +1458,22 @@ class _CudaPersistentDagSceneBuffers:
     def _normalize_graph_scalar_task_arg(task_arg: dict[str, Any], index: int) -> tuple[bool, Any]:
         if "scalar" not in task_arg:
             return False, None
-        tag = str(task_arg.get("tag", "input")).lower()
+        tag = _CudaPersistentDagSceneBuffers._graph_task_arg_role(task_arg, index)
         if tag not in {"input", "in"}:
             raise ValueError(
-                f"CUDA persistent_dag_graph_f32 scalar task_args entry {index} "
-                f"has unsupported tag: {task_arg.get('tag')}"
+                f"CUDA persistent_dag_graph_f32 scalar task_args entry {index} has unsupported role: {tag}"
             )
         return True, task_arg["scalar"]
+
+    @staticmethod
+    def _graph_task_arg_role(task_arg: dict[str, Any], index: int) -> str:
+        role = task_arg.get("role")
+        tag = task_arg.get("tag")
+        if role is not None and tag is not None and str(role).lower() != str(tag).lower():
+            raise ValueError(
+                f"CUDA persistent_dag_graph_f32 task_args entry {index} has conflicting role and tag values"
+            )
+        return str(role if role is not None else tag if tag is not None else "input").lower()
 
     @staticmethod
     def _append_graph_tensor_task_arg(
@@ -1475,7 +1484,7 @@ class _CudaPersistentDagSceneBuffers:
         outputs: list[str],
         inout_names: list[str],
     ) -> bool:
-        tag = str(task_arg.get("tag", "input")).lower()
+        tag = _CudaPersistentDagSceneBuffers._graph_task_arg_role(task_arg, index)
         if tag in {"input", "in"}:
             inputs.append(name)
             return False
@@ -1490,9 +1499,7 @@ class _CudaPersistentDagSceneBuffers:
             outputs.append(name)
             inout_names.append(name)
             return True
-        raise ValueError(
-            f"CUDA persistent_dag_graph_f32 task_args entry {index} has unsupported tag: {task_arg.get('tag')}"
-        )
+        raise ValueError(f"CUDA persistent_dag_graph_f32 task_args entry {index} has unsupported role: {tag}")
 
     def _temporary_nbytes(self, size_source, default_nbytes: int) -> int:
         if isinstance(size_source, int):

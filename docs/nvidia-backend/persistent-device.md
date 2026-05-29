@@ -324,14 +324,15 @@ them, while omitted task edges are inferred from tensor flow. It is a
 descriptor-level stepping stone toward PTO graph lowering, not yet automatic
 construction from normal PTO task graphs.
 
-The same graph adapter also accepts a small tagged `task_args` form that is
-closer to the normal PTO task argument model. Each entry names a tensor or
-temporary and tags it as `input`, `output`, `output_existing`, or `inout`.
-The scene-test adapter lowers those tags into the current bounded CUDA
+The same graph adapter also accepts a small role-keyed `task_args` form that
+is closer to the normal PTO task argument model. Each entry names a tensor or
+temporary and marks it as `input`, `output`, `output_existing`, or `inout`
+with `role`; the older `tag` spelling remains accepted for compatibility.
+The scene-test adapter lowers those roles into the current bounded CUDA
 descriptor fields: the first four inputs become `a`/`b`/`c`/`d`, additional
 inputs append to `tensor_args`, and the single output becomes `out`. This is
-still host-side descriptor construction, but it reduces the gap between
-normal task-argument metadata and the persistent-device runtime ABI.
+still host-side descriptor construction, but it reduces the gap between normal
+task-argument metadata and the persistent-device runtime ABI.
 Graph tasks can now name a callable through `callable` when
 `graph.callables` maps that name to callable metadata such as `func_id`.
 `graph.callables` may be a dictionary keyed by callable name or a list of
@@ -342,14 +343,13 @@ callable-id shape used elsewhere in scene tests. A list entry only needs
 `name` when graph tasks reference it by name; pure index-based graphs may use
 unnamed callable specs, or the compact integer form where each list element is
 the generated-dispatch `func_id`. The task-local fields override callable
-defaults before tagged `task_args` are lowered, so a scene graph can use named
-or indexed callables plus TaskArgs-like roles instead of repeating raw
+defaults before role-keyed `task_args` are lowered, so a scene graph can use
+named or indexed callables plus TaskArgs-like roles instead of repeating raw
 generated-dispatch IDs on every task. This is still not full capture of a live
 PTO orchestrator graph, but it moves descriptor construction closer to the
-normal
-`submit_next_level(callable, TaskArgs, ...)` shape.
-Tagged `output` is the only role that may allocate a new default-sized
-temporary. Tagged `output_existing` and `inout` must name storage that is
+normal `submit_next_level(callable, TaskArgs, ...)` shape.
+Role `output` is the only task-arg role that may allocate a new default-sized
+temporary. Roles `output_existing` and `inout` must name storage that is
 already known at that point in descriptor order, either an input/output tensor,
 an explicit temporary, or a temporary produced by an earlier graph task.
 
