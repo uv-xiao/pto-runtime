@@ -1865,6 +1865,15 @@ def run_single_sample(  # noqa: PLR0912
             baseline=baseline,
             dag_shape="graph_descriptor_role_map_inout",
         )
+    if baseline == "pto_persistent_dag_graph_submit_groups":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="graph_descriptor_submit_groups",
+        )
     if baseline == "pto_persistent_dag_graph_triad":
         return run_persistent_sample(
             device=device,
@@ -2135,6 +2144,7 @@ def run_benchmark(
                     "pto_persistent_dag_graph_compact_role_inout",
                     "pto_persistent_dag_graph_pair_inout",
                     "pto_persistent_dag_graph_role_map_inout",
+                    "pto_persistent_dag_graph_submit_groups",
                     "pto_persistent_dag_graph_triad",
                     "pto_persistent_dag_graph_quad",
                     "pto_persistent_dag_graph_unary_square",
@@ -3481,6 +3491,7 @@ def main() -> None:
             "pto_persistent_dag_graph_compact_role_inout",
             "pto_persistent_dag_graph_pair_inout",
             "pto_persistent_dag_graph_role_map_inout",
+            "pto_persistent_dag_graph_submit_groups",
             "pto_persistent_dag_graph_triad",
             "pto_persistent_dag_graph_quad",
             "pto_persistent_dag_graph_unary_square",
