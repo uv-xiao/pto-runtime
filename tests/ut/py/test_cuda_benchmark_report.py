@@ -1842,7 +1842,8 @@ def test_cuda_tensor_sweep_validator_compact_preset_keeps_dispatch_commas():
     required_dispatch = cuda_validate_tensor_sweep._parse_required_dispatch(args.require_dispatch)
 
     assert args.expected_repeats == 3
-    assert args.expected_result_count == 48
+    assert args.expected_result_count == 60
+    assert "cublas_sgemm_graph" in args.require_baseline
     assert required_dispatch == {
         "pto_persistent_dag_tensor": "3,1,2,1",
         "pto_persistent_dag_graph_tensor": "3,1,2,1",
@@ -2570,6 +2571,30 @@ def test_cuda_tensor_shape_sweep_accepts_graph_tensor_baseline(tmp_path):
     assert "--single-baseline" in local
     assert "pto_persistent_dag_graph_tensor" in local
     assert "--single-baseline pto_persistent_dag_graph_tensor" in remote[-1]
+    assert "--tensor-rows 16" in remote[-1]
+    assert "--tensor-cols 16" in remote[-1]
+    assert "--tensor-inner 16" in remote[-1]
+
+
+def test_cuda_tensor_shape_sweep_accepts_cublas_graph_baseline(tmp_path):
+    cuda_tensor_shape_sweep = _load_tensor_shape_sweep_module()
+    shape = cuda_tensor_shape_sweep.TensorShape(rows=16, cols=16, inner=16)
+    config = cuda_tensor_shape_sweep.TensorShapeSweepConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        n=256,
+        baselines=cuda_tensor_shape_sweep.parse_baselines("cublas_sgemm,cublas_sgemm_graph"),
+    )
+
+    local = cuda_tensor_shape_sweep.build_local_sample_command(config, shape, "cublas_sgemm_graph")
+    remote = cuda_tensor_shape_sweep.build_remote_sample_command(config, shape, "cublas_sgemm_graph")
+
+    assert "--single-baseline" in local
+    assert "cublas_sgemm_graph" in local
+    assert "--single-baseline cublas_sgemm_graph" in remote[-1]
     assert "--tensor-rows 16" in remote[-1]
     assert "--tensor-cols 16" in remote[-1]
     assert "--tensor-inner 16" in remote[-1]

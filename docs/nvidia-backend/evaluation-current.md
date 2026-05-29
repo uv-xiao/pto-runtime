@@ -1127,6 +1127,23 @@ the three-repeat size sweep above. It proves the exact command examples needed
 to reconstruct the local A100 and remote H200 setup are now present in the
 generated Markdown and JSON.
 
+A later working-tree tensor sweep under
+`tmp/cuda-backend/tensor-graph-library-baselines-working/`
+`tensor-shape-sweep-848c4ee5/` adds `cublas_sgemm_graph` to the same compact
+descriptor family. It was validated with required A100/H200 rows, report
+files, command examples, VDCores/MPK source-paper metadata, and PTO dispatch
+sequences.
+
+| GPU | N | Shape | Scalar tensor ns | Graph tensor ns | Tensor-core ns | cuBLAS ns | cuBLAS Graph ns |
+| --- | - | ----- | ---------------- | --------------- | -------------- | --------- | --------------- |
+| A100 | 256 | 16x16x16 | 43008 | 41984 | 51200 | 89088 | 12288 |
+| H200 | 256 | 16x16x16 | 37440 | 45120 | 37472 | 50271 | 10271 |
+
+The CUDA Graph replay row is much faster than plain cuBLAS for this tiny
+launch-dominated descriptor because the capture has already paid the library
+setup cost. It is a launch/replay baseline, not a tuned large-GEMM throughput
+claim.
+
 ## Tensor-Core Callable Smoke
 
 The first tensor-core persistent DAG smoke was captured at commit `390eda4f`.
@@ -1230,7 +1247,7 @@ Tensor shape sweep:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_tensor_shape_sweep.py \
-    --baselines pto_persistent_dag_tensor,pto_persistent_dag_tensor_core,cublas_sgemm \
+    --baselines pto_persistent_dag_tensor,pto_persistent_dag_graph_tensor,pto_persistent_dag_tensor_core,cublas_sgemm,cublas_sgemm_graph \
     --shapes 16x16x16,16x16x64 --n 256 --repeats 3 \
     --sync-remote-tree
 ```

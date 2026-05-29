@@ -506,6 +506,19 @@ JSON. The validation required A100/H200 rows, scalar tensor DAG, WMMA tensor
 DAG, cuBLAS SGEMM, `N=256`, `16x16x16`, report files, command examples, and
 source-paper metadata, and PTO dispatch sequences.
 
+A follow-up working-tree sweep under
+`tmp/cuda-backend/tensor-graph-library-baselines-working/`
+`tensor-shape-sweep-848c4ee5/` adds the `cublas_sgemm_graph` tensor-sweep
+baseline beside scalar tensor, explicit graph tensor, WMMA tensor-core, and
+plain cuBLAS rows. The run uses one repeat, `N=256`, and the `16x16x16`
+descriptor on local A100 and remote H200. Validated median device times were:
+A100 scalar/graph/tensor-core/cuBLAS/cuBLAS-graph
+`43008/41984/51200/89088/12288 ns`; H200
+`37440/45120/37472/50271/10271 ns`. The cuBLAS Graph row shows the expected
+benefit of replaying an already captured library call in this launch-dominated
+compact descriptor, while PTO graph tensor remains close to the scalar tensor
+DAG and continues to validate the explicit runtime graph descriptor path.
+
 Evidence:
 
 - [evaluation.md](evaluation.md) is the evaluation landing page.

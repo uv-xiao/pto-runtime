@@ -24,6 +24,7 @@ COMPACT_TENSOR_BASELINE_BASELINES = (
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_tensor_core",
     "cublas_sgemm",
+    "cublas_sgemm_graph",
 )
 COMPACT_TENSOR_BASELINE_SIZES = (256,)
 COMPACT_TENSOR_BASELINE_SHAPES = ("16x16x16", "16x16x64")
