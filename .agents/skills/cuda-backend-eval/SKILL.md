@@ -1278,15 +1278,16 @@ PYTHONPATH=$PWD:$PWD/python \
 ```
 
 The selected benchmark path also includes
-`pto_persistent_dag_graph_role_keyed_inout`. Use a compact paired capture when
-changing graph task-argument lowering or capture validation:
+`pto_persistent_dag_graph_role_keyed_inout` and
+`pto_persistent_dag_graph_compact_role_inout`. Use a compact paired capture
+when changing graph task-argument lowering or capture validation:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
     --sizes 1024 --repeats 1 --batch-tasks '' \
     --worker-blocks-per-task '' --sync-remote-tree \
-    --output-root tmp/cuda-backend/role-keyed-benchmark-working
+    --output-root tmp/cuda-backend/compact-role-benchmark-working
 ```
 
 Graph tasks may also pass `out_storage` when the logical graph output should
@@ -1486,9 +1487,11 @@ together. The current committed summary keeps the full `61cf96cd` capture plus
 compact current-head gates in `docs/nvidia-backend/evaluation-current.md`.
 
 Use this compact paired gate after changing selected persistent graph
-benchmark rows. It validates 72 samples across A100 and H200, including
-`pto_persistent_dag_graph_triad` and `pto_persistent_dag_graph_quad` with
-dispatch `6,2,1` / `8,2,1` and graph fan-in/dependents `0,0,2` / `2,2`:
+benchmark rows. It validates 82 samples across A100 and H200, including
+`pto_persistent_dag_graph_triad`, `pto_persistent_dag_graph_quad`, and
+`pto_persistent_dag_graph_compact_role_inout` with dispatch `6,2,1`,
+`8,2,1`, and `1,1,1`. The compact role row requires graph fan-in
+`0,1,1`, dependents `1,2`, and `graph_task_arg_key=compact`:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
@@ -1661,6 +1664,14 @@ unary-square rows. It uses `N=1024`, one repeat,
 provenance and zero scheduler errors, requires
 `scratch_reuse=reused_buffer=tmp0,reuse_task=4`, and includes Markdown plus
 SVG reports.
+
+The compact-role selected benchmark row is also covered by a no-batch paired
+A100/H200 capture under
+`tmp/cuda-backend/compact-role-benchmark-working/combined-current-30a8974f/`.
+It validates 74 samples, including dispatch `1,1,1`, fan-in `0,1,1`,
+dependents `1,2`, task args `input:a,input:b,output:tmp1`,
+`inout:tmp1,input:b`, `input:tmp1,input:a,output_existing:out`, and
+`graph_task_arg_key=compact`.
 
 Use `--single-baseline pto_persistent_dag_graph_tagged` for a quick benchmark
 path check of explicit graph task-argument tags that include scalar inputs.

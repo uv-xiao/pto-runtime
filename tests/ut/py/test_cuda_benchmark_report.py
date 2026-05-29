@@ -300,6 +300,11 @@ def _write_artifact_payload(path: Path, label: str, machine: str, baseline: str)
     (path / "cuda-benchmark.json").write_text(json.dumps(payload) + "\n")
 
 
+def _assert_contains_all(container, expected):
+    missing = [item for item in expected if item not in container]
+    assert missing == []
+
+
 def test_persistent_smoke_builds_graph_descriptor_dag_shape():
     cuda_persistent_smoke = _load_persistent_smoke_module()
 
@@ -1959,6 +1964,7 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_tagged" in args.require_baseline
     assert "pto_persistent_dag_graph_tagged_inout" in args.require_baseline
     assert "pto_persistent_dag_graph_role_keyed_inout" in args.require_baseline
+    assert "pto_persistent_dag_graph_compact_role_inout" in args.require_baseline
     assert "pto_persistent_dag_graph_triad" in args.require_baseline
     assert "pto_persistent_dag_graph_quad" in args.require_baseline
     assert "pto_persistent_dag_graph_unary_square" in args.require_baseline
@@ -1974,6 +1980,7 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_tagged=9,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_tagged_inout=1,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_role_keyed_inout=1,1,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_compact_role_inout=1,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_triad=6,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_quad=8,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_unary_square=7,1,1" in args.require_dispatch
@@ -1985,6 +1992,8 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_unary_square=1,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_role_keyed_inout=0,1,1" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_role_keyed_inout=1,2" in args.require_graph_dependents
+    assert "pto_persistent_dag_graph_compact_role_inout=0,1,1" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_compact_role_inout=1,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_diamond=0,0,2,2,2" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_diamond=2,3,2,3,4,4" in args.require_graph_dependents
     assert (
@@ -2002,7 +2011,13 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
         "task2=input:tmp1,input:a,output_existing:out"
     ) in args.require_graph_task_args
+    assert (
+        "pto_persistent_dag_graph_compact_role_inout="
+        "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
+        "task2=input:tmp1,input:a,output_existing:out"
+    ) in args.require_graph_task_args
     assert "pto_persistent_dag_graph_role_keyed_inout=role" in args.require_graph_task_arg_key
+    assert "pto_persistent_dag_graph_compact_role_inout=compact" in args.require_graph_task_arg_key
     assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_tensor_core=10,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_tensor_core=10,1,2,1" in args.require_dispatch
@@ -2012,7 +2027,7 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_tensor_core=1,2,3,3" in args.require_graph_dependents
     assert "cublas_sgemm=16x16x16" in args.require_tensor_tile
     assert "cublas_sgemm_graph=16x16x16" in args.require_tensor_tile
-    assert args.expected_result_count == 1026
+    assert args.expected_result_count == 1044
     assert args.require_report_graph_topology is True
     assert args.require_report_graph_task_args is True
 
@@ -2026,7 +2041,7 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert args.require_machine == ["hina", "dasys-h200x8"]
     assert args.require_size == ["1024"]
     assert args.expected_repeats == 1
-    assert args.expected_result_count == 80
+    assert args.expected_result_count == 82
     assert args.require_report_files is True
     assert args.require_command_examples is True
     assert args.require_zero_scheduler_errors is True
@@ -2042,6 +2057,7 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_graph_tagged" in args.require_baseline
     assert "pto_persistent_dag_graph_tagged_inout" in args.require_baseline
     assert "pto_persistent_dag_graph_role_keyed_inout" in args.require_baseline
+    assert "pto_persistent_dag_graph_compact_role_inout" in args.require_baseline
     assert "pto_persistent_dag_graph_triad" in args.require_baseline
     assert "pto_persistent_dag_graph_quad" in args.require_baseline
     assert "pto_persistent_dag_graph_unary_square" in args.require_baseline
@@ -2055,6 +2071,7 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_graph_tagged=9,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_tagged_inout=1,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_role_keyed_inout=1,1,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_compact_role_inout=1,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_unary_square=7,1,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_diamond=0,0,2,2,2" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_diamond=2,3,2,3,4,4" in args.require_graph_dependents
@@ -2062,6 +2079,8 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_graph_unary_square=1,2" in args.require_graph_dependents
     assert "pto_persistent_dag_graph_role_keyed_inout=0,1,1" in args.require_graph_fanin
     assert "pto_persistent_dag_graph_role_keyed_inout=1,2" in args.require_graph_dependents
+    assert "pto_persistent_dag_graph_compact_role_inout=0,1,1" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_compact_role_inout=1,2" in args.require_graph_dependents
     assert (
         "pto_persistent_dag_graph_tagged="
         "task0=input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1];"
@@ -2077,7 +2096,13 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
         "task2=input:tmp1,input:a,output_existing:out"
     ) in args.require_graph_task_args
+    assert (
+        "pto_persistent_dag_graph_compact_role_inout="
+        "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
+        "task2=input:tmp1,input:a,output_existing:out"
+    ) in args.require_graph_task_args
     assert "pto_persistent_dag_graph_role_keyed_inout=role" in args.require_graph_task_arg_key
+    assert "pto_persistent_dag_graph_compact_role_inout=compact" in args.require_graph_task_arg_key
     assert "pto_persistent_dag_graph_tensor=3,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_tensor_core=10,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_tensor_core=10,1,2,1" in args.require_dispatch
@@ -2946,75 +2971,82 @@ def test_cuda_pair_benchmark_builds_current_a100_h200_workflow(tmp_path):
     assert ".agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py" in validate
     assert str(tmp_path / "cuda-backend" / "combined-current-abc123" / "cuda-benchmark.json") in validate
     assert "--expected-result-count" in validate
-    assert "1026" in validate
-    assert "--require-baseline" in validate
-    assert "pto_host_schedule_generic_args" in validate
-    assert "pto_persistent_dag_graph_generic_args4" in validate
-    assert "pto_persistent_dag_graph_chain" in validate
-    assert "pto_persistent_dag_graph_scratch_reuse" in validate
-    assert "pto_persistent_dag_graph_diamond" in validate
-    assert "pto_persistent_dag_graph_tagged" in validate
-    assert "pto_persistent_dag_graph_tagged_inout" in validate
-    assert "pto_persistent_dag_graph_role_keyed_inout" in validate
-    assert "pto_persistent_dag_graph_triad" in validate
-    assert "pto_persistent_dag_graph_quad" in validate
-    assert "pto_persistent_dag_graph_unary_square" in validate
-    assert "pto_persistent_dag_graph_tensor" in validate
-    assert "pto_persistent_dag_tensor_core" in validate
-    assert "pto_persistent_dag_graph_tensor_core" in validate
-    assert "cublas_sgemm" in validate
-    assert "cublas_sgemm_graph" in validate
-    assert "--require-dispatch" in validate
-    assert "pto_persistent_dag_graph_generic_args4=9,2,1" in validate
-    assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in validate
-    assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in validate
-    assert "pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4" in validate
-    assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in validate
-    assert "pto_persistent_dag_graph_tagged=9,2,1" in validate
-    assert "pto_persistent_dag_graph_tagged_inout=1,1,1" in validate
-    assert "pto_persistent_dag_graph_role_keyed_inout=1,1,1" in validate
-    assert "pto_persistent_dag_graph_triad=6,2,1" in validate
-    assert "pto_persistent_dag_graph_quad=8,2,1" in validate
-    assert "pto_persistent_dag_graph_unary_square=7,1,1" in validate
-    assert "pto_persistent_dag_graph_triad=0,0,2" in validate
-    assert "pto_persistent_dag_graph_quad=0,0,2" in validate
-    assert "pto_persistent_dag_graph_triad=2,2" in validate
-    assert "pto_persistent_dag_graph_quad=2,2" in validate
-    assert "pto_persistent_dag_graph_diamond=0,0,2,2,2" in validate
-    assert "pto_persistent_dag_graph_diamond=2,3,2,3,4,4" in validate
-    assert "pto_persistent_dag_graph_unary_square=0,1,1" in validate
-    assert "pto_persistent_dag_graph_unary_square=1,2" in validate
-    assert "pto_persistent_dag_graph_role_keyed_inout=0,1,1" in validate
-    assert "pto_persistent_dag_graph_role_keyed_inout=1,2" in validate
-    assert (
-        "pto_persistent_dag_graph_tagged="
-        "task0=input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1];"
-        "task1=input:a,input:b,output:tmp2;task2=input:tmp1,input:tmp2,output_existing:out"
-    ) in validate
-    assert (
-        "pto_persistent_dag_graph_tagged_inout="
-        "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
-        "task2=input:tmp1,input:a,output_existing:out"
-    ) in validate
-    assert (
-        "pto_persistent_dag_graph_role_keyed_inout="
-        "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
-        "task2=input:tmp1,input:a,output_existing:out"
-    ) in validate
-    assert "pto_persistent_dag_graph_role_keyed_inout=role" in validate
-    assert "pto_persistent_dag_tensor=3,1,2,1" in validate
-    assert "pto_persistent_dag_graph_tensor=3,1,2,1" in validate
-    assert "pto_persistent_dag_tensor_core=10,1,2,1" in validate
-    assert "pto_persistent_dag_graph_tensor_core=10,1,2,1" in validate
-    assert "--require-tensor-tile" in validate
-    assert "pto_persistent_dag_tensor=16x16x16" in validate
-    assert "pto_persistent_dag_graph_tensor=16x16x16" in validate
-    assert "pto_persistent_dag_tensor_core=16x16x16" in validate
-    assert "pto_persistent_dag_graph_tensor_core=16x16x16" in validate
-    assert "pto_persistent_dag_graph_tensor_core=0,1,1,2" in validate
-    assert "pto_persistent_dag_graph_tensor_core=1,2,3,3" in validate
-    assert "cublas_sgemm=16x16x16" in validate
-    assert "cublas_sgemm_graph=16x16x16" in validate
+    assert "1044" in validate
+    _assert_contains_all(
+        validate,
+        (
+            "--require-baseline",
+            "pto_host_schedule_generic_args",
+            "pto_persistent_dag_graph_generic_args4",
+            "pto_persistent_dag_graph_chain",
+            "pto_persistent_dag_graph_scratch_reuse",
+            "pto_persistent_dag_graph_diamond",
+            "pto_persistent_dag_graph_tagged",
+            "pto_persistent_dag_graph_tagged_inout",
+            "pto_persistent_dag_graph_role_keyed_inout",
+            "pto_persistent_dag_graph_compact_role_inout",
+            "pto_persistent_dag_graph_triad",
+            "pto_persistent_dag_graph_quad",
+            "pto_persistent_dag_graph_unary_square",
+            "pto_persistent_dag_graph_tensor",
+            "pto_persistent_dag_tensor_core",
+            "pto_persistent_dag_graph_tensor_core",
+            "cublas_sgemm",
+            "cublas_sgemm_graph",
+            "--require-dispatch",
+            "pto_persistent_dag_graph_generic_args4=9,2,1",
+            "pto_persistent_dag_graph_chain=1,2,1,2,1",
+            "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1",
+            "pto_persistent_dag_graph_scratch_reuse=reused_buffer=tmp0,reuse_task=4",
+            "pto_persistent_dag_graph_diamond=9,2,1,2,1",
+            "pto_persistent_dag_graph_tagged=9,2,1",
+            "pto_persistent_dag_graph_tagged_inout=1,1,1",
+            "pto_persistent_dag_graph_role_keyed_inout=1,1,1",
+            "pto_persistent_dag_graph_compact_role_inout=1,1,1",
+            "pto_persistent_dag_graph_triad=6,2,1",
+            "pto_persistent_dag_graph_quad=8,2,1",
+            "pto_persistent_dag_graph_unary_square=7,1,1",
+            "pto_persistent_dag_graph_triad=0,0,2",
+            "pto_persistent_dag_graph_quad=0,0,2",
+            "pto_persistent_dag_graph_triad=2,2",
+            "pto_persistent_dag_graph_quad=2,2",
+            "pto_persistent_dag_graph_diamond=0,0,2,2,2",
+            "pto_persistent_dag_graph_diamond=2,3,2,3,4,4",
+            "pto_persistent_dag_graph_unary_square=0,1,1",
+            "pto_persistent_dag_graph_unary_square=1,2",
+            "pto_persistent_dag_graph_role_keyed_inout=0,1,1",
+            "pto_persistent_dag_graph_role_keyed_inout=1,2",
+            "pto_persistent_dag_graph_compact_role_inout=0,1,1",
+            "pto_persistent_dag_graph_compact_role_inout=1,2",
+            "pto_persistent_dag_graph_tagged="
+            "task0=input:a,input:b,output:tmp1,scalar:scalar_args[0],scalar:scalar_args[1];"
+            "task1=input:a,input:b,output:tmp2;task2=input:tmp1,input:tmp2,output_existing:out",
+            "pto_persistent_dag_graph_tagged_inout="
+            "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
+            "task2=input:tmp1,input:a,output_existing:out",
+            "pto_persistent_dag_graph_role_keyed_inout="
+            "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
+            "task2=input:tmp1,input:a,output_existing:out",
+            "pto_persistent_dag_graph_compact_role_inout="
+            "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
+            "task2=input:tmp1,input:a,output_existing:out",
+            "pto_persistent_dag_graph_role_keyed_inout=role",
+            "pto_persistent_dag_graph_compact_role_inout=compact",
+            "pto_persistent_dag_tensor=3,1,2,1",
+            "pto_persistent_dag_graph_tensor=3,1,2,1",
+            "pto_persistent_dag_tensor_core=10,1,2,1",
+            "pto_persistent_dag_graph_tensor_core=10,1,2,1",
+            "--require-tensor-tile",
+            "pto_persistent_dag_tensor=16x16x16",
+            "pto_persistent_dag_graph_tensor=16x16x16",
+            "pto_persistent_dag_tensor_core=16x16x16",
+            "pto_persistent_dag_graph_tensor_core=16x16x16",
+            "pto_persistent_dag_graph_tensor_core=0,1,1,2",
+            "pto_persistent_dag_graph_tensor_core=1,2,3,3",
+            "cublas_sgemm=16x16x16",
+            "cublas_sgemm_graph=16x16x16",
+        ),
+    )
     assert "--require-command-examples" in validate
     assert "--require-source-papers" in validate
     assert "--require-report-graph-topology" in validate
@@ -3042,7 +3074,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "--expected-repeats" in validate
     assert "2" in validate
     assert "--expected-result-count" in validate
-    assert "328" in validate
+    assert "336" in validate
     assert "--require-baseline" in validate
     baselines = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-baseline"]
     assert "pto_host_schedule_generic_args" in baselines
@@ -3053,6 +3085,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_tagged" in baselines
     assert "pto_persistent_dag_graph_tagged_inout" in baselines
     assert "pto_persistent_dag_graph_role_keyed_inout" in baselines
+    assert "pto_persistent_dag_graph_compact_role_inout" in baselines
     assert "pto_persistent_dag_graph_triad" in baselines
     assert "pto_persistent_dag_graph_quad" in baselines
     assert "pto_persistent_dag_graph_unary_square" in baselines
@@ -3069,6 +3102,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_tagged=9,2,1" in dispatch
     assert "pto_persistent_dag_graph_tagged_inout=1,1,1" in dispatch
     assert "pto_persistent_dag_graph_role_keyed_inout=1,1,1" in dispatch
+    assert "pto_persistent_dag_graph_compact_role_inout=1,1,1" in dispatch
     assert "pto_persistent_dag_graph_triad=6,2,1" in dispatch
     assert "pto_persistent_dag_graph_quad=8,2,1" in dispatch
     assert "pto_persistent_dag_graph_unary_square=7,1,1" in dispatch
@@ -3092,10 +3126,16 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
         "task2=input:tmp1,input:a,output_existing:out"
     ) in graph_task_args
+    assert (
+        "pto_persistent_dag_graph_compact_role_inout="
+        "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;"
+        "task2=input:tmp1,input:a,output_existing:out"
+    ) in graph_task_args
     graph_task_arg_keys = [
         validate[index + 1] for index, part in enumerate(validate) if part == "--require-graph-task-arg-key"
     ]
     assert "pto_persistent_dag_graph_role_keyed_inout=role" in graph_task_arg_keys
+    assert "pto_persistent_dag_graph_compact_role_inout=compact" in graph_task_arg_keys
     assert "--require-report-graph-topology" in validate
     assert "--require-report-graph-task-args" in validate
 
@@ -3119,7 +3159,7 @@ def test_cuda_pair_benchmark_omits_empty_batch_sweeps(tmp_path):
     assert "pto_host_schedule_batch" not in validate
     assert "pto_persistent_device_grid_batch" not in validate
     assert "--expected-result-count" in validate
-    assert "72" in validate
+    assert "74" in validate
 
 
 def test_cuda_pair_benchmark_merge_command_records_sanitized_examples(tmp_path):
@@ -6356,6 +6396,13 @@ def test_cuda_current_summary_renders_worker_and_dag_tables():
             },
             {
                 "machine": "hina",
+                "baseline": "pto_persistent_dag_graph_compact_role_inout",
+                "n": 65536,
+                "task_count": 3,
+                "device_wall_ns": 2250,
+            },
+            {
+                "machine": "hina",
                 "baseline": "pto_persistent_dag_unary_square",
                 "n": 65536,
                 "task_count": 3,
@@ -6377,7 +6424,7 @@ def test_cuda_current_summary_renders_worker_and_dag_tables():
     assert "| A100 | 65536 | 6 | 128 | 3000 | 0.30x |" in worker_table
     assert (
         "| A100 | 65536 | 1.50x | 2.00x | 1.25x | 1.23x | 1.30x | 1.35x | 1.40x | "
-        "1.10x | 1.15x | - | 1.80x | - | - | 1.20x | 2.50x |"
+        "1.10x | 1.15x | - | 1.80x | - | - | 1.12x | 1.20x | 2.50x |"
     ) in dag_table
 
 
@@ -6422,10 +6469,12 @@ def test_cuda_current_summary_keeps_old_captures_without_scalar_affine():
     assert (
         "| GPU | N | Chain/DAG | Reuse/DAG | Scalar AXPY/DAG | Scalar Scale/DAG | Scalar Affine/DAG | "
         "Triad/DAG | Quad/DAG | Generic Args/DAG | Graph Descriptor/DAG | Graph Diamond/DAG | "
-        "Graph Scratch Reuse/DAG | Graph Tagged Inout/DAG | Graph Role Inout/DAG | Unary Square/DAG | "
-        "Tensor/DAG |"
+        "Graph Scratch Reuse/DAG | Graph Tagged Inout/DAG | Graph Role Inout/DAG | "
+        "Graph Compact Role Inout/DAG | Unary Square/DAG | Tensor/DAG |"
     ) in dag_table
-    assert "| A100 | 65536 | 1.50x | 2.00x | 1.25x | - | - | - | - | - | - | - | - | - | - | - | 2.50x |" in dag_table
+    assert (
+        "| A100 | 65536 | 1.50x | 2.00x | 1.25x | - | - | - | - | - | - | - | - | - | - | - | - | 2.50x |"
+    ) in dag_table
 
 
 def test_cuda_current_summary_renders_tensor_sweep_table():
@@ -6721,6 +6770,22 @@ def test_cuda_current_summary_renders_graph_metadata_table():
             },
             {
                 "machine": "hina",
+                "baseline": "pto_persistent_dag_graph_compact_role_inout",
+                "n": 1024,
+                "task_count": 3,
+                "device_wall_ns": 1536,
+                "dispatch_func_ids": [1, 1, 1],
+                "graph_descriptor": {"tasks": 3, "fanin": [0, 1, 1], "dependents": [1, 2]},
+                "graph_task_arg_key": "compact",
+                "graph_task_args": {
+                    "task0": "input:a,input:b,output:tmp1",
+                    "task1": "inout:tmp1,input:b",
+                    "task2": "input:tmp1,input:a,output_existing:out",
+                },
+                "status": "pass",
+            },
+            {
+                "machine": "hina",
                 "baseline": "pto_persistent_dag",
                 "n": 1024,
                 "task_count": 3,
@@ -6747,8 +6812,14 @@ def test_cuda_current_summary_renders_graph_metadata_table():
         "| H200 | 1024 | pto_persistent_dag_graph_tensor_core | 10,2,4,1 | 4 | 0,0,1,2 | 2,3,3 | - | "
         "- | 16x16x16 |" in table
     )
+    assert (
+        "| A100 | 1024 | pto_persistent_dag_graph_compact_role_inout | 1,1,1 | 3 | 0,1,1 | 1,2 | "
+        "compact | task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,"
+        "output_existing:out | - |" in table
+    )
     assert "## Graph Descriptor Metadata" in report
     assert "pto_persistent_dag_graph_role_keyed_inout" in report
+    assert "pto_persistent_dag_graph_compact_role_inout" in report
 
 
 def test_cuda_current_summary_renders_graph_tensor_core_without_scalar_reference():
@@ -8269,6 +8340,7 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "pto_persistent_dag_graph_tagged",
         "pto_persistent_dag_graph_tagged_inout",
         "pto_persistent_dag_graph_role_keyed_inout",
+        "pto_persistent_dag_graph_compact_role_inout",
         "pto_persistent_dag_graph_triad",
         "pto_persistent_dag_graph_quad",
         "pto_persistent_dag_graph_unary_square",
@@ -8280,7 +8352,7 @@ def test_run_benchmark_can_include_persistent_device_modes(monkeypatch):
         "cublas_sgemm",
         "cublas_sgemm_graph",
     ]
-    assert len(payload["results"]) == 36
+    assert len(payload["results"]) == 37
 
 
 def test_run_single_sample_dispatches_cublas_sgemm(monkeypatch):
@@ -9481,6 +9553,80 @@ def test_run_single_sample_dispatches_graph_role_keyed_inout_dag(monkeypatch):
     assert result["graph_task_args"]["task1"] == "inout:tmp1,input:b"
 
 
+def test_run_single_sample_dispatches_graph_compact_role_inout_dag(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = {}
+
+    def fake_run_persistent_sample(
+        device,
+        n,
+        arch,
+        mode="direct",
+        task_count=None,
+        baseline=None,
+        worker_blocks_per_task=1,
+        dag_shape="fork_join",
+        tensor_tile=None,
+    ):
+        seen.update(
+            {
+                "device": device,
+                "n": n,
+                "arch": arch,
+                "mode": mode,
+                "task_count": task_count,
+                "baseline": baseline,
+                "worker_blocks_per_task": worker_blocks_per_task,
+                "dag_shape": dag_shape,
+                "tensor_tile": tensor_tile,
+            }
+        )
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count or 3,
+            "dag_shape": dag_shape,
+            "graph_descriptor": {
+                "tasks": 3,
+                "dependents": [1, 2],
+                "fanin": [0, 1, 1],
+            },
+            "graph_task_arg_key": "compact",
+            "graph_task_args": {
+                "task0": "input:a,input:b,output:tmp1",
+                "task1": "inout:tmp1,input:b",
+                "task2": "input:tmp1,input:a,output_existing:out",
+            },
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    monkeypatch.setattr(cuda_benchmark, "run_persistent_sample", fake_run_persistent_sample)
+
+    result = cuda_benchmark.run_single_sample(
+        baseline="pto_persistent_dag_graph_compact_role_inout",
+        device=3,
+        n=1024,
+        block_dim=128,
+        arch="compute_80",
+    )
+
+    assert seen == {
+        "device": 3,
+        "n": 1024,
+        "arch": "compute_80",
+        "mode": "dag",
+        "task_count": None,
+        "baseline": "pto_persistent_dag_graph_compact_role_inout",
+        "worker_blocks_per_task": 1,
+        "dag_shape": "graph_descriptor_compact_role_inout",
+        "tensor_tile": None,
+    }
+    assert result["baseline"] == "pto_persistent_dag_graph_compact_role_inout"
+    assert result["graph_task_arg_key"] == "compact"
+    assert result["graph_task_args"]["task1"] == "inout:tmp1,input:b"
+
+
 def test_run_single_sample_dispatches_graph_tagged_scalar_dag(monkeypatch):
     cuda_benchmark = _load_benchmark_module()
     seen = {}
@@ -10013,6 +10159,7 @@ def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
         ("pto_persistent_dag_graph_tagged", 1),
         ("pto_persistent_dag_graph_tagged_inout", 1),
         ("pto_persistent_dag_graph_role_keyed_inout", 1),
+        ("pto_persistent_dag_graph_compact_role_inout", 1),
         ("pto_persistent_dag_graph_triad", 1),
         ("pto_persistent_dag_graph_quad", 1),
         ("pto_persistent_dag_graph_unary_square", 1),
@@ -10028,7 +10175,7 @@ def test_run_benchmark_can_include_same_work_batch_modes(monkeypatch):
         ("pto_persistent_queue_batch", 6),
     ]
     assert payload["metadata"]["batch_tasks"] == 6
-    assert len(payload["results"]) == 39
+    assert len(payload["results"]) == 40
 
 
 def test_run_benchmark_can_include_worker_grid_batch_mode(monkeypatch):

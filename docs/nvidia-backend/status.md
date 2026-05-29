@@ -2116,6 +2116,32 @@ dependents `[1,2]`, task args `input:a,input:b,output:tmp1`,
 `device_wall_ns=38912`, `host_wall_ns=52853`; H200
 `device_wall_ns=20864`, `host_wall_ns=2446166`. Both rows passed with zero
 device scheduler errors.
+
+The compact role-entry spelling is now also part of the selected paired
+benchmark matrix as `pto_persistent_dag_graph_compact_role_inout`, beside the
+role-keyed row. A failing benchmark/report test first required the new row in
+`cuda_benchmark.py`, `cuda_pair_benchmark.py`, `cuda_validate_capture.py`, and
+`cuda_current_summary.py`. A no-batch A100/H200 capture:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
+    --sizes 1024 --repeats 1 --batch-tasks '' \
+    --worker-blocks-per-task '' --sync-remote-tree \
+    --output-root tmp/cuda-backend/compact-role-benchmark-working
+```
+
+validated `74` rows under
+`tmp/cuda-backend/compact-role-benchmark-working/combined-current-30a8974f/`.
+The capture required dispatch `[1,1,1]`, graph fan-in `[0,1,1]`,
+dependents `[1,2]`, task args `input:a,input:b,output:tmp1`,
+`inout:tmp1,input:b`, `input:tmp1,input:a,output_existing:out`, and
+`graph_task_arg_key=compact`. The compact role row reported A100
+`device_wall_ns=50176`, `host_wall_ns=62766`; H200
+`device_wall_ns=27360`, `host_wall_ns=36621`. Both rows passed with zero
+device scheduler errors, and the current-summary DAG table now includes a
+`Graph Compact Role Inout/DAG` column.
+
 The same tagged graph shape is now also in the paired persistent-smoke report
 flow as `graph_descriptor_tagged`, with scalar inputs recorded beside tensor
 roles in `graph_task_args`. The current A100/H200 JSON plus Markdown/SVG

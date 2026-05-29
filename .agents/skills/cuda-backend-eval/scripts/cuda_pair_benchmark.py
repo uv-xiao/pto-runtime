@@ -48,6 +48,7 @@ BASELINE_ROWS: tuple[str, ...] = (
     "pto_persistent_dag_graph_tagged",
     "pto_persistent_dag_graph_tagged_inout",
     "pto_persistent_dag_graph_role_keyed_inout",
+    "pto_persistent_dag_graph_compact_role_inout",
     "pto_persistent_dag_graph_triad",
     "pto_persistent_dag_graph_quad",
     "pto_persistent_dag_graph_unary_square",
@@ -83,6 +84,7 @@ EXPECTED_DISPATCH_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_tagged": "9,2,1",
     "pto_persistent_dag_graph_tagged_inout": "1,1,1",
     "pto_persistent_dag_graph_role_keyed_inout": "1,1,1",
+    "pto_persistent_dag_graph_compact_role_inout": "1,1,1",
     "pto_persistent_dag_graph_triad": "6,2,1",
     "pto_persistent_dag_graph_quad": "8,2,1",
     "pto_persistent_dag_graph_unary_square": "7,1,1",
@@ -114,9 +116,13 @@ EXPECTED_GRAPH_TASK_ARGS_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_role_keyed_inout": (
         "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,output_existing:out"
     ),
+    "pto_persistent_dag_graph_compact_role_inout": (
+        "task0=input:a,input:b,output:tmp1;task1=inout:tmp1,input:b;task2=input:tmp1,input:a,output_existing:out"
+    ),
 }
 EXPECTED_GRAPH_TASK_ARG_KEY_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_role_keyed_inout": "role",
+    "pto_persistent_dag_graph_compact_role_inout": "compact",
 }
 EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph": "0,0,2",
@@ -127,6 +133,7 @@ EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_tagged": "0,0,2",
     "pto_persistent_dag_graph_tagged_inout": "0,1,1",
     "pto_persistent_dag_graph_role_keyed_inout": "0,1,1",
+    "pto_persistent_dag_graph_compact_role_inout": "0,1,1",
     "pto_persistent_dag_graph_triad": "0,0,2",
     "pto_persistent_dag_graph_quad": "0,0,2",
     "pto_persistent_dag_graph_unary_square": "0,1,1",
@@ -142,6 +149,7 @@ EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_tagged": "2,2",
     "pto_persistent_dag_graph_tagged_inout": "1,2",
     "pto_persistent_dag_graph_role_keyed_inout": "1,2",
+    "pto_persistent_dag_graph_compact_role_inout": "1,2",
     "pto_persistent_dag_graph_triad": "2,2",
     "pto_persistent_dag_graph_quad": "2,2",
     "pto_persistent_dag_graph_unary_square": "1,2",
