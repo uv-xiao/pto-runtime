@@ -1236,7 +1236,19 @@ def _cuda_persistent_named_callable_graph_spec(
     return spec
 
 
-def _cuda_persistent_tagged_inout_graph_spec(add_source, *, arch="compute_80", block_dim=256, task_arg_role_key="tag"):
+def _cuda_persistent_tagged_inout_graph_spec(
+    add_source,
+    *,
+    arch="compute_80",
+    block_dim=256,
+    task_arg_role_key="tag",
+    compact_task_args=False,
+):
+    def task_arg(name, role):
+        if compact_task_args:
+            return {role: name}
+        return {"tensor": name, task_arg_role_key: role}
+
     return {
         "cuda": {
             "runtime": "persistent_device",
@@ -1262,24 +1274,24 @@ def _cuda_persistent_tagged_inout_graph_spec(add_source, *, arch="compute_80", b
                     {
                         "func_id": 1,
                         "task_args": [
-                            {"tensor": "a", task_arg_role_key: "input"},
-                            {"tensor": "b", task_arg_role_key: "input"},
-                            {"tensor": "tmp0", task_arg_role_key: "output"},
+                            task_arg("a", "input"),
+                            task_arg("b", "input"),
+                            task_arg("tmp0", "output"),
                         ],
                     },
                     {
                         "func_id": 1,
                         "task_args": [
-                            {"tensor": "tmp0", task_arg_role_key: "inout"},
-                            {"tensor": "b", task_arg_role_key: "input"},
+                            task_arg("tmp0", "inout"),
+                            task_arg("b", "input"),
                         ],
                     },
                     {
                         "func_id": 1,
                         "task_args": [
-                            {"tensor": "tmp0", task_arg_role_key: "input"},
-                            {"tensor": "a", task_arg_role_key: "input"},
-                            {"tensor": "out", task_arg_role_key: "output_existing"},
+                            task_arg("tmp0", "input"),
+                            task_arg("a", "input"),
+                            task_arg("out", "output_existing"),
                         ],
                     },
                 ]
@@ -2748,6 +2760,59 @@ def test_scene_test_builds_cuda_persistent_graph_from_role_keyed_task_args():
     assert buffers.host_tasks[2].out == buffers.tensor_buffers.ptrs["out"]
 
 
+def test_scene_test_builds_cuda_persistent_graph_from_compact_role_task_args():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(17)),
+        Tensor("b", _FakeTensor(17)),
+        Tensor("out", _FakeTensor(17)),
+    )
+    cuda_spec = {
+        "arg_builder": "persistent_dag_graph_f32",
+        "args": ["a", "b", "out"],
+        "queue_capacity": 2,
+        "graph": {
+            "tasks": [
+                {
+                    "func_id": 1,
+                    "task_args": [
+                        {"input": "a"},
+                        {"input": "b"},
+                        {"output": "tmp0"},
+                    ],
+                },
+                {
+                    "func_id": 1,
+                    "task_args": [
+                        {"inout": "tmp0"},
+                        {"input": "b"},
+                    ],
+                },
+                {
+                    "func_id": 1,
+                    "task_args": [
+                        {"input": "tmp0"},
+                        {"input": "a"},
+                        {"output_existing": "out"},
+                    ],
+                },
+            ]
+        },
+    }
+    buffers = _CudaPersistentDagSceneBuffers(_FakeWorker(), test_args, cuda_spec)
+
+    assert list(buffers.host_fanin) == [0, 1, 1]
+    assert list(buffers.host_dependents) == [1, 2]
+    assert [(task.func_id, task.dependent_begin, task.dependent_count) for task in buffers.host_tasks] == [
+        (1, 0, 1),
+        (1, 1, 1),
+        (1, 2, 0),
+    ]
+    assert buffers.host_tasks[1].a == buffers.host_tasks[0].out
+    assert buffers.host_tasks[1].out == buffers.host_tasks[0].out
+    assert buffers.host_tasks[2].a == buffers.host_tasks[1].out
+    assert buffers.host_tasks[2].out == buffers.tensor_buffers.ptrs["out"]
+
+
 def test_scene_test_rejects_unknown_tagged_output_existing_task_arg():
     test_args = TaskArgsBuilder(
         Tensor("a", _FakeTensor(17)),
@@ -2800,6 +2865,34 @@ def test_scene_test_rejects_unknown_tagged_inout_task_arg():
     }
 
     with pytest.raises(ValueError, match="inout.*missing"):
+        _CudaPersistentDagSceneBuffers(_FakeWorker(), test_args, cuda_spec)
+
+
+def test_scene_test_rejects_mixed_cuda_persistent_compact_role_task_arg():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(17)),
+        Tensor("b", _FakeTensor(17)),
+        Tensor("out", _FakeTensor(17)),
+    )
+    cuda_spec = {
+        "arg_builder": "persistent_dag_graph_f32",
+        "args": ["a", "b", "out"],
+        "queue_capacity": 2,
+        "graph": {
+            "tasks": [
+                {
+                    "func_id": 1,
+                    "task_args": [
+                        {"input": "a", "tensor": "a"},
+                        {"input": "b"},
+                        {"output_existing": "out"},
+                    ],
+                }
+            ]
+        },
+    }
+
+    with pytest.raises(ValueError, match="mixes compact and expanded tensor roles"):
         _CudaPersistentDagSceneBuffers(_FakeWorker(), test_args, cuda_spec)
 
 
@@ -4925,6 +5018,56 @@ def test_scene_test_runs_cuda_persistent_device_role_keyed_inout_graph_with_ctyp
             worker,
             callable_obj,
             CudaPersistentRoleKeyedInoutGraphCtypesScene.CASES[0],
+            skip_golden=True,
+        )
+        args = scene.last_args
+        a_values = args.a.to_list()
+        b_values = args.b.to_list()
+        actual = args.out.to_list()
+        expected = [2.0 * a_values[idx] + 2.0 * b_values[idx] for idx in range(len(actual))]
+        assert actual == pytest.approx(expected)
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_persistent_device_compact_role_graph_with_ctypes_data(tmp_path):
+    add_source = tmp_path / "add.pto.cu"
+    add_source.write_text(_PERSISTENT_ADD_BODY)
+
+    @scene_test(level=2, runtime="persistent_device")
+    class CudaPersistentCompactRoleGraphCtypesScene(SceneTestCase):
+        CALLABLE = _cuda_persistent_tagged_inout_graph_spec(add_source, compact_task_args=True)
+        CASES = [
+            {
+                "name": "n1024",
+                "platforms": ["cuda"],
+                "params": {"n": 1024},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            n = params["n"]
+            args = TaskArgsBuilder(
+                Tensor("a", _CtypesFloatTensor(float(i + 1) for i in range(n))),
+                Tensor("b", _CtypesFloatTensor(float(i) * 0.5 for i in range(n))),
+                Tensor("out", _CtypesFloatTensor(0.0 for _ in range(n))),
+            )
+            self.last_args = args
+            return args
+
+        def compute_golden(self, args, params):
+            raise AssertionError("ctypes scene uses explicit post-run validation")
+
+    scene = CudaPersistentCompactRoleGraphCtypesScene()
+    worker = CudaPersistentCompactRoleGraphCtypesScene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(
+            worker,
+            callable_obj,
+            CudaPersistentCompactRoleGraphCtypesScene.CASES[0],
             skip_golden=True,
         )
         args = scene.last_args

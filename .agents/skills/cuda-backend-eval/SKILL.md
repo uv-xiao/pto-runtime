@@ -1165,6 +1165,10 @@ the `role` key and still accepts the older `tag` spelling for compatibility.
 It lowers the first four inputs to `a`/`b`/`c`/`d`, appends any additional
 inputs to `tensor_args`, and lowers the single output to `out`; this is the
 preferred test form when checking the first TaskArgs-like lowering slice.
+For compact graph specs, a task arg may also be written as a single role-keyed
+dictionary such as `{"input": "a"}`, `{"output": "tmp0"}`,
+`{"inout": "tmp0"}`, or `{"output_existing": "out"}`. Do not mix this compact
+form with `tensor`/`name` plus `role`/`tag` in the same task-arg entry.
 Graph tasks may use a `callable` name instead of embedding `func_id` directly
 when `graph.callables` maps that name to callable metadata such as
 `{"func_id": 9}`. `graph.callables` may be either a dictionary keyed by

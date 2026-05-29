@@ -1416,6 +1416,12 @@ class _CudaPersistentDagSceneBuffers:
         for index, task_arg in enumerate(task_args):
             if not isinstance(task_arg, dict):
                 raise ValueError("CUDA persistent_dag_graph_f32 task_args entries must be dictionaries")
+            compact_role, compact_name = _CudaPersistentDagSceneBuffers._compact_graph_tensor_task_arg(
+                task_arg,
+                index,
+            )
+            if compact_role is not None:
+                task_arg = {**task_arg, "role": compact_role, "tensor": compact_name}
             is_scalar, scalar_value = _CudaPersistentDagSceneBuffers._normalize_graph_scalar_task_arg(
                 task_arg,
                 index,
@@ -1453,6 +1459,20 @@ class _CudaPersistentDagSceneBuffers:
         if inout_names:
             normalized["_inout_names"] = inout_names
         return normalized
+
+    @staticmethod
+    def _compact_graph_tensor_task_arg(task_arg: dict[str, Any], index: int) -> tuple[str | None, Any]:
+        compact_roles = ("input", "in", "output", "out", "output_existing", "inout")
+        matches = [(role, task_arg[role]) for role in compact_roles if role in task_arg]
+        if not matches:
+            return None, None
+        if len(matches) > 1:
+            raise ValueError(f"CUDA persistent_dag_graph_f32 task_args entry {index} has multiple compact tensor roles")
+        if any(key in task_arg for key in ("tensor", "name", "role", "tag")):
+            raise ValueError(
+                f"CUDA persistent_dag_graph_f32 task_args entry {index} mixes compact and expanded tensor roles"
+            )
+        return matches[0]
 
     @staticmethod
     def _normalize_graph_scalar_task_arg(task_arg: dict[str, Any], index: int) -> tuple[bool, Any]:

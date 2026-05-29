@@ -2022,6 +2022,32 @@ and zero scheduler errors on both GPUs. A100 reported per-launch device times
 adds a visible `Graph task arg key` column, so the artifact distinguishes the
 preferred `role` spelling from the older `tag` spelling.
 
+The graph adapter also accepts compact role-keyed task-argument entries such
+as `{"input": "a"}`, `{"output": "tmp0"}`, `{"inout": "tmp0"}`, and
+`{"output_existing": "out"}`. This keeps graph descriptors closer to a
+TaskArgs-style role map without repeating `tensor` plus `role` in every
+entry. Mixed compact/expanded entries are rejected before task construction.
+The compact role-entry slice was checked with a failing descriptor test first,
+then with local A100 and remote H200 real-data ctypes scene tests:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py -q \
+  -k 'compact_role_task_args or compact_role_graph_with_ctypes_data or \
+      mixed_cuda_persistent_compact_role_task_arg' --platform cuda
+
+ssh -o BatchMode=yes -o ConnectTimeout=8 bizhaoh200 \
+  'cd /data/shibizhao/pto-cu && \
+   CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH \
+   PYTHONPATH=$PWD:$PWD/python \
+   .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+     -q -rs -k compact_role_graph_with_ctypes_data --platform cuda'
+```
+
+Results: the local A100 selector reported `3 passed, 93 deselected`; the H200
+real-data selector reported `1 passed, 94 deselected` with the known PTO-ISA
+SSH refresh warning.
+
 The same role-keyed graph smoke was rerun at current head after lifecycle
 matrix indexing landed:
 
