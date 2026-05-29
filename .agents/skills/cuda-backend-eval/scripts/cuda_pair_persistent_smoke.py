@@ -41,6 +41,7 @@ class PairedPersistentSmokeConfig:
     queue_capacity: int = 2
     worker_blocks_per_task: int = 1
     worker_blocks: int | None = None
+    scheduler_blocks: int = 1
     stream_id: int = 0
     block_dim: int = 256
     repeat_runs: int = 1
@@ -138,6 +139,8 @@ def _smoke_args(*, device: int, arch: str, output_json: Path, config: PairedPers
     ]
     if config.worker_blocks is not None:
         args.extend(["--worker-blocks", str(config.worker_blocks)])
+    if config.mode != "direct":
+        args.extend(["--scheduler-blocks", str(config.scheduler_blocks)])
     if config.mode == "dag":
         args.extend(
             [
@@ -497,7 +500,7 @@ def _expected_scratch_reuse(config: PairedPersistentSmokeConfig) -> str | None:
 def _expected_scheduler_blocks(config: PairedPersistentSmokeConfig) -> int:
     if config.mode == "direct":
         return 0
-    return 1
+    return config.scheduler_blocks
 
 
 def _expected_worker_blocks(config: PairedPersistentSmokeConfig) -> int:
@@ -733,6 +736,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--queue-capacity", type=int, default=2)
     parser.add_argument("--worker-blocks-per-task", type=int, default=1)
     parser.add_argument("--worker-blocks", type=int, default=None)
+    parser.add_argument("--scheduler-blocks", type=int, default=1)
     parser.add_argument("--stream-id", type=int, default=0)
     parser.add_argument("--block-dim", type=int, default=256)
     parser.add_argument("--repeat-runs", type=int, default=1)
@@ -770,6 +774,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         queue_capacity=args.queue_capacity,
         worker_blocks_per_task=args.worker_blocks_per_task,
         worker_blocks=args.worker_blocks,
+        scheduler_blocks=args.scheduler_blocks,
         stream_id=args.stream_id,
         block_dim=args.block_dim,
         repeat_runs=args.repeat_runs,

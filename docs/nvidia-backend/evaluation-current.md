@@ -754,6 +754,51 @@ Both artifacts reported zero scheduler errors, repeat completions `[5,5]`,
 dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, graph dependents
 `2,3,2,3,4,4`, scalar args `1.5,0.25`, and tensor args `tmp0,tmp3`.
 
+## Latest Multi-Scheduler Resource-Policy Smoke
+
+The multi-scheduler resource-policy smoke at artifact label `a5c35b50`
+validates that persistent-device launch partitioning no longer assumes a
+single scheduler block. It runs the five-task graph-diamond descriptor with
+`scheduler_blocks=2`, `worker_blocks=3`, `stream_id=2`, `block_dim=256`,
+`grid_dim=5`, queue capacity `3`, and `repeat_runs=2` on both A100 and H200.
+Only scheduler block `0` seeds and monitors the queue today; the extra
+scheduler block is reserved out of the worker pool, proving the ABI and launch
+partition before scheduler-work sharding is introduced.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/multi-scheduler-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/a100.json \
+    tmp/cuda-backend/multi-scheduler-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-dag-shape graph_descriptor_diamond --expected-repeat-runs 2 \
+    --expected-completed-count 5 --expected-dispatch 9,2,1,2,1 \
+    --expected-graph-fanin 0,0,2,2,2 \
+    --expected-graph-dependents 2,3,2,3,4,4 \
+    --expected-scheduler-blocks 2 --expected-worker-blocks 3 \
+    --expected-worker-blocks-per-task 1 --expected-stream-id 2 \
+    --expected-block-dim 256 --expected-grid-dim 5 \
+    --require-report-files --require-report-graph-topology \
+    --expected-scalar-args 'scalar_args[0]=1.5,scalar_args[1]=0.25' \
+    --require-report-scalar-args \
+    --expected-tensor-args 'tensor_args[0]=tmp0,tensor_args[1]=tmp3' \
+    --require-report-tensor-args
+```
+
+Selected rows:
+
+| GPU | Device ns | Host ns | Launches ns | Policy |
+| --- | --------- | ------- | ----------- | ------ |
+| A100 | 79872 | 111442 | `49152,30720` | `sched=2,workers=3,stream=2,block=256,grid=5` |
+| H200 | 57952 | 77382 | `33920,24032` | `sched=2,workers=3,stream=2,block=256,grid=5` |
+
+Both artifacts reported zero scheduler errors, repeat completions `[5,5]`,
+dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, graph dependents
+`2,3,2,3,4,4`, scalar args `1.5,0.25`, and tensor args `tmp0,tmp3`.
+
 ## Latest Scheduler Error Matrix
 
 The scheduler error matrix at artifact label `35de3303` captures the

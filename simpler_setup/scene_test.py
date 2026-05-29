@@ -1180,6 +1180,7 @@ class _CudaPersistentDagSceneBuffers:
             error_count=self.dev_counters + 3 * ctypes.sizeof(ctypes.c_uint32),
             error_code=self.dev_counters + 4 * ctypes.sizeof(ctypes.c_uint32),
             error_task_id=self.dev_counters + 5 * ctypes.sizeof(ctypes.c_uint32),
+            scheduler_blocks=1,
         )
         self.worker.copy_to(self.dev_state, ctypes.addressof(state), ctypes.sizeof(state))
         self.args = CudaPersistentDagArgs(state=self.dev_state)

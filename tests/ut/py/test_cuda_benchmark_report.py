@@ -5774,6 +5774,40 @@ def test_cuda_pair_persistent_smoke_builds_chain_a100_h200_workflow(tmp_path):
     assert index[-2:] == ["--root", str(tmp_path / "cuda-backend")]
 
 
+def test_cuda_pair_persistent_smoke_passes_scheduler_blocks(tmp_path):
+    cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
+    config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        dag_shape="graph_descriptor_diamond",
+        task_count=5,
+        queue_capacity=3,
+        scheduler_blocks=2,
+        worker_blocks=3,
+        stream_id=2,
+    )
+
+    local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
+    remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
+    validate = cuda_pair_persistent_smoke.build_validate_command(config, "abc123")
+
+    assert "--scheduler-blocks" in local
+    assert "2" in local
+    assert "--worker-blocks" in local
+    assert "3" in local
+    assert "--scheduler-blocks 2" in remote[-1]
+    assert "--worker-blocks 3" in remote[-1]
+    assert "--expected-scheduler-blocks" in validate
+    assert "2" in validate
+    assert "--expected-worker-blocks" in validate
+    assert "3" in validate
+    assert "--expected-grid-dim" in validate
+    assert "5" in validate
+
+
 def test_cuda_pair_persistent_smoke_passes_repeat_runs(tmp_path):
     cuda_pair_persistent_smoke = _load_pair_persistent_smoke_module()
     config = cuda_pair_persistent_smoke.PairedPersistentSmokeConfig(

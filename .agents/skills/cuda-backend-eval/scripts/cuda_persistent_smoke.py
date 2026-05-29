@@ -585,6 +585,7 @@ struct PtoCudaPersistentVectorAddQueueState {
     unsigned int *queue_head;
     unsigned int *queue_tail;
     unsigned int *completed_count;
+    unsigned int scheduler_blocks;
 };
 
 extern "C" __global__ void pto_persistent_vector_add_queue_executor(
@@ -592,8 +593,9 @@ extern "C" __global__ void pto_persistent_vector_add_queue_executor(
     __shared__ unsigned int slot;
     __shared__ unsigned int task_id;
 
-    if (blockIdx.x == 0) {
-        if (threadIdx.x == 0) {
+    unsigned int scheduler_blocks = state->scheduler_blocks == 0U ? 1U : state->scheduler_blocks;
+    if (blockIdx.x < scheduler_blocks) {
+        if (blockIdx.x == 0 && threadIdx.x == 0) {
             for (unsigned long long task_id = 0; task_id < state->task_count; ++task_id) {
                 unsigned int slot = static_cast<unsigned int>(task_id % state->queue_capacity);
                 while (atomicAdd(&state->ready_flags[slot], 0U) != 0U) {
@@ -899,6 +901,7 @@ class CudaPersistentVectorAddQueueState(ctypes.Structure):
         ("queue_head", ctypes.c_void_p),
         ("queue_tail", ctypes.c_void_p),
         ("completed_count", ctypes.c_void_p),
+        ("scheduler_blocks", ctypes.c_uint32),
     ]
 
 
@@ -954,6 +957,7 @@ class CudaPersistentDagState(ctypes.Structure):
         ("error_count", ctypes.c_void_p),
         ("error_code", ctypes.c_void_p),
         ("error_task_id", ctypes.c_void_p),
+        ("scheduler_blocks", ctypes.c_uint32),
     ]
 
 
@@ -1066,6 +1070,7 @@ class DagSmokeConfig:
     n: int
     arch: str
     queue_capacity: int
+    scheduler_blocks: int
     worker_blocks: int
     stream_id: int
     block_dim: int
@@ -2232,7 +2237,7 @@ def _make_direct_launch(
     )
 
 
-def _make_queue_launch(
+def _make_queue_launch(  # noqa: PLR0913
     runtime,
     ctx: int,
     ptx_buf,
@@ -2240,6 +2245,7 @@ def _make_queue_launch(
     task_count: int,
     queue_capacity: int,
     dev_tasks: int,
+    scheduler_blocks: int,
     worker_blocks: int,
     stream_id: int = 0,
     block_dim: int = 256,
@@ -2272,6 +2278,7 @@ def _make_queue_launch(
             queue_head=dev_counters,
             queue_tail=dev_counters + ctypes.sizeof(ctypes.c_uint32),
             completed_count=dev_counters + 2 * ctypes.sizeof(ctypes.c_uint32),
+            scheduler_blocks=scheduler_blocks,
         )
         if runtime.copy_to_device_ctx(ctx, dev_queue_state, ctypes.byref(queue_state), ctypes.sizeof(queue_state)) != 0:
             raise RuntimeError("copy_to_device queue state failed")
@@ -2280,7 +2287,6 @@ def _make_queue_launch(
             runtime.device_free_ctx(ctx, ptr)
         raise
 
-    scheduler_blocks = 1
     return PersistentLaunch(
         manifest=CudaPersistentCallable(
             version=2,
@@ -2316,6 +2322,7 @@ def _make_launch(  # noqa: PLR0913
     dev_tasks: int,
     worker_blocks_per_task: int = 1,
     worker_blocks: int | None = None,
+    scheduler_blocks: int = 1,
     stream_id: int = 0,
     block_dim: int = 256,
 ) -> PersistentLaunch:
@@ -2337,6 +2344,7 @@ def _make_launch(  # noqa: PLR0913
         task_count,
         queue_capacity,
         dev_tasks,
+        scheduler_blocks,
         worker_blocks if worker_blocks is not None else max(1, task_count),
         stream_id,
         block_dim,
@@ -2475,6 +2483,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             error_count=dev_counters + 3 * ctypes.sizeof(ctypes.c_uint32),
             error_code=dev_counters + 4 * ctypes.sizeof(ctypes.c_uint32),
             error_task_id=dev_counters + 5 * ctypes.sizeof(ctypes.c_uint32),
+            scheduler_blocks=config.scheduler_blocks,
         )
         if runtime.copy_to_device_ctx(ctx, dev_state, ctypes.byref(state), ctypes.sizeof(state)) != 0:
             raise RuntimeError("copy_to_device dag state failed")
@@ -2510,7 +2519,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     raise RuntimeError(f"copy_to_device dag {label} failed")
             return launch_fanin, launch_counters
 
-        scheduler_blocks = 1
+        scheduler_blocks = config.scheduler_blocks
         worker_blocks = config.worker_blocks
         artifact = config.persistent_artifact or CudaPersistentCallableArtifact(
             cache_key="embedded",
@@ -2990,6 +2999,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
     queue_capacity: int | None = None,
     worker_blocks_per_task: int = 1,
     worker_blocks: int | None = None,
+    scheduler_blocks: int = 1,
     stream_id: int = 0,
     block_dim: int = 256,
     dag_shape: str = "fork_join",
@@ -3063,6 +3073,10 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         raise ValueError("worker_blocks must be positive")
     if mode == "direct" and worker_blocks is not None:
         raise ValueError("worker_blocks is only supported for queue and dag modes")
+    if scheduler_blocks <= 0:
+        raise ValueError("scheduler_blocks must be positive")
+    if mode == "direct" and scheduler_blocks != 1:
+        raise ValueError("scheduler_blocks is only supported for queue and dag modes")
     if stream_id < 0:
         raise ValueError("stream_id must be non-negative")
     if block_dim <= 0:
@@ -3078,6 +3092,8 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         ptx, ptx_source, persistent_artifact = _compile_persistent_ptx(Path(td), arch, mode)
     if mode == "direct" and worker_blocks_per_task > 1 and ptx_source.startswith("embedded-"):
         raise RuntimeError("worker_blocks_per_task > 1 requires nvcc-built persistent direct PTX")
+    if mode == "queue" and scheduler_blocks > 1 and ptx_source.startswith("embedded-"):
+        raise RuntimeError("scheduler_blocks > 1 requires nvcc-built persistent queue PTX")
     if mode == "dag" and _is_tensor_tile_shape(dag_shape) and ptx_source.startswith("embedded-"):
         raise RuntimeError(f"{dag_shape} DAG shape requires nvcc-built generated-dispatch PTX")
     if mode == "dag" and dag_shape in {"triad", "graph_descriptor_triad"} and ptx_source.startswith("embedded-"):
@@ -3151,6 +3167,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
                     n=n,
                     arch=arch,
                     queue_capacity=queue_capacity,
+                    scheduler_blocks=scheduler_blocks,
                     worker_blocks=worker_blocks if worker_blocks is not None else task_count,
                     stream_id=stream_id,
                     block_dim=block_dim,
@@ -3201,6 +3218,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
                 dev_tasks,
                 worker_blocks_per_task,
                 worker_blocks,
+                scheduler_blocks,
                 stream_id,
                 block_dim,
             )
@@ -3304,6 +3322,7 @@ def main() -> None:
     parser.add_argument("--queue-capacity", type=int, default=None)
     parser.add_argument("--worker-blocks-per-task", type=int, default=1)
     parser.add_argument("--worker-blocks", type=int, default=None)
+    parser.add_argument("--scheduler-blocks", type=int, default=1)
     parser.add_argument("--stream-id", type=int, default=0)
     parser.add_argument("--block-dim", type=int, default=256)
     parser.add_argument("--repeat-runs", type=int, default=1)
@@ -3381,6 +3400,7 @@ def main() -> None:
             queue_capacity=args.queue_capacity,
             worker_blocks_per_task=args.worker_blocks_per_task,
             worker_blocks=args.worker_blocks,
+            scheduler_blocks=args.scheduler_blocks,
             stream_id=args.stream_id,
             block_dim=args.block_dim,
             dag_shape=args.dag_shape,

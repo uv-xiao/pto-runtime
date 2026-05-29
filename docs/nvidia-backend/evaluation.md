@@ -93,6 +93,11 @@ latest multi-size tensor baseline sweep uses `e79edba2`:
   resource-policy diamond smoke that validates `worker_blocks=4`,
   `stream_id=2`, `block_dim=512`, graph topology, scalar/tensor arg metadata,
   report files, and zero scheduler errors on A100 and H200.
+- [Current capture](evaluation-current.md) records the `a5c35b50`
+  multi-scheduler resource-policy smoke that validates
+  `scheduler_blocks=2`, `worker_blocks=3`, `grid_dim=5`, graph topology,
+  scalar/tensor arg metadata, report files, and zero scheduler errors on A100
+  and H200.
 - [Current capture](evaluation-current.md) records the `35de3303` scheduler
   error matrix that captures all synthetic malformed-DAG diagnostics on A100
   and H200 with JSON, Markdown, and SVG artifacts validated by
@@ -185,6 +190,8 @@ committed:
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/h200-current-a9d028de/`
 - `tmp/cuda-backend/tensor-throughput-gate-current-working/combined-current-a9d028de/`
 - `tmp/cuda-backend/lifecycle-tensor-core-working/persistent-lifecycle-matrix-1c683c1c/`
+- `tmp/cuda-backend/multi-scheduler-policy-working/`
+  `persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/`
 - `tmp/cuda-backend/index.md`
 

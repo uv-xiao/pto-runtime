@@ -215,17 +215,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --device 0 --task-count 4 --n 1024 --arch compute_80 --mode queue
 ```
 
-Pass `--worker-blocks`, `--stream-id`, and `--block-dim` to validate the current
-persistent-device resource policy: one scheduler block, configurable queue/DAG
-worker blocks, direct-mode `--worker-blocks-per-task`, and CUDA callable stream
-selection plus the manifest block dimension.
+Pass `--scheduler-blocks`, `--worker-blocks`, `--stream-id`, and
+`--block-dim` to validate the current persistent-device resource policy:
+configurable queue/DAG scheduler and worker blocks, direct-mode
+`--worker-blocks-per-task`, and CUDA callable stream selection plus the
+manifest block dimension.
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_persistent_smoke.py \
     --device 0 --task-count 6 --n 1024 --arch compute_80 \
-    --mode queue --queue-capacity 2 --worker-blocks 2 --stream-id 1 \
-    --block-dim 128
+    --mode queue --queue-capacity 2 --scheduler-blocks 2 \
+    --worker-blocks 2 --stream-id 1 --block-dim 128
 ```
 
 For paired A100/H200 evidence of the same policy, use the persistent runner.
@@ -235,8 +236,8 @@ It validates the recorded `resource_policy` fields in both JSON artifacts:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
     --dag-shape chain --task-count 5 --queue-capacity 3 \
-    --worker-blocks 2 --stream-id 1 --block-dim 128 --repeat-runs 2 \
-    --sync-remote-tree
+    --scheduler-blocks 2 --worker-blocks 3 --stream-id 2 \
+    --block-dim 256 --repeat-runs 2 --sync-remote-tree
 ```
 
 The paired `block_dim=128` resource-policy capture under
@@ -252,6 +253,14 @@ same policy fields on a five-task graph descriptor with `worker_blocks=4`,
 `0,0,2,2,2`, dependents `2,3,2,3,4,4`, scalar/tensor arg metadata, repeat
 completions `[5,5]`, and zero scheduler errors. Device times were `72704 ns`
 on A100 and `53728 ns` on H200 for `N=1024`.
+The paired multi-scheduler resource-policy capture under
+`tmp/cuda-backend/multi-scheduler-policy-working/`
+`persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/` validated the
+same graph shape with `scheduler_blocks=2`, `worker_blocks=3`, `stream_id=2`,
+`block_dim=256`, `grid_dim=5`, repeat completions `[5,5]`, dispatch
+`9,2,1,2,1`, fan-in `0,0,2,2,2`, dependents `2,3,2,3,4,4`,
+scalar/tensor arg metadata, and zero scheduler errors. Device times were
+`79872 ns` on A100 and `57952 ns` on H200 for `N=1024`.
 
 Run the bounded-ring persistent smoke with wraparound:
 

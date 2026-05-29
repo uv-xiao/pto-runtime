@@ -314,6 +314,7 @@ class CudaPersistentDagState(ctypes.Structure):
         ("error_count", ctypes.c_void_p),
         ("error_code", ctypes.c_void_p),
         ("error_task_id", ctypes.c_void_p),
+        ("scheduler_blocks", ctypes.c_uint32),
     ]
 
 
@@ -651,6 +652,7 @@ struct PtoCudaPersistentDagState {{
     unsigned int *error_count;
     unsigned int *error_code;
     unsigned int *error_task_id;
+    unsigned int scheduler_blocks;
 }};
 
 __device__ void pto_dag_record_error(
@@ -724,8 +726,9 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
     __shared__ unsigned int task_id;
     __shared__ bool has_task;
 
-    if (blockIdx.x == 0) {{
-        if (threadIdx.x == 0) {{
+    unsigned int scheduler_blocks = state->scheduler_blocks == 0U ? 1U : state->scheduler_blocks;
+    if (blockIdx.x < scheduler_blocks) {{
+        if (blockIdx.x == 0 && threadIdx.x == 0) {{
             unsigned int initial_ready_count = 0U;
             for (unsigned int idx = 0; static_cast<unsigned long long>(idx) < state->task_count; ++idx) {{
                 if (state->fanin[idx] != state->tasks[idx].initial_fanin) {{

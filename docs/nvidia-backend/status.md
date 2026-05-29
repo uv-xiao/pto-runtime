@@ -4631,9 +4631,9 @@ Needed:
   tensor tile `16x16x16`, `worker_blocks=4`, and device times of `77824 ns`
   on A100 and `56672 ns` on H200, so the remaining lifecycle gap is normal
   PTO graph breadth rather than prepared-callable reset coverage;
-- broader resource policy beyond the current single scheduler block,
-  configurable queue/DAG worker blocks, direct worker-blocks-per-task,
-  callable stream id tracer bullet, and configurable block dimension. The
+- broader resource policy across configurable scheduler blocks, configurable
+  queue/DAG worker blocks, direct worker-blocks-per-task, callable stream id
+  tracer bullet, and configurable block dimension. The
   paired A100/H200 resource-policy smoke under
   `tmp/cuda-backend/persistent-block128-working/` validates a five-task
   DAG-chain repeat run with `scheduler_blocks=1`, `worker_blocks=2`,
@@ -4647,9 +4647,18 @@ Needed:
   `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, dependents `2,3,2,3,4,4`,
   scalar/tensor arg metadata, generated Markdown/SVG reports, and zero device
   scheduler errors on A100 and H200. A100 reported `device_wall_ns=72704`;
-  H200 reported `device_wall_ns=53728`, so the remaining policy gap is now
-  multiple scheduler blocks rather than worker-block, stream, block-dim, or
-  graph-shape artifact validation;
+  H200 reported `device_wall_ns=53728`. The multi-scheduler diamond capture
+  under `tmp/cuda-backend/multi-scheduler-policy-working/`
+  `persistent-graph_descriptor_diamond-repeat2-smoke-a5c35b50/` validates the
+  same graph shape with `scheduler_blocks=2`, `worker_blocks=3`,
+  `stream_id=2`, `block_dim=256`, `grid_dim=5`, repeat completions `[5,5]`,
+  dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, dependents
+  `2,3,2,3,4,4`, scalar/tensor arg metadata, generated Markdown/SVG reports,
+  and zero device scheduler errors on A100 and H200. A100 reported
+  `device_wall_ns=79872`; H200 reported `device_wall_ns=57952`, so the
+  remaining policy gap is now scheduler-work distribution across multiple
+  scheduler blocks rather than launch resource partitioning or artifact
+  validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,
   duplicate-dependent, self-dependent, initial-fan-in, and
