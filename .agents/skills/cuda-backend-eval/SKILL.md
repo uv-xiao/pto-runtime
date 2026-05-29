@@ -1670,9 +1670,9 @@ together. The current committed summary keeps the full `61cf96cd` capture plus
 compact current-head gates in `docs/nvidia-backend/evaluation-current.md`.
 
 Use this compact paired gate after changing selected persistent graph
-benchmark rows. With no batch rows, it validates 88 samples across A100 and
-H200, including `pto_persistent_dag_graph_node_attrs`,
-`pto_persistent_dag_graph_node_op`,
+benchmark rows. With one same-work batch point, it validates 98 samples
+across A100 and H200, including `pto_persistent_dag_graph_node_attrs`,
+`pto_persistent_dag_graph_node_io`, `pto_persistent_dag_graph_node_op`,
 `pto_persistent_dag_graph_depends_on`,
 `pto_persistent_dag_graph_scalar_axpy`,
 `pto_persistent_dag_graph_scalar_scale`,
@@ -1680,12 +1680,16 @@ H200, including `pto_persistent_dag_graph_node_attrs`,
 `pto_persistent_dag_graph_reordered`,
 `pto_persistent_dag_graph_triad`, `pto_persistent_dag_graph_quad`, and
 `pto_persistent_dag_graph_compact_role_inout` with dispatch `9,2,1`,
-`1,2,1`, `1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `1,9,2`, `6,2,1`,
-`8,2,1`, and `1,1,1`.
+`1,2,1`, `1,2,1`, `1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `1,9,2`,
+`6,2,1`, `8,2,1`, and `1,1,1`.
 The node-attrs row requires
 `graph_node_attrs=task0=attrs:tensor_args,scalar_args`,
 `scalar_args[0]=1.5,scalar_args[1]=0.25`, and
-`tensor_args[0]=tmp0,tensor_args[1]=tmp3`; the node-op row
+`tensor_args[0]=tmp0,tensor_args[1]=tmp3`; the node-IO row requires
+`graph_task_arg_key=node_io` and this task-argument map:
+`task0=input:a,input:b,output:tmp0`;
+`task1=input:a,input:b,output:tmp1`;
+`task2=input:a,input:b,output:out`. The node-op row
 requires `graph_node_ops=task0=op:add=1;task1=op:mul=2;task2=op:add=1`;
 the depends-on and
 graph scalar rows require graph fan-in `0,0,2` and dependents `2,2`; the
@@ -1696,19 +1700,20 @@ role row requires graph fan-in `0,1,1`, dependents `1,2`, and
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
-    --sizes 1024 --repeats 1 --batch-tasks '' \
-    --worker-blocks-per-task '' --sync-remote-tree \
-    --output-root tmp/cuda-backend/graph-node-attrs-benchmark-working
+    --sizes 1024 --repeats 1 --batch-tasks 2 \
+    --worker-blocks-per-task 32 --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-node-io-benchmark-working
 ```
 
-The current `7191db4e` capture under
-`tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/`
-is the latest checked no-batch form of this gate. It validates 88 A100/H200
-samples and requires report-visible graph topology, scalar/tensor node-attrs
-descriptor args, selected tensor-throughput rows, sanitized command examples,
-source-paper metadata, and zero scheduler errors. The generated
+The current `c0d327d2` capture under
+`tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/`
+is the latest checked compact form of this gate. It validates 98 A100/H200
+samples and requires report-visible graph topology, node-IO task args,
+scalar/tensor node-attrs descriptor args, selected tensor-throughput rows,
+sanitized command examples, source-paper metadata, and zero scheduler errors.
+The generated
 `cuda_current_summary.py --section graph-metadata` output includes a
-`Tensor args` column for copying descriptor payloads into evaluation docs.
+`Task args` column for copying graph node IO metadata into evaluation docs.
 
 Use `--single-baseline pto_persistent_dag_graph_scalar_scale` for a quick
 benchmark path check of the explicit graph-descriptor scalar-scale DAG. This
@@ -2319,15 +2324,16 @@ PYTHONPATH=$PWD:$PWD/python \
 The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the graph tensor-core baseline, the host-schedule
 generic-args baseline, graph generic-args4 baseline, graph-chain baseline,
-graph-depends-on baseline, graph-node-attrs baseline, graph-node-op baseline,
+graph-depends-on baseline, graph-node-attrs baseline, graph-node-IO baseline,
+graph-node-op baseline,
 graph-scratch-reuse baseline, graph-tagged-inout baseline, graph descriptor
 fan-in/dependent metadata, graph-triad and graph-quad baselines, the tagged
 scalar graph baseline, the graph unary-square baseline, task-argument tags,
 visible Markdown/SVG graph topology and task-argument metadata, visible
 Markdown/SVG tensor throughput rows for required tensor/cuBLAS descriptors,
-size `1024`, one repeat, `88` combined samples, and the Markdown/SVG report
+size `1024`, one repeat, `98` combined samples, and the Markdown/SVG report
 files. The current compact gate artifact is under
-`tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/`.
+`tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/`.
 Validate older captures with explicit `--require-*` checks if the current
 preset has gained new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the

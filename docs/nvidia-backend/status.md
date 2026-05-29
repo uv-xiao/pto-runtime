@@ -2058,6 +2058,18 @@ command examples, Markdown/SVG reports, zero scheduler errors, dispatch
 `[1,2,1]`, graph fan-in `[0,0,2]`, graph dependents `[2,2]`, and
 `graph_node_ops=task0=op:add=1;task1=op:mul=2;task2=op:add=1`. Device times
 were `31744 ns` on A100 and `25536 ns` on H200 for `N=1024`.
+The graph-node input/output spelling is now promoted into the selected
+benchmark matrix as `pto_persistent_dag_graph_node_io`. The compact paired
+A100/H200 capture under
+`tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/`
+validated `98` benchmark samples with source-paper provenance, sanitized
+command examples, Markdown/SVG reports, zero scheduler errors, dispatch
+`[1,2,1]`, graph fan-in `[0,0,2]`, graph dependents `[2,2]`,
+`graph_task_arg_key=node_io`, and task args
+`task0=input:a,input:b,output:tmp0`,
+`task1=input:a,input:b,output:tmp1`, and
+`task2=input:a,input:b,output:out`.
+Device times were `28672 ns` on A100 and `25632 ns` on H200 for `N=1024`.
 The same node-op graph descriptor path is now also covered by the paired
 persistent-smoke report validator. The working-tree capture under
 `tmp/cuda-backend/persistent-node-op-smoke-working/`

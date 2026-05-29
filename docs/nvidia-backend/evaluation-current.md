@@ -2,14 +2,14 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus compact current-head validation captures. The
-latest compact current-head gate is the working-tree capture under
-`tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/`,
-which validates the selected no-batch benchmark matrix after scalar/tensor
-descriptor args became visible in graph-metadata summaries. The compact-role
-gate at `30a8974f` remains the task-argument spelling comparison for tagged,
-role-keyed, and compact graph entries. The raw JSON, Markdown, and SVG reports
-are generated locally under `tmp/cuda-backend/` and intentionally remain
-uncommitted.
+latest compact current-head gate is the capture under
+`tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/`,
+which validates the selected compact benchmark matrix after graph node
+`inputs`/`outputs` metadata became visible in graph-metadata summaries. The
+compact-role gate at `30a8974f` remains the task-argument spelling comparison
+for tagged, role-keyed, and compact graph entries. The raw JSON, Markdown,
+and SVG reports are generated locally under `tmp/cuda-backend/` and
+intentionally remain uncommitted.
 
 The capture uses `nvcc` for target-specific PTX on both machines:
 
@@ -162,6 +162,14 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/current-head-compact-args-summary-working/combined-current-7191db4e/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/graph-node-io-benchmark-working/a100-current-c0d327d2/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-node-io-benchmark-working/h200-current-c0d327d2/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/cuda-benchmark.json`
+- `tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/cuda-benchmark.md`
+- `tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/cuda-benchmark.svg`
+- `tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.json`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-current-a46db551/cuda-benchmark.json`
@@ -1508,6 +1516,44 @@ Both rows reported zero device scheduler errors. The generated Markdown
 report and SVG `<desc>` now carry the node attrs plus scalar/tensor payload
 slots, so this coverage is visible outside the raw JSON and rejects captures
 that keep only the `attrs` label.
+
+## Supplemental Graph Node IO Benchmark
+
+The graph-node IO path is now a selected benchmark baseline as
+`pto_persistent_dag_graph_node_io`. It uses graph node `inputs` and `outputs`
+fields to build the same three-task add/mul/add descriptor shape as the node
+callable-alias row, while preserving TaskArgs-like spelling in report-visible
+metadata. The compact paired artifact is under
+`tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/`.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
+    tmp/cuda-backend/graph-node-io-benchmark-working/combined-current-c0d327d2/cuda-benchmark.json \
+    --preset compact-current
+```
+
+The full paired runner validator also required
+`pto_persistent_dag_graph_node_io=1,2,1`,
+`pto_persistent_dag_graph_node_io=0,0,2`,
+`pto_persistent_dag_graph_node_io=2,2`,
+`pto_persistent_dag_graph_node_io=node_io`, and
+`pto_persistent_dag_graph_node_io` task args:
+`task0=input:a,input:b,output:tmp0`,
+`task1=input:a,input:b,output:tmp1`, and
+`task2=input:a,input:b,output:out`.
+
+| GPU | Baseline | N | Dispatch | Fan-in | Dependents | Task arg key | Task args | Device ns | Status |
+| --- | -------- | - | -------- | ------ | ---------- | ------------ | --------- | --------- | ------ |
+| A100 | `pto_persistent_dag_graph_node_io` | 1024 | `1,2,1` | `0,0,2` | `2,2` | `node_io` | `task0=input:a,input:b,output:tmp0;task1=input:a,input:b,output:tmp1;task2=input:a,input:b,output:out` | 28672 | pass |
+| H200 | `pto_persistent_dag_graph_node_io` | 1024 | `1,2,1` | `0,0,2` | `2,2` | `node_io` | `task0=input:a,input:b,output:tmp0;task1=input:a,input:b,output:tmp1;task2=input:a,input:b,output:out` | 25632 | pass |
+
+The combined JSON has `98` samples: 45 selected non-batch rows plus one
+same-work host/persistent/grid batch point on both A100 and H200. Both
+node-IO rows reported zero device scheduler errors and source-paper
+provenance.
 
 ## Supplemental Graph Node Op Benchmark
 
