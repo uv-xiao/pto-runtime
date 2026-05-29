@@ -4107,6 +4107,34 @@ scheduler errors, dispatch `1,9,2`, graph fan-in `2,0,0`, and dependents
 `25856 ns`, so order-independent graph dependency inference is covered by the
 selected benchmark matrix as well as by the repeat-run smoke.
 
+The explicit graph-descriptor adapter now accepts node-link style graph nodes
+where list-shaped `graph.nodes` entries carry identity in `id` and task
+payload under `data`. The adapter flattens `data` before callable, `op`, and
+node-IO lowering, so this shape uses the same CUDA task descriptor ABI as the
+existing top-level node field form. The focused TDD selector first failed with
+`KeyError: 'func_id'` because `data` stayed nested; after adding early
+node-data normalization, local A100 passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k 'node_data or node_id or node_op or callable_id' \
+    --platform cuda
+```
+
+That run reported `8 passed, 125 deselected`. The synced H200 focused selector
+also passed:
+
+```bash
+CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH \
+  PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k node_data --platform cuda
+```
+
+That run reported `2 passed, 131 deselected` after the known PTO-ISA SSH
+refresh warning.
+
 Needed:
 
 - full graph construction from normal PTO task graphs;
@@ -4117,9 +4145,9 @@ Needed:
   inference, explicit outgoing and incoming graph edges with scalar or
   list-valued named task dependencies, top-level graph edge lists including
   string `source -> target` entries, adjacency dictionaries, `graph.nodes`
-  aliases, node `id` identity aliases, node-style IO fields, node `op`
-  callable aliases, callable metadata `callable_id` / `cid` aliases, and
-  paired smoke,
+  aliases, node `id` identity aliases, node-link `data` payloads, node-style
+  IO fields, node `op` callable aliases, callable metadata `callable_id` /
+  `cid` aliases, and paired smoke,
   dictionary-keyed graph task descriptors,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, named graph-callable resolution, explicit unary square graph

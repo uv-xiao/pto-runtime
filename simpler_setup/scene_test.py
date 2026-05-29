@@ -1312,9 +1312,28 @@ class _CudaPersistentDagSceneBuffers:
             for task_name, task_spec in tasks.items():
                 if not isinstance(task_spec, dict):
                     raise ValueError("CUDA persistent_dag_graph_f32 graph task dictionary values must be dictionaries")
-                task_specs.append({"name": task_name, **task_spec})
+                task_specs.append(
+                    _CudaPersistentDagSceneBuffers._normalize_graph_task_shape({"name": task_name, **task_spec})
+                )
             return task_specs
-        return [_CudaPersistentDagSceneBuffers._normalize_graph_task_identity(task_spec) for task_spec in tasks]
+        return [_CudaPersistentDagSceneBuffers._normalize_graph_task_shape(task_spec) for task_spec in tasks]
+
+    @staticmethod
+    def _normalize_graph_task_shape(task_spec: dict[str, Any]) -> dict[str, Any]:
+        task_spec = _CudaPersistentDagSceneBuffers._expand_graph_task_data(task_spec)
+        return _CudaPersistentDagSceneBuffers._normalize_graph_task_identity(task_spec)
+
+    @staticmethod
+    def _expand_graph_task_data(task_spec: dict[str, Any]) -> dict[str, Any]:
+        data = task_spec.get("data")
+        if data is None:
+            return task_spec
+        if not isinstance(data, dict):
+            raise ValueError("CUDA persistent_dag_graph_f32 graph task data must be a dictionary")
+        normalized = dict(data)
+        normalized.update(task_spec)
+        normalized.pop("data", None)
+        return normalized
 
     @staticmethod
     def _normalize_graph_task_identity(task_spec: dict[str, Any]) -> dict[str, Any]:

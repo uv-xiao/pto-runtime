@@ -448,6 +448,17 @@ dependents `[2,2]`, and graph-node ops
 `task0=op:add=1;task1=op:mul=2;task2=op:add=1`. Device times were `65536 ns`
 on A100 and `55296 ns` on H200 for `N=1024`.
 
+When changing node-link graph input handling, run the SceneTestCase node-data
+selector. It validates list-shaped `graph.nodes` entries whose `id` carries
+identity and whose task payload lives under `data`, with top-level node fields
+overriding conflicting `data` fields:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k node_data --platform cuda
+```
+
 Use `--dag-shape graph_descriptor_triad` and
 `--dag-shape graph_descriptor_quad` when the graph descriptor path should
 prove the fixed third and fourth tensor task descriptor fields. These reuse
