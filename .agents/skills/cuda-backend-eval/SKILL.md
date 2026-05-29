@@ -1398,6 +1398,9 @@ same vector-add PTX kernel through two launch paths:
 - `pto_persistent_dag_graph`: generated-dispatch DAG using an explicit
   runtime graph descriptor, validating the generic graph-lowering path shared
   with `persistent_dag_graph_f32`.
+- `pto_persistent_dag_graph_depends_on`: generated-dispatch DAG using an
+  explicit graph descriptor whose edges come from incoming `depends_on`
+  metadata while the final consumer reads original input tensors.
 - `pto_persistent_dag_graph_chain`: five-task generated-dispatch DAG using
   an explicit graph descriptor with the same chain dependency shape as
   `pto_persistent_dag_chain`.
@@ -1516,10 +1519,12 @@ together. The current committed summary keeps the full `61cf96cd` capture plus
 compact current-head gates in `docs/nvidia-backend/evaluation-current.md`.
 
 Use this compact paired gate after changing selected persistent graph
-benchmark rows. It validates 82 samples across A100 and H200, including
-`pto_persistent_dag_graph_triad`, `pto_persistent_dag_graph_quad`, and
-`pto_persistent_dag_graph_compact_role_inout` with dispatch `6,2,1`,
-`8,2,1`, and `1,1,1`. The compact role row requires graph fan-in
+benchmark rows. It validates 84 samples across A100 and H200, including
+`pto_persistent_dag_graph_depends_on`, `pto_persistent_dag_graph_triad`,
+`pto_persistent_dag_graph_quad`, and
+`pto_persistent_dag_graph_compact_role_inout` with dispatch `1,2,1`,
+`6,2,1`, `8,2,1`, and `1,1,1`. The depends-on row requires graph fan-in
+`0,0,2` and dependents `2,2`; the compact role row requires graph fan-in
 `0,1,1`, dependents `1,2`, and `graph_task_arg_key=compact`:
 
 ```bash
@@ -1644,6 +1649,17 @@ scalar slots. The current A100/H200 quick capture is under
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --single-baseline pto_persistent_dag_graph_generic_args4 \
+    --sizes 4096 --arch compute_80
+```
+
+Use `--single-baseline pto_persistent_dag_graph_depends_on` for a quick
+benchmark path check of incoming-edge graph notation. This row uses dispatch
+`1,2,1`, graph fan-in `0,0,2`, and graph dependents `2,2`:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_depends_on \
     --sizes 4096 --arch compute_80
 ```
 
@@ -2055,13 +2071,14 @@ PYTHONPATH=$PWD:$PWD/python \
 The compact current-head gate checks the expected A100/H200 machines,
 selected tensor baselines, the graph tensor-core baseline, the host-schedule
 generic-args baseline, graph generic-args4 baseline, graph-chain baseline,
-graph-scratch-reuse baseline, graph-tagged-inout baseline, graph descriptor
-fan-in/dependent metadata, graph-triad and graph-quad baselines, the tagged
-scalar graph baseline, the graph unary-square baseline, task-argument tags,
-visible Markdown/SVG graph topology and task-argument metadata, size `1024`,
-one repeat, `78` combined samples, and the Markdown/SVG report files. The
-current compact gate artifact is under
-`tmp/cuda-backend/graph-unary-benchmark-working/combined-current-f074746a/`.
+graph-depends-on baseline, graph-scratch-reuse baseline,
+graph-tagged-inout baseline, graph descriptor fan-in/dependent metadata,
+graph-triad and graph-quad baselines, the tagged scalar graph baseline, the
+graph unary-square baseline, task-argument tags, visible Markdown/SVG graph
+topology and task-argument metadata, size `1024`, one repeat, `84` combined
+samples, and the Markdown/SVG report files. The current compact gate artifact
+is under
+`tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/`.
 Validate older captures with explicit `--require-*` checks if the current
 preset has gained new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the

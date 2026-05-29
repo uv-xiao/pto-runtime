@@ -266,6 +266,7 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - `pto_persistent_dag_generic_args`;
 - `pto_persistent_dag_graph`;
 - `pto_persistent_dag_graph_generic_args4`;
+- `pto_persistent_dag_graph_depends_on`;
 - `pto_persistent_dag_graph_chain`;
 - `pto_persistent_dag_graph_scratch_reuse`;
 - `pto_persistent_dag_graph_diamond`;
@@ -1836,6 +1837,14 @@ resource policy `scheduler_blocks=1`, `worker_blocks=3`, `block_dim=256`,
 `grid_dim=4`, and zero scheduler errors. This proves the CUDA runtime can
 schedule edges supplied as consumer-side metadata even when the consumer's
 tensor pointers stay bound to the original graph inputs.
+The same graph notation is now promoted into the selected benchmark path as
+`pto_persistent_dag_graph_depends_on`. The compact paired capture under
+`tmp/cuda-backend/graph-depends-benchmark-working/combined-current-01ddf564/`
+validated `84` A100/H200 samples, source-paper provenance, command examples,
+Markdown/SVG report files, zero scheduler errors, and graph topology metadata.
+The depends-on row recorded dispatch `[1,2,1]`, graph fan-in `[0,0,2]`, graph
+dependents `[2,2]`, and device times of `30720 ns` on A100 and `26112 ns` on
+H200 for `N=1024`.
 The graph adapter now accepts a role-keyed `task_args` task form as a first
 TaskArgs-like lowering slice: `input`, `output`, `output_existing`, and
 `inout` roles are lowered to the existing bounded CUDA graph descriptor fields

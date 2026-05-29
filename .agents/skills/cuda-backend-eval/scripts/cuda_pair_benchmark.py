@@ -42,6 +42,7 @@ BASELINE_ROWS: tuple[str, ...] = (
     "pto_persistent_dag_generic_args",
     "pto_persistent_dag_graph",
     "pto_persistent_dag_graph_generic_args4",
+    "pto_persistent_dag_graph_depends_on",
     "pto_persistent_dag_graph_chain",
     "pto_persistent_dag_graph_scratch_reuse",
     "pto_persistent_dag_graph_diamond",
@@ -78,6 +79,7 @@ EXPECTED_DISPATCH_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_generic_args": "9,2,1",
     "pto_persistent_dag_graph": "9,2,1",
     "pto_persistent_dag_graph_generic_args4": "9,2,1",
+    "pto_persistent_dag_graph_depends_on": "1,2,1",
     "pto_persistent_dag_graph_chain": "1,2,1,2,1",
     "pto_persistent_dag_graph_scratch_reuse": "1,2,1,2,1,1",
     "pto_persistent_dag_graph_diamond": "9,2,1,2,1",
@@ -127,6 +129,7 @@ EXPECTED_GRAPH_TASK_ARG_KEY_BY_BASELINE: dict[str, str] = {
 EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph": "0,0,2",
     "pto_persistent_dag_graph_generic_args4": "0,0,2",
+    "pto_persistent_dag_graph_depends_on": "0,0,2",
     "pto_persistent_dag_graph_chain": "0,0,2,1,1",
     "pto_persistent_dag_graph_scratch_reuse": "0,0,2,1,1,2",
     "pto_persistent_dag_graph_diamond": "0,0,2,2,2",
@@ -143,6 +146,7 @@ EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
 EXPECTED_GRAPH_DEPENDENTS_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph": "2,2",
     "pto_persistent_dag_graph_generic_args4": "2,2",
+    "pto_persistent_dag_graph_depends_on": "2,2",
     "pto_persistent_dag_graph_chain": "2,2,3,4",
     "pto_persistent_dag_graph_scratch_reuse": "2,2,3,4,5,5",
     "pto_persistent_dag_graph_diamond": "2,3,2,3,4,4",
