@@ -1366,37 +1366,40 @@ class _CudaPersistentDagSceneBuffers:
         normalized.pop("task_args", None)
         inputs: list[str] = []
         outputs: list[str] = []
+        scalar_args: list[Any] = []
         inout_names: list[str] = []
         output_requires_existing = False
         for index, task_arg in enumerate(task_args):
             if not isinstance(task_arg, dict):
                 raise ValueError("CUDA persistent_dag_graph_f32 task_args entries must be dictionaries")
+            is_scalar, scalar_value = _CudaPersistentDagSceneBuffers._normalize_graph_scalar_task_arg(
+                task_arg,
+                index,
+            )
+            if is_scalar:
+                scalar_args.append(scalar_value)
+                continue
             name = task_arg.get("tensor", task_arg.get("name"))
             if name is None:
-                raise ValueError("CUDA persistent_dag_graph_f32 task_args entries must name a tensor or temporary")
-            tag = str(task_arg.get("tag", "input")).lower()
-            if tag in {"input", "in"}:
-                inputs.append(str(name))
-            elif tag in {"output", "out"}:
-                outputs.append(str(name))
-            elif tag == "output_existing":
-                outputs.append(str(name))
-                output_requires_existing = True
-            elif tag == "inout":
-                inputs.append(str(name))
-                outputs.append(str(name))
-                inout_names.append(str(name))
-                output_requires_existing = True
-            else:
                 raise ValueError(
-                    f"CUDA persistent_dag_graph_f32 task_args entry {index} has unsupported tag: {task_arg.get('tag')}"
+                    "CUDA persistent_dag_graph_f32 task_args entries must name a tensor, temporary, or scalar"
                 )
+            output_requires_existing |= _CudaPersistentDagSceneBuffers._append_graph_tensor_task_arg(
+                task_arg,
+                index,
+                str(name),
+                inputs,
+                outputs,
+                inout_names,
+            )
 
         for field, name in zip(("a", "b", "c", "d"), inputs):
             normalized.setdefault(field, name)
         extra_inputs = inputs[4:]
         if extra_inputs:
             normalized["tensor_args"] = list(normalized.get("tensor_args", [])) + extra_inputs
+        if scalar_args:
+            normalized["scalar_args"] = list(normalized.get("scalar_args", [])) + scalar_args
         if len(outputs) > 1:
             raise ValueError("CUDA persistent_dag_graph_f32 task_args supports one output per graph task")
         if outputs:
@@ -1406,6 +1409,46 @@ class _CudaPersistentDagSceneBuffers:
         if inout_names:
             normalized["_inout_names"] = inout_names
         return normalized
+
+    @staticmethod
+    def _normalize_graph_scalar_task_arg(task_arg: dict[str, Any], index: int) -> tuple[bool, Any]:
+        if "scalar" not in task_arg:
+            return False, None
+        tag = str(task_arg.get("tag", "input")).lower()
+        if tag not in {"input", "in"}:
+            raise ValueError(
+                f"CUDA persistent_dag_graph_f32 scalar task_args entry {index} "
+                f"has unsupported tag: {task_arg.get('tag')}"
+            )
+        return True, task_arg["scalar"]
+
+    @staticmethod
+    def _append_graph_tensor_task_arg(
+        task_arg: dict[str, Any],
+        index: int,
+        name: str,
+        inputs: list[str],
+        outputs: list[str],
+        inout_names: list[str],
+    ) -> bool:
+        tag = str(task_arg.get("tag", "input")).lower()
+        if tag in {"input", "in"}:
+            inputs.append(name)
+            return False
+        if tag in {"output", "out"}:
+            outputs.append(name)
+            return False
+        if tag == "output_existing":
+            outputs.append(name)
+            return True
+        if tag == "inout":
+            inputs.append(name)
+            outputs.append(name)
+            inout_names.append(name)
+            return True
+        raise ValueError(
+            f"CUDA persistent_dag_graph_f32 task_args entry {index} has unsupported tag: {task_arg.get('tag')}"
+        )
 
     def _temporary_nbytes(self, size_source, default_nbytes: int) -> int:
         if isinstance(size_source, int):

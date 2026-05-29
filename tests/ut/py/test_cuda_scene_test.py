@@ -1137,9 +1137,10 @@ def _cuda_persistent_tagged_graph_generic_args_spec(
                     {"tensor": "a", "tag": "input"},
                     {"tensor": "b", "tag": "input"},
                     {"tensor": "tmp0", "tag": "output"},
+                    {"scalar": "alpha"},
+                    {"scalar": "beta"},
                 ],
                 "tensor_args": ["c", "d"],
-                "scalar_args": [1.5, 0.25],
             },
             {
                 "func_id": 2,
@@ -2139,6 +2140,60 @@ def test_scene_test_builds_cuda_persistent_graph_from_tagged_task_args():
     assert buffers.host_tasks[2].a == buffers.host_tasks[0].out
     assert buffers.host_tasks[2].b == buffers.host_tasks[1].out
     assert buffers.host_tasks[2].out == buffers.tensor_buffers.ptrs["out"]
+
+
+def test_scene_test_builds_cuda_persistent_graph_scalar_task_args():
+    test_args = TaskArgsBuilder(
+        Tensor("a", _FakeTensor(17)),
+        Tensor("b", _FakeTensor(17)),
+        Tensor("c", _FakeTensor(17)),
+        Tensor("d", _FakeTensor(17)),
+        Tensor("out", _FakeTensor(17)),
+        Scalar("alpha", ctypes.c_float(1.5)),
+        Scalar("beta", ctypes.c_float(0.25)),
+    )
+    cuda_spec = {
+        "arg_builder": "persistent_dag_graph_f32",
+        "args": ["a", "b", "c", "d", "out"],
+        "queue_capacity": 2,
+        "graph": {
+            "tasks": [
+                {
+                    "func_id": 9,
+                    "task_args": [
+                        {"tensor": "a", "tag": "input"},
+                        {"tensor": "b", "tag": "input"},
+                        {"tensor": "tmp0", "tag": "output"},
+                        {"scalar": "alpha"},
+                        {"scalar": "beta"},
+                    ],
+                    "tensor_args": ["c", "d"],
+                },
+                {
+                    "func_id": 2,
+                    "task_args": [
+                        {"tensor": "a", "tag": "input"},
+                        {"tensor": "b", "tag": "input"},
+                        {"tensor": "tmp1", "tag": "output"},
+                    ],
+                },
+                {
+                    "func_id": 1,
+                    "task_args": [
+                        {"tensor": "tmp0", "tag": "input"},
+                        {"tensor": "tmp1", "tag": "input"},
+                        {"tensor": "out", "tag": "output_existing"},
+                    ],
+                },
+            ]
+        },
+    }
+    buffers = _CudaPersistentDagSceneBuffers(_FakeWorker(), test_args, cuda_spec)
+
+    assert list(buffers.host_fanin) == [0, 0, 2]
+    assert list(buffers.host_dependents) == [2, 2]
+    assert list(buffers.host_tasks[0].scalar_args)[:2] == pytest.approx([1.5, 0.25])
+    assert buffers.host_tasks[0].scalar_arg_count == 2
 
 
 def test_scene_test_builds_cuda_persistent_graph_from_tagged_inout_task_args():
@@ -3909,6 +3964,8 @@ def test_scene_test_runs_cuda_persistent_device_tagged_graph_with_ctypes_data(tm
                 Tensor("c", _CtypesFloatTensor(float(i) * 0.25 for i in range(n))),
                 Tensor("d", _CtypesFloatTensor(float(i) * 0.125 for i in range(n))),
                 Tensor("out", _CtypesFloatTensor(0.0 for _ in range(n))),
+                Scalar("alpha", ctypes.c_float(1.5)),
+                Scalar("beta", ctypes.c_float(0.25)),
             )
             self.last_args = args
             return args

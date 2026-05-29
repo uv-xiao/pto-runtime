@@ -422,6 +422,18 @@ PYTHONPATH=$PWD:$PWD/python \
     -q -k mixed_graph_with_ctypes --platform cuda
 ```
 
+Run the tagged graph descriptor path after changing TaskArgs-like graph
+lowering for tensor roles or scalar inputs. The selector includes a
+descriptor-only scalar task-arg case and a no-torch real-data tagged graph
+scene that lowers `input`, `output`, `output_existing`, and `scalar`
+task-arg entries:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k 'scalar_task_args or tagged_graph' --platform cuda
+```
+
 Run the graph scratch-storage reuse SceneTestCase path after changing
 `persistent_dag_graph_f32` temporary allocation or tensor-flow inference. This
 selector checks that logical `out` names stay unique while `out_storage`
@@ -589,8 +601,8 @@ under
 `tmp/cuda-backend/persistent-graph_descriptor_generic_args4-repeat2-smoke-11db2c9d/`.
 Use `--dag-shape graph_descriptor_tagged --repeat-runs 2` to validate the
 same three-task graph descriptor shape after lowering tagged TaskArgs-like
-entries (`input`, `output`, `output_existing`) into the CUDA descriptor
-fields. The current paired capture is under
+entries (`input`, `output`, `output_existing`, and scalar inputs) into the
+CUDA descriptor fields. The current paired capture is under
 `tmp/cuda-backend/persistent-graph_descriptor_tagged-repeat2-smoke-d880e2b8/`.
 The current graph-descriptor DAG-chain repeat-run capture is under
 `tmp/cuda-backend/persistent-graph_descriptor_chain-repeat2-smoke-b94b555d/`.

@@ -1807,6 +1807,11 @@ before temporary allocation, tensor-flow dependency inference, and task struct
 construction. This lets a scene test describe a persistent graph in terms of
 task-argument roles while still using the current statically compiled
 generated-dispatch callable.
+The tagged `task_args` form also accepts scalar inputs, lowering them through
+the same bounded `scalar_args` slots as explicit graph descriptors. Scalar
+entries still resolve through normal `TaskArgsBuilder` scalar names before the
+descriptor is launched, so a tagged graph can now keep tensor roles and scalar
+inputs in one TaskArgs-like list.
 The role mapping now preserves the lifecycle distinction needed by CUDA
 memory planning: tagged `output` may create a default-sized temporary, but
 tagged `output_existing` and `inout` must name storage that is already known
@@ -1850,6 +1855,19 @@ Results: the descriptor-only test reported `1 passed, 67 deselected`; the
 local A100 real-data tagged graph scene reported `1 passed, 67 deselected`;
 and the H200 real-data tagged graph scene reported `1 passed, 67 deselected`
 after the known PTO-ISA SSH refresh warning.
+After adding scalar entries to tagged graph `task_args`, the descriptor and
+local A100 real-data selector was rerun:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_scene_test.py -q \
+  -k 'scalar_task_args or tagged_graph' --platform cuda
+```
+
+Result: `2 passed, 77 deselected`.
+After syncing the branch tree to H200 with `rsync`, the same selector returned
+`2 passed, 77 deselected` on `bizhaoh200`, with the known PTO-ISA SSH refresh
+warning printed before pytest.
 Tagged `inout` graph lowering was then covered with a failing descriptor test
 that first produced fan-in `[0,0,1]`, leaving the in-place update as an
 incorrect root. After changing tensor-flow inference to prefer the nearest
