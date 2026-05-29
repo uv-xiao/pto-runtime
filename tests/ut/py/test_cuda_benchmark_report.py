@@ -287,6 +287,23 @@ def _load_smoke_report_module():
     return module
 
 
+def _load_scheduler_errors_module():
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / ".agents"
+        / "skills"
+        / "cuda-backend-eval"
+        / "scripts"
+        / "cuda_scheduler_errors.py"
+    )
+    spec = importlib.util.spec_from_file_location("cuda_scheduler_errors", script_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def _write_artifact_payload(path: Path, label: str, machine: str, baseline: str) -> None:
     path.mkdir(parents=True)
     payload = {
@@ -303,6 +320,27 @@ def _write_artifact_payload(path: Path, label: str, machine: str, baseline: str)
 def _assert_contains_all(container, expected):
     missing = [item for item in expected if item not in container]
     assert missing == []
+
+
+def test_cuda_scheduler_error_label_contract_is_shared():
+    cuda_scheduler_errors = _load_scheduler_errors_module()
+    consumers = [
+        _load_artifact_index_module(),
+        _load_capture_validator_module(),
+        _load_lifecycle_matrix_validator_module(),
+        _load_persistent_lifecycle_matrix_module(),
+        _load_smoke_report_module(),
+        _load_smoke_validator_module(),
+    ]
+
+    assert cuda_scheduler_errors.scheduler_error_code_label(0) == "0"
+    assert cuda_scheduler_errors.scheduler_error_code_label(7) == "7(unreachable_task)"
+    assert cuda_scheduler_errors.scheduler_error_code_label(99) == "99"
+    assert cuda_scheduler_errors.scheduler_error_code_label("pending") == "pending"
+
+    for consumer in consumers:
+        assert consumer.SCHEDULER_ERROR_NAMES is cuda_scheduler_errors.SCHEDULER_ERROR_NAMES
+        assert consumer.scheduler_error_code_label(8) == "8(duplicate_dependent)"
 
 
 def test_persistent_smoke_builds_graph_descriptor_dag_shape():

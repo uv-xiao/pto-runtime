@@ -170,7 +170,9 @@ tensor/scalar task argument metadata, graph descriptor fan-in/dependent
 arrays, tagged graph `graph_task_args` metadata, and repeat-run lifecycle
 counters when present. Nonzero scheduler error codes are rendered with stable
 taxonomy names such as `7(unreachable_task)` in validators, smoke reports, and
-artifact indexes:
+artifact indexes. The shared label table lives in
+`.agents/skills/cuda-backend-eval/scripts/cuda_scheduler_errors.py`, so add
+new device-side scheduler codes there before updating individual reports:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \

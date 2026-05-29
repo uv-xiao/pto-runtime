@@ -18,21 +18,15 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from cuda_scheduler_errors import SCHEDULER_ERROR_NAMES, scheduler_error_code_label  # noqa: E402,F401
+
 REPORT_FILES = (
     "cuda-lifecycle-matrix.md",
     "cuda-lifecycle-matrix.svg",
 )
-SCHEDULER_ERROR_NAMES = {
-    0: "none",
-    1: "unsupported_func_id",
-    2: "invalid_dependent_id",
-    3: "invalid_dependent_range",
-    4: "fanin_underflow",
-    5: "initial_fanin_mismatch",
-    6: "no_root_task",
-    7: "unreachable_task",
-    8: "duplicate_dependent",
-}
 REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 DEFAULT_SCENARIOS = (
     "direct",
@@ -65,17 +59,6 @@ DEFAULT_SCRATCH_REUSE = {
 DEFAULT_TENSOR_TILE = {
     "graph-tensor-core": "16x16x16",
 }
-
-
-def scheduler_error_code_label(code: Any) -> str:
-    if not isinstance(code, int):
-        return str(code)
-    name = SCHEDULER_ERROR_NAMES.get(code)
-    if name is None:
-        return str(code)
-    if code == 0:
-        return "0"
-    return f"{code}({name})"
 
 
 def _as_list(values: Sequence[str] | None) -> list[str]:
