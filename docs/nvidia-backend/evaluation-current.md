@@ -1132,7 +1132,8 @@ A later working-tree tensor sweep under
 `tensor-shape-sweep-848c4ee5/` adds `cublas_sgemm_graph` to the same compact
 descriptor family. It was validated with required A100/H200 rows, report
 files, command examples, VDCores/MPK source-paper metadata, and PTO dispatch
-sequences.
+sequences. The table below is rendered by `cuda_current_summary.py --section
+tensor-sweep` from that raw JSON.
 
 | GPU | N | Shape | Scalar tensor ns | Graph tensor ns | Tensor-core ns | cuBLAS ns | cuBLAS Graph ns |
 | --- | - | ----- | ---------------- | --------------- | -------------- | --------- | --------------- |

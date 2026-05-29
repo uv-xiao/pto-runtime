@@ -406,16 +406,19 @@ def render_tensor_sweep_table(payload: Payload) -> str:
         graph_tensor_key = (machine, "pto_persistent_dag_graph_tensor", n, shape)
         tensor_core_key = (machine, "pto_persistent_dag_tensor_core", n, shape)
         cublas_key = (machine, "cublas_sgemm", n, shape)
+        cublas_graph_key = (machine, "cublas_sgemm_graph", n, shape)
         if scalar_key not in medians:
             continue
         scalar = medians[scalar_key]
         graph_tensor = medians.get(graph_tensor_key)
         tensor_core = medians.get(tensor_core_key)
         cublas = medians.get(cublas_key)
+        cublas_graph = medians.get(cublas_graph_key)
         scalar_gflops = _tensor_gflops(n, shape, scalar)
         graph_tensor_gflops = _tensor_gflops(n, shape, graph_tensor)
         tensor_core_gflops = _tensor_gflops(n, shape, tensor_core)
         cublas_gflops = _tensor_gflops(n, shape, cublas)
+        cublas_graph_gflops = _tensor_gflops(n, shape, cublas_graph)
         rows.append(
             [
                 _machine_label(machine),
@@ -425,13 +428,16 @@ def render_tensor_sweep_table(payload: Payload) -> str:
                 _format_number(graph_tensor) if graph_tensor is not None else "-",
                 _format_number(tensor_core) if tensor_core is not None else "-",
                 _format_number(cublas) if cublas is not None else "-",
+                _format_number(cublas_graph) if cublas_graph is not None else "-",
                 _format_gflops(scalar_gflops),
                 _format_gflops(graph_tensor_gflops),
                 _format_gflops(tensor_core_gflops),
                 _format_gflops(cublas_gflops),
+                _format_gflops(cublas_graph_gflops),
                 _ratio(graph_tensor, scalar) if graph_tensor is not None else "-",
                 _ratio(tensor_core, scalar) if tensor_core is not None else "-",
                 _ratio(cublas, scalar) if cublas is not None else "-",
+                _ratio(cublas_graph, scalar) if cublas_graph is not None else "-",
             ]
         )
     return _table(
@@ -443,13 +449,16 @@ def render_tensor_sweep_table(payload: Payload) -> str:
             "Graph tensor ns",
             "Tensor-core ns",
             "cuBLAS ns",
+            "cuBLAS Graph ns",
             "Scalar GF/s",
             "Graph tensor GF/s",
             "Tensor-core GF/s",
             "cuBLAS GF/s",
+            "cuBLAS Graph GF/s",
             "Graph/scalar",
             "Tensor-core/scalar",
             "cuBLAS/scalar",
+            "cuBLAS Graph/scalar",
         ],
         rows,
     )

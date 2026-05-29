@@ -5544,6 +5544,15 @@ def test_cuda_current_summary_renders_tensor_sweep_table():
                 "status": "pass",
             },
             {
+                "artifact": "a100",
+                "machine": "a100",
+                "baseline": "cublas_sgemm_graph",
+                "n": 256,
+                "shape": "16x16x16",
+                "device_wall_ns": 500,
+                "status": "pass",
+            },
+            {
                 "artifact": "h200",
                 "machine": "h200",
                 "baseline": "pto_persistent_dag_tensor",
@@ -5579,23 +5588,32 @@ def test_cuda_current_summary_renders_tensor_sweep_table():
                 "device_wall_ns": 1600,
                 "status": "pass",
             },
+            {
+                "artifact": "h200",
+                "machine": "h200",
+                "baseline": "cublas_sgemm_graph",
+                "n": 256,
+                "shape": "16x16x16",
+                "device_wall_ns": 400,
+                "status": "pass",
+            },
         ]
     }
 
     table = cuda_current_summary.render_tensor_sweep_table(payload)
 
     assert (
-        "| GPU | N | Shape | Scalar tensor ns | Graph tensor ns | Tensor-core ns | cuBLAS ns | Scalar GF/s | "
-        "Graph tensor GF/s | Tensor-core GF/s | cuBLAS GF/s | Graph/scalar | Tensor-core/scalar | cuBLAS/scalar |"
-        in table
+        "| GPU | N | Shape | Scalar tensor ns | Graph tensor ns | Tensor-core ns | cuBLAS ns | "
+        "cuBLAS Graph ns | Scalar GF/s | Graph tensor GF/s | Tensor-core GF/s | cuBLAS GF/s | "
+        "cuBLAS Graph GF/s | Graph/scalar | Tensor-core/scalar | cuBLAS/scalar | cuBLAS Graph/scalar |" in table
     )
     assert (
-        "| A100 | 256 | 16x16x16 | 1100 | 1300 | 900 | 1500 | 7.45 | 6.30 | 9.10 | 5.46 | "
-        "1.18x | 0.82x | 1.36x |" in table
+        "| A100 | 256 | 16x16x16 | 1100 | 1300 | 900 | 1500 | 500 | 7.45 | 6.30 | 9.10 | 5.46 | "
+        "16.38 | 1.18x | 0.82x | 1.36x | 0.45x |" in table
     )
     assert (
-        "| H200 | 256 | 16x16x16 | 800 | 700 | 1000 | 1600 | 10.24 | 11.70 | 8.19 | 5.12 | "
-        "0.88x | 1.25x | 2.00x |" in table
+        "| H200 | 256 | 16x16x16 | 800 | 700 | 1000 | 1600 | 400 | 10.24 | 11.70 | 8.19 | 5.12 | "
+        "20.48 | 0.88x | 1.25x | 2.00x | 0.50x |" in table
     )
 
 

@@ -1719,11 +1719,12 @@ PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
 ```
 
 Use `--section launch`, `--section unary-square`, `--section worker-grid`,
-`--section dag-shapes`, or `--section tensor-throughput` to refresh only one
-table. The tensor-throughput section summarizes selected benchmark tensor-DAG
-and cuBLAS rows as median GF/s from recorded tensor tile descriptors. The
-DAG-shapes section includes explicit graph scratch-reuse rows when the capture
-has `pto_persistent_dag_graph_scratch_reuse`, avoiding hand-calculated
+`--section dag-shapes`, `--section tensor-throughput`, or
+`--section tensor-sweep` to refresh only one table. The tensor-throughput and
+tensor-sweep sections summarize selected tensor-DAG, graph-tensor, tensor-core,
+cuBLAS, and cuBLAS Graph rows as median GF/s from recorded tensor descriptors.
+The DAG-shapes section includes explicit graph scratch-reuse rows when the
+capture has `pto_persistent_dag_graph_scratch_reuse`, avoiding hand-calculated
 current-evaluation ratios from raw JSON.
 
 Render the compact tensor-baseline sweep table directly from its raw sweep
@@ -1732,7 +1733,7 @@ JSON:
 ```bash
 PYTHONPATH=$PWD:$PWD/python:.agents/skills/cuda-backend-eval/scripts \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_current_summary.py \
-    tmp/cuda-backend/tensor-shape-sweep-0e84fd26/cuda-tensor-shape-sweep.json \
+    tmp/cuda-backend/tensor-graph-library-baselines-working/tensor-shape-sweep-848c4ee5/cuda-tensor-shape-sweep.json \
     --section tensor-sweep
 ```
 
