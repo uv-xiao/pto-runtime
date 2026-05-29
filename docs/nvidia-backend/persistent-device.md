@@ -361,7 +361,9 @@ needs a more graph-shaped descriptor.
 a single target or a list of targets.
 `graph.tasks` may be a list of task dictionaries or a dictionary keyed by task
 name. In the dictionary form, the key becomes the task `name` used by
-`graph.edges`, `dependents`, and `depends_on` / `dependencies`.
+`graph.edges`, `dependents`, and `depends_on` / `dependencies`. `graph.nodes`
+is accepted as an alias for `graph.tasks` when the descriptor should use
+graph-node terminology; descriptors must not provide both fields.
 Integer task IDs remain accepted, and tensor-flow inference remains the
 fallback when neither outgoing `dependents` nor incoming dependencies are
 provided.

@@ -1266,7 +1266,8 @@ as `{"from": "producer", "to": "consumer"}` or two-item endpoint pairs.
 `{"producer": ["consumer"]}`.
 `graph.tasks` may be a list of task dictionaries or a dictionary keyed by task
 name; in the dictionary form, the key becomes the task name used by edge
-metadata.
+metadata. `graph.nodes` is accepted as an alias for `graph.tasks` when the
+descriptor should use graph-node terminology; do not provide both fields.
 Graph tasks may alternatively pass role-keyed `task_args` entries with
 `input`, `output`, `output_existing`, or `inout` roles. The adapter prefers
 the `role` key and still accepts the older `tag` spelling for compatibility.

@@ -1291,7 +1291,9 @@ class _CudaPersistentDagSceneBuffers:
 
     @staticmethod
     def _graph_task_specs(graph: dict[str, Any]) -> list[dict[str, Any]]:
-        tasks = graph.get("tasks", [])
+        if "tasks" in graph and "nodes" in graph:
+            raise ValueError("CUDA persistent_dag_graph_f32 graph cannot use both tasks and nodes")
+        tasks = graph.get("tasks", graph.get("nodes", []))
         if isinstance(tasks, dict):
             task_specs = []
             for task_name, task_spec in tasks.items():
