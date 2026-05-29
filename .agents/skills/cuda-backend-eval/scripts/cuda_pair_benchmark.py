@@ -144,6 +144,12 @@ EXPECTED_GRAPH_NODE_ATTRS_BY_BASELINE: dict[str, str] = {
 EXPECTED_GRAPH_NODE_OPS_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph_node_op": "task0=op:add=1;task1=op:mul=2;task2=op:add=1",
 }
+EXPECTED_SCALAR_ARGS_BY_BASELINE: dict[str, str] = {
+    "pto_persistent_dag_graph_node_attrs": "scalar_args[0]=1.5,scalar_args[1]=0.25",
+}
+EXPECTED_TENSOR_ARGS_BY_BASELINE: dict[str, str] = {
+    "pto_persistent_dag_graph_node_attrs": "tensor_args[0]=tmp0,tensor_args[1]=tmp3",
+}
 EXPECTED_GRAPH_FANIN_BY_BASELINE: dict[str, str] = {
     "pto_persistent_dag_graph": "0,0,2",
     "pto_persistent_dag_graph_generic_args4": "0,0,2",
@@ -496,6 +502,18 @@ def build_validate_command(
         if baseline in EXPECTED_GRAPH_NODE_OPS_BY_BASELINE
         for part in ("--require-graph-node-ops", f"{baseline}={EXPECTED_GRAPH_NODE_OPS_BY_BASELINE[baseline]}")
     ]
+    scalar_args = [
+        part
+        for baseline in _selected_baselines(config)
+        if baseline in EXPECTED_SCALAR_ARGS_BY_BASELINE
+        for part in ("--require-scalar-args", f"{baseline}={EXPECTED_SCALAR_ARGS_BY_BASELINE[baseline]}")
+    ]
+    tensor_args = [
+        part
+        for baseline in _selected_baselines(config)
+        if baseline in EXPECTED_TENSOR_ARGS_BY_BASELINE
+        for part in ("--require-tensor-args", f"{baseline}={EXPECTED_TENSOR_ARGS_BY_BASELINE[baseline]}")
+    ]
     graph_fanin_args = [
         part
         for baseline in _selected_baselines(config)
@@ -528,6 +546,8 @@ def build_validate_command(
         *graph_task_arg_key_args,
         *graph_node_attrs_args,
         *graph_node_ops_args,
+        *scalar_args,
+        *tensor_args,
         *graph_fanin_args,
         *graph_dependents_args,
         "--require-report-files",

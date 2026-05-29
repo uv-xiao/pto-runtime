@@ -159,6 +159,12 @@ PAIRED_CURRENT_GRAPH_NODE_ATTRS = {
 PAIRED_CURRENT_GRAPH_NODE_OPS = {
     "pto_persistent_dag_graph_node_op": "task0=op:add=1;task1=op:mul=2;task2=op:add=1",
 }
+PAIRED_CURRENT_SCALAR_ARGS = {
+    "pto_persistent_dag_graph_node_attrs": "scalar_args[0]=1.5,scalar_args[1]=0.25",
+}
+PAIRED_CURRENT_TENSOR_ARGS = {
+    "pto_persistent_dag_graph_node_attrs": "tensor_args[0]=tmp0,tensor_args[1]=tmp3",
+}
 PAIRED_CURRENT_GRAPH_ROLE_SPELLING_BASELINES = (
     "pto_persistent_dag_graph_tagged_inout",
     "pto_persistent_dag_graph_role_keyed_inout",
@@ -294,6 +300,13 @@ def _graph_node_ops_text(row: dict[str, Any]) -> str:
     if not isinstance(node_ops, dict):
         return "-"
     return ";".join(f"{key}={node_ops[key]}" for key in sorted(node_ops))
+
+
+def _mapping_text(row: dict[str, Any], field_name: str) -> str:
+    values = row.get(field_name)
+    if not isinstance(values, dict):
+        return "-"
+    return ",".join(f"{key}={values[key]}" for key in sorted(values))
 
 
 def _graph_descriptor_text(row: dict[str, Any], field_name: str) -> str:
@@ -500,6 +513,39 @@ def _validate_report_graph_node_ops(
         content = path.read_text()
         if any(needle not in content for needle in needles):
             errors.append(f"missing report graph node ops in {file_name}")
+    return errors
+
+
+def _validate_report_mapping_field(
+    artifact_dir: Path | None,
+    *,
+    field_name: str,
+    report_label: str,
+    svg_label: str,
+    required_values: dict[str, str],
+) -> list[str]:
+    if artifact_dir is None:
+        return [f"missing artifact directory for report {field_name} validation"]
+
+    checks = {
+        "cuda-benchmark.md": [
+            report_label,
+            *[f"`{value}`" for value in required_values.values()],
+        ],
+        "cuda-benchmark.svg": [
+            *[f"{svg_label}: {value}" for value in required_values.values()],
+        ],
+    }
+
+    errors: list[str] = []
+    for file_name, needles in checks.items():
+        path = artifact_dir / file_name
+        if not path.exists():
+            errors.append(f"missing report {field_name} in {file_name}")
+            continue
+        content = path.read_text()
+        if any(needle not in content for needle in needles):
+            errors.append(f"missing report {field_name} in {file_name}")
     return errors
 
 
@@ -827,6 +873,28 @@ def _validate_graph_node_ops(rows: list[dict[str, Any]], required_graph_node_ops
     return errors
 
 
+def _validate_mapping_field(
+    rows: list[dict[str, Any]],
+    *,
+    field_name: str,
+    required_values: dict[str, str],
+) -> list[str]:
+    errors: list[str] = []
+    for row in rows:
+        baseline = row.get("baseline")
+        expected = required_values.get(str(baseline))
+        if expected is None:
+            continue
+        found = _mapping_text(row, field_name)
+        if found != expected:
+            machine = row.get("machine", "unknown")
+            n = row.get("n", "unknown")
+            errors.append(
+                f"expected {field_name} {expected} for machine={machine} baseline={baseline} n={n}, found {found}"
+            )
+    return errors
+
+
 def _validate_graph_descriptor(
     rows: list[dict[str, Any]],
     *,
@@ -873,6 +941,8 @@ def validate_capture(  # noqa: PLR0913
     required_graph_task_arg_keys: dict[str, str] | None = None,
     required_graph_node_attrs: dict[str, str] | None = None,
     required_graph_node_ops: dict[str, str] | None = None,
+    required_scalar_args: dict[str, str] | None = None,
+    required_tensor_args: dict[str, str] | None = None,
     required_graph_fanin: dict[str, str] | None = None,
     required_graph_dependents: dict[str, str] | None = None,
     source_paper_root: Path | None = None,
@@ -929,6 +999,26 @@ def validate_capture(  # noqa: PLR0913
                 required_graph_node_ops=required_graph_node_ops,
             )
         )
+    if required_scalar_args and artifact_dir is not None:
+        errors.extend(
+            _validate_report_mapping_field(
+                artifact_dir,
+                field_name="scalar args",
+                report_label="Scalar args",
+                svg_label="scalar args",
+                required_values=required_scalar_args,
+            )
+        )
+    if required_tensor_args and artifact_dir is not None:
+        errors.extend(
+            _validate_report_mapping_field(
+                artifact_dir,
+                field_name="tensor args",
+                report_label="Tensor args",
+                svg_label="tensor args",
+                required_values=required_tensor_args,
+            )
+        )
     if require_report_graph_role_spelling:
         errors.extend(
             _validate_report_graph_role_spelling(
@@ -960,6 +1050,8 @@ def validate_capture(  # noqa: PLR0913
     errors.extend(_validate_graph_task_arg_keys(rows, required_graph_task_arg_keys or {}))
     errors.extend(_validate_graph_node_attrs(rows, required_graph_node_attrs or {}))
     errors.extend(_validate_graph_node_ops(rows, required_graph_node_ops or {}))
+    errors.extend(_validate_mapping_field(rows, field_name="scalar_args", required_values=required_scalar_args or {}))
+    errors.extend(_validate_mapping_field(rows, field_name="tensor_args", required_values=required_tensor_args or {}))
     errors.extend(_validate_graph_descriptor(rows, field_name="fanin", required_values=required_graph_fanin or {}))
     errors.extend(
         _validate_graph_descriptor(rows, field_name="dependents", required_values=required_graph_dependents or {})
@@ -1013,6 +1105,14 @@ def _apply_preset(args: argparse.Namespace) -> None:
         args.require_graph_node_ops = [
             f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_GRAPH_NODE_OPS.items()
         ]
+    if not args.require_scalar_args:
+        args.require_scalar_args = [
+            f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_SCALAR_ARGS.items()
+        ]
+    if not args.require_tensor_args:
+        args.require_tensor_args = [
+            f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_TENSOR_ARGS.items()
+        ]
     if not args.require_graph_fanin:
         args.require_graph_fanin = [
             f"{baseline}={metadata}" for baseline, metadata in PAIRED_CURRENT_GRAPH_FANIN.items()
@@ -1061,6 +1161,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--require-graph-task-arg-key", action="append")
     parser.add_argument("--require-graph-node-attrs", action="append")
     parser.add_argument("--require-graph-node-ops", action="append")
+    parser.add_argument("--require-scalar-args", action="append")
+    parser.add_argument("--require-tensor-args", action="append")
     parser.add_argument("--require-graph-fanin", action="append")
     parser.add_argument("--require-graph-dependents", action="append")
     parser.add_argument("--require-report-graph-topology", action="store_true")
@@ -1098,6 +1200,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.require_graph_node_ops,
             flag="--require-graph-node-ops",
         )
+        required_scalar_args = _parse_required_mapping(args.require_scalar_args, flag="--require-scalar-args")
+        required_tensor_args = _parse_required_mapping(args.require_tensor_args, flag="--require-tensor-args")
         required_graph_fanin = _parse_required_mapping(args.require_graph_fanin, flag="--require-graph-fanin")
         required_graph_dependents = _parse_required_mapping(
             args.require_graph_dependents,
@@ -1128,6 +1232,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         required_graph_task_arg_keys=required_graph_task_arg_keys,
         required_graph_node_attrs=required_graph_node_attrs,
         required_graph_node_ops=required_graph_node_ops,
+        required_scalar_args=required_scalar_args,
+        required_tensor_args=required_tensor_args,
         required_graph_fanin=required_graph_fanin,
         required_graph_dependents=required_graph_dependents,
         source_paper_root=Path.cwd() if args.require_source_papers else None,

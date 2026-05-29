@@ -2029,8 +2029,12 @@ under
 validated `78` benchmark samples with source-paper provenance, sanitized
 command examples, Markdown/SVG reports, zero scheduler errors, dispatch
 `[9,2,1]`, graph fan-in `[0,0,2]`, graph dependents `[2,2]`, and
-`graph_node_attrs.task0=attrs:tensor_args,scalar_args`. Device times were
-`40960 ns` on A100 and `33152 ns` on H200 for `N=1024`.
+`graph_node_attrs.task0=attrs:tensor_args,scalar_args`. The benchmark
+validator now also requires the row and generated Markdown/SVG reports to
+carry `scalar_args[0]=1.5,scalar_args[1]=0.25` and
+`tensor_args[0]=tmp0,tensor_args[1]=tmp3`, so the selected benchmark gate
+cannot preserve the node-attrs label while losing its descriptor payload.
+Device times were `40960 ns` on A100 and `33152 ns` on H200 for `N=1024`.
 The graph-node callable-alias path is now also promoted into the selected
 benchmark matrix as `pto_persistent_dag_graph_node_op`. The compact paired
 A100/H200 capture under

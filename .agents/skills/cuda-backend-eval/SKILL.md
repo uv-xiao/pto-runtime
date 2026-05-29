@@ -1683,7 +1683,9 @@ H200, including `pto_persistent_dag_graph_node_attrs`,
 `1,2,1`, `1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `1,9,2`, `6,2,1`,
 `8,2,1`, and `1,1,1`.
 The node-attrs row requires
-`graph_node_attrs=task0=attrs:tensor_args,scalar_args`; the node-op row
+`graph_node_attrs=task0=attrs:tensor_args,scalar_args`,
+`scalar_args[0]=1.5,scalar_args[1]=0.25`, and
+`tensor_args[0]=tmp0,tensor_args[1]=tmp3`; the node-op row
 requires `graph_node_ops=task0=op:add=1;task1=op:mul=2;task2=op:add=1`;
 the depends-on and
 graph scalar rows require graph fan-in `0,0,2` and dependents `2,2`; the
@@ -1852,7 +1854,9 @@ benchmark row whose auxiliary tensor/scalar metadata came from graph-node
 `tmp/cuda-backend/graph-node-attrs-benchmark-working/combined-current-3d129351/`
 validated dispatch `9,2,1`, fan-in `0,0,2`, dependents `2,2`, zero scheduler
 errors, source-paper provenance, generated Markdown/SVG reports, and
-`graph_node_attrs=task0=attrs:tensor_args,scalar_args`:
+`graph_node_attrs=task0=attrs:tensor_args,scalar_args`, scalar slots
+`scalar_args[0]=1.5,scalar_args[1]=0.25`, and tensor slots
+`tensor_args[0]=tmp0,tensor_args[1]=tmp3`:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \

@@ -1414,20 +1414,23 @@ PYTHONPATH=$PWD:$PWD/python \
     --require-baseline pto_persistent_dag_graph_node_attrs \
     --require-dispatch pto_persistent_dag_graph_node_attrs=9,2,1 \
     --require-graph-node-attrs pto_persistent_dag_graph_node_attrs=task0=attrs:tensor_args,scalar_args \
+    --require-scalar-args pto_persistent_dag_graph_node_attrs=scalar_args[0]=1.5,scalar_args[1]=0.25 \
+    --require-tensor-args pto_persistent_dag_graph_node_attrs=tensor_args[0]=tmp0,tensor_args[1]=tmp3 \
     --require-graph-fanin pto_persistent_dag_graph_node_attrs=0,0,2 \
     --require-graph-dependents pto_persistent_dag_graph_node_attrs=2,2 \
     --require-report-files --require-zero-scheduler-errors \
     --require-source-papers
 ```
 
-| GPU | Baseline | N | Dispatch | Fan-in | Dependents | Node attrs | Device ns | Status |
-| --- | -------- | - | -------- | ------ | ---------- | ---------- | --------- | ------ |
-| A100 | `pto_persistent_dag_graph_node_attrs` | 1024 | `9,2,1` | `0,0,2` | `2,2` | `task0=attrs:tensor_args,scalar_args` | 40960 | pass |
-| H200 | `pto_persistent_dag_graph_node_attrs` | 1024 | `9,2,1` | `0,0,2` | `2,2` | `task0=attrs:tensor_args,scalar_args` | 33152 | pass |
+| GPU | Baseline | N | Dispatch | Fan-in | Dependents | Node attrs | Scalar args | Tensor args | Device ns | Status |
+| --- | -------- | - | -------- | ------ | ---------- | ---------- | ----------- | ----------- | --------- | ------ |
+| A100 | `pto_persistent_dag_graph_node_attrs` | 1024 | `9,2,1` | `0,0,2` | `2,2` | `task0=attrs:tensor_args,scalar_args` | `scalar_args[0]=1.5,scalar_args[1]=0.25` | `tensor_args[0]=tmp0,tensor_args[1]=tmp3` | 40960 | pass |
+| H200 | `pto_persistent_dag_graph_node_attrs` | 1024 | `9,2,1` | `0,0,2` | `2,2` | `task0=attrs:tensor_args,scalar_args` | `scalar_args[0]=1.5,scalar_args[1]=0.25` | `tensor_args[0]=tmp0,tensor_args[1]=tmp3` | 33152 | pass |
 
 Both rows reported zero device scheduler errors. The generated Markdown
-report, SVG `<desc>`, and local artifact index all carry the node-attrs
-metadata, so this coverage is visible outside the raw JSON.
+report and SVG `<desc>` now carry the node attrs plus scalar/tensor payload
+slots, so this coverage is visible outside the raw JSON and rejects captures
+that keep only the `attrs` label.
 
 ## Supplemental Graph Node Op Benchmark
 

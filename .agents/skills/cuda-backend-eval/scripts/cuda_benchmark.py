@@ -2386,6 +2386,7 @@ def summarize_results(payload: dict[str, Any]) -> dict[tuple[str, str, int, int,
             "graph_node_attrs",
             "graph_node_ops",
             "scalar_args",
+            "tensor_args",
         ):
             if field_name in first:
                 summary_row[field_name] = first[field_name]
@@ -2514,6 +2515,12 @@ def _scalar_args_text(value: Any) -> str:
     return ",".join(f"{key}={value[key]}" for key in sorted(value))
 
 
+def _tensor_args_text(value: Any) -> str:
+    if not isinstance(value, dict):
+        return "-"
+    return ",".join(f"{key}={value[key]}" for key in sorted(value))
+
+
 def _graph_metadata_rows(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for row in _sorted_summary_rows(summary):
@@ -2522,11 +2529,14 @@ def _graph_metadata_rows(summary: dict[tuple[str, str, int, int, int], dict[str,
         node_attrs = row.get("graph_node_attrs")
         node_ops = row.get("graph_node_ops")
         scalar_args = row.get("scalar_args")
+        tensor_args = row.get("tensor_args")
         if (
             not isinstance(graph_descriptor, dict)
             and not isinstance(task_args, dict)
             and not isinstance(node_attrs, dict)
             and not isinstance(node_ops, dict)
+            and not isinstance(scalar_args, dict)
+            and not isinstance(tensor_args, dict)
         ):
             continue
         rows.append(
@@ -2547,6 +2557,7 @@ def _graph_metadata_rows(summary: dict[tuple[str, str, int, int, int], dict[str,
                 "node_attrs": _graph_node_attrs_text(node_attrs),
                 "node_ops": _graph_node_ops_text(node_ops),
                 "scalar_args": _scalar_args_text(scalar_args),
+                "tensor_args": _tensor_args_text(tensor_args),
             }
         )
     return rows
@@ -2784,7 +2795,8 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
             f"{row['machine']} {row['baseline']} n={row['n']} "
             f"dispatch={row['dispatch']} fanin={row['fanin']} dependents={row['dependents']} "
             f"task arg key: {row['task_arg_key']} task args: {row['task_args']} "
-            f"node attrs: {row['node_attrs']} node ops: {row['node_ops']} scalar args: {row['scalar_args']}"
+            f"node attrs: {row['node_attrs']} node ops: {row['node_ops']} "
+            f"scalar args: {row['scalar_args']} tensor args: {row['tensor_args']}"
             for row in graph_metadata
         ]
         desc_parts.extend(
@@ -3074,9 +3086,9 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 "## Graph Descriptor Metadata",
                 "",
                 "| Machine | N | Baseline | Dispatch | Graph fan-in | Graph dependents | "
-                "Graph task arg key | Graph task args | Graph node attrs | Graph node ops | Scalar args |",
+                "Graph task arg key | Graph task args | Graph node attrs | Graph node ops | Scalar args | Tensor args |",
                 "| ------- | - | -------- | -------- | ------------ | ---------------- | "
-                "------------------ | --------------- | ---------------- | -------------- | ----------- |",
+                "------------------ | --------------- | ---------------- | -------------- | ----------- | ----------- |",
             ]
         )
         for row in graph_metadata:
@@ -3086,7 +3098,7 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 f"{row['dispatch']} | {row['fanin']} | {row['dependents']} | "
                 f"{task_arg_key} | `{row['task_args']}` | `{row['node_attrs']}` | "
                 f"`{row['node_ops']}` | "
-                f"`{row['scalar_args']}` |"
+                f"`{row['scalar_args']}` | `{row['tensor_args']}` |"
             )
     graph_role_spelling = _graph_role_spelling_rows(summary)
     if graph_role_spelling:

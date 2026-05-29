@@ -2157,6 +2157,81 @@ def test_cuda_capture_validator_requires_graph_node_ops_metadata():
     )
 
 
+def test_cuda_capture_validator_requires_scalar_and_tensor_args_metadata(tmp_path):
+    cuda_validate_capture = _load_capture_validator_module()
+    artifact_dir = tmp_path / "combined-current-node-attrs"
+    artifact_dir.mkdir()
+    payload = _paired_capture_payload()
+    payload["results"].append(
+        {
+            "machine": "hina",
+            "baseline": "pto_persistent_dag_graph_node_attrs",
+            "n": 1024,
+            "repeat": 0,
+            "status": "pass",
+            "device_wall_ns": 1024,
+            "scalar_args": {"scalar_args[0]": 1.5},
+            "tensor_args": {"tensor_args[0]": "tmp0"},
+        }
+    )
+    expected_scalar_args = "scalar_args[0]=1.5,scalar_args[1]=0.25"
+    expected_tensor_args = "tensor_args[0]=tmp0,tensor_args[1]=tmp3"
+
+    errors = cuda_validate_capture.validate_capture(
+        payload,
+        required_scalar_args={"pto_persistent_dag_graph_node_attrs": expected_scalar_args},
+        required_tensor_args={"pto_persistent_dag_graph_node_attrs": expected_tensor_args},
+    )
+
+    assert (
+        "expected scalar_args scalar_args[0]=1.5,scalar_args[1]=0.25 "
+        "for machine=hina baseline=pto_persistent_dag_graph_node_attrs n=1024, found scalar_args[0]=1.5"
+    ) in errors
+    assert (
+        "expected tensor_args tensor_args[0]=tmp0,tensor_args[1]=tmp3 "
+        "for machine=hina baseline=pto_persistent_dag_graph_node_attrs n=1024, found tensor_args[0]=tmp0"
+    ) in errors
+
+    payload["results"][-1]["scalar_args"]["scalar_args[1]"] = 0.25
+    payload["results"][-1]["tensor_args"]["tensor_args[1]"] = "tmp3"
+    (artifact_dir / "cuda-benchmark.md").write_text("# stale report\n")
+    (artifact_dir / "cuda-benchmark.svg").write_text("<svg>stale chart</svg>\n")
+    (artifact_dir / "cuda-benchmark-ratios.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-dag-deltas.svg").write_text("<svg></svg>\n")
+    (artifact_dir / "cuda-benchmark-throughput.svg").write_text("<svg></svg>\n")
+
+    errors = cuda_validate_capture.validate_capture(
+        payload,
+        artifact_dir=artifact_dir,
+        require_report_files=True,
+        required_scalar_args={"pto_persistent_dag_graph_node_attrs": expected_scalar_args},
+        required_tensor_args={"pto_persistent_dag_graph_node_attrs": expected_tensor_args},
+    )
+
+    assert "missing report scalar args in cuda-benchmark.md" in errors
+    assert "missing report scalar args in cuda-benchmark.svg" in errors
+    assert "missing report tensor args in cuda-benchmark.md" in errors
+    assert "missing report tensor args in cuda-benchmark.svg" in errors
+
+    (artifact_dir / "cuda-benchmark.md").write_text(
+        f"| Scalar args | Tensor args |\n| `{expected_scalar_args}` | `{expected_tensor_args}` |\n"
+    )
+    (artifact_dir / "cuda-benchmark.svg").write_text(
+        f"<svg><desc>scalar args: {expected_scalar_args} tensor args: {expected_tensor_args}</desc></svg>\n"
+    )
+
+    assert (
+        cuda_validate_capture.validate_capture(
+            payload,
+            artifact_dir=artifact_dir,
+            require_report_files=True,
+            required_scalar_args={"pto_persistent_dag_graph_node_attrs": expected_scalar_args},
+            required_tensor_args={"pto_persistent_dag_graph_node_attrs": expected_tensor_args},
+        )
+        == []
+    )
+
+
 def test_cuda_capture_validator_requires_tensor_tile_shape():
     cuda_validate_capture = _load_capture_validator_module()
     payload = _paired_capture_payload()
@@ -4433,6 +4508,10 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
         validate[index + 1] for index, part in enumerate(validate) if part == "--require-graph-node-attrs"
     ]
     assert "pto_persistent_dag_graph_node_attrs=task0=attrs:tensor_args,scalar_args" in graph_node_attrs
+    scalar_args = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-scalar-args"]
+    assert "pto_persistent_dag_graph_node_attrs=scalar_args[0]=1.5,scalar_args[1]=0.25" in scalar_args
+    tensor_args = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-tensor-args"]
+    assert "pto_persistent_dag_graph_node_attrs=tensor_args[0]=tmp0,tensor_args[1]=tmp3" in tensor_args
     graph_node_ops = [
         validate[index + 1] for index, part in enumerate(validate) if part == "--require-graph-node-ops"
     ]
@@ -9036,13 +9115,51 @@ def test_render_report_exposes_graph_scalar_args_metadata():
 
     assert (
         "| Machine | N | Baseline | Dispatch | Graph fan-in | Graph dependents | "
-        "Graph task arg key | Graph task args | Graph node attrs | Graph node ops | Scalar args |"
+        "Graph task arg key | Graph task args | Graph node attrs | Graph node ops | Scalar args | Tensor args |"
     ) in report
     assert (
         "| a100-local | 1024 | pto_persistent_dag_graph_scalar_scale | 11,2,1 | 0,0,2 | 2,2 | "
-        "- | `-` | `-` | `-` | `scalar0=2.0` |"
+        "- | `-` | `-` | `-` | `scalar0=2.0` | `-` |"
     ) in report
     assert "scalar args: scalar0=2.0" in svg
+
+
+def test_render_report_exposes_graph_tensor_args_metadata():
+    cuda_benchmark = _load_benchmark_module()
+    expected_scalar_args = "scalar_args[0]=1.5,scalar_args[1]=0.25"
+    expected_tensor_args = "tensor_args[0]=tmp0,tensor_args[1]=tmp3"
+    payload = {
+        "metadata": {
+            "label": "graph-tensor-args-unit",
+            "git_commit": "abc123",
+            "paper_setup": "microbenchmarks only",
+        },
+        "results": [
+            {
+                "machine": "a100-local",
+                "baseline": "pto_persistent_dag_graph_node_attrs",
+                "n": 1024,
+                "task_count": 3,
+                "device_wall_ns": 1000,
+                "dispatch_func_ids": [9, 2, 1],
+                "graph_descriptor": {"fanin": [0, 0, 2], "dependents": [2, 2]},
+                "graph_node_attrs": {"task0": "attrs:tensor_args,scalar_args"},
+                "scalar_args": {"scalar_args[0]": 1.5, "scalar_args[1]": 0.25},
+                "tensor_args": {"tensor_args[0]": "tmp0", "tensor_args[1]": "tmp3"},
+            }
+        ],
+    }
+
+    report = cuda_benchmark.render_markdown_report(payload)
+    svg = cuda_benchmark.render_svg(cuda_benchmark.summarize_results(payload))
+
+    assert (
+        "| a100-local | 1024 | pto_persistent_dag_graph_node_attrs | 9,2,1 | 0,0,2 | 2,2 | "
+        "- | `-` | `task0=attrs:tensor_args,scalar_args` | `-` | "
+        f"`{expected_scalar_args}` | `{expected_tensor_args}` |"
+    ) in report
+    assert f"scalar args: {expected_scalar_args}" in svg
+    assert f"tensor args: {expected_tensor_args}" in svg
 
 
 def test_render_report_exposes_graph_node_ops_metadata():
@@ -9077,7 +9194,7 @@ def test_render_report_exposes_graph_node_ops_metadata():
 
     assert (
         "| a100-local | 1024 | pto_persistent_dag_graph_node_op | 1,2,1 | 0,0,2 | 2,2 | "
-        f"- | `-` | `-` | `{expected_node_ops}` | `-` |"
+        f"- | `-` | `-` | `{expected_node_ops}` | `-` | `-` |"
     ) in report
     assert f"node ops: {expected_node_ops}" in svg
 
