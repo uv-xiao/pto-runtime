@@ -183,6 +183,10 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/graph-tensor-core-working/persistent-graph_tensor_core_tile-16x16x16-repeat2-smoke-40aa2f43/h200.json`
 - `tmp/cuda-backend/graph-tensor-core-working/persistent-graph_tensor_core_tile-16x16x16-repeat2-smoke-40aa2f43/cuda-smoke-report.md`
 - `tmp/cuda-backend/graph-tensor-core-working/persistent-graph_tensor_core_tile-16x16x16-repeat2-smoke-40aa2f43/cuda-smoke-report.svg`
+- `tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/cuda-tensor-shape-sweep.json`
+- `tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/cuda-tensor-shape-sweep.md`
+- `tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/cuda-tensor-shape-sweep.svg`
+- `tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/cuda-tensor-shape-throughput.svg`
 
 ## Latest Tensor-Arity Graph Benchmark Gate
 
@@ -1245,6 +1249,39 @@ Both artifacts report `launch_completed_counts=[4,4]`, zero scheduler errors,
 tensor tile `16x16x16`, and target-specific PTX (`compute_80` on A100,
 `compute_90` on H200). This is graph-lowering and callable metadata evidence;
 throughput comparisons remain in the selected tensor baseline sweeps.
+
+## Graph Tensor-Core Benchmark Row
+
+The first explicit graph tensor-core benchmark row was captured from the
+working tree under the artifact label `debe979d`. It uses the tensor-shape
+sweep flow with one baseline, `N=256`, one repeat, and a `16x16x16`
+descriptor. Because the working tree contained uncommitted benchmark support
+when the sweep ran, treat this as a working-tree capture under that label, not
+as evidence that commit `debe979d` alone contains the feature.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_tensor_sweep.py \
+    tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/cuda-tensor-shape-sweep.json \
+    --require-artifact a100 --require-artifact h200 \
+    --require-baseline pto_persistent_dag_graph_tensor_core \
+    --require-size 256 --require-shape 16x16x16 \
+    --expected-repeats 1 --expected-result-count 2 \
+    --require-dispatch pto_persistent_dag_graph_tensor_core=10,1,2,1 \
+    --require-report-files --require-command-examples \
+    --require-source-papers
+```
+
+| GPU | Shape | Dispatch | Graph fan-in | Device ns | Host ns | PTX |
+| --- | ----- | -------- | ------------ | --------- | ------- | --- |
+| A100 | 16x16x16 | `10,1,2,1` | `0,1,1,2` | 52224 | 73631 | `compute_80` |
+| H200 | 16x16x16 | `10,1,2,1` | `0,1,1,2` | 50144 | 64644 | `compute_90` |
+
+Both rows report graph dependents `[1,2,3,3]`, tensor tile `16x16x16`,
+`wmma:m16n16k8:tf32->f32`, zero scheduler errors, and source-paper metadata
+for VDCores and MPK.
 
 ## Tensor-Core Benchmark Row
 

@@ -1636,11 +1636,12 @@ Use `cuda_tensor_shape_sweep.py` to run paired A100/H200
 samples over model-shaped tensor tile descriptors. By default it runs
 `pto_persistent_dag_tensor`; pass `--baselines` to include
 `pto_persistent_dag_graph_tensor`, `pto_persistent_dag_tensor_core`, and
-`cublas_sgemm,cublas_sgemm_graph` for a
-scalar-vs-explicit-graph-vs-WMMA-vs-library-vs-CUDA-Graph comparison on
-compatible descriptors. Pass `--sizes` when the same baseline/shape set should
-be swept across multiple problem sizes. Treat the scalar tiled GEMM rows as
-shape and scheduler evidence rather than tensor-core throughput evidence:
+`pto_persistent_dag_graph_tensor_core`, plus
+`cublas_sgemm,cublas_sgemm_graph` for a scalar-vs-explicit-graph-vs-WMMA-vs-
+library-vs-CUDA-Graph comparison on compatible descriptors. Pass `--sizes`
+when the same baseline/shape set should be swept across multiple problem
+sizes. Treat the scalar tiled GEMM rows as shape and scheduler evidence rather
+than tensor-core throughput evidence:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
@@ -1656,7 +1657,7 @@ when the WMMA task should execute multiple output fragments per descriptor:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_tensor_shape_sweep.py \
-    --baselines pto_persistent_dag_tensor,pto_persistent_dag_graph_tensor,pto_persistent_dag_tensor_core,cublas_sgemm,cublas_sgemm_graph \
+    --baselines pto_persistent_dag_tensor,pto_persistent_dag_graph_tensor,pto_persistent_dag_tensor_core,pto_persistent_dag_graph_tensor_core,cublas_sgemm,cublas_sgemm_graph \
     --shapes 16x16x16,16x16x64 --n 256 --repeats 3 \
     --sync-remote-tree
 ```
@@ -1667,7 +1668,7 @@ rows need to be compared with larger repeated tensor work:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_tensor_shape_sweep.py \
-    --baselines pto_persistent_dag_tensor,pto_persistent_dag_graph_tensor,pto_persistent_dag_tensor_core,cublas_sgemm,cublas_sgemm_graph \
+    --baselines pto_persistent_dag_tensor,pto_persistent_dag_graph_tensor,pto_persistent_dag_tensor_core,pto_persistent_dag_graph_tensor_core,cublas_sgemm,cublas_sgemm_graph \
     --shapes 16x16x16 --sizes 256,4096,65536 --repeats 3 \
     --sync-remote-tree
 ```
@@ -1714,16 +1715,18 @@ PYTHONPATH=$PWD:$PWD/python \
     --require-baseline pto_persistent_dag_tensor \
     --require-baseline pto_persistent_dag_graph_tensor \
     --require-baseline pto_persistent_dag_tensor_core \
+    --require-baseline pto_persistent_dag_graph_tensor_core \
     --require-baseline cublas_sgemm \
     --require-baseline cublas_sgemm_graph \
     --require-size 256 --require-size 4096 --require-size 65536 \
     --require-shape 16x16x16 --expected-repeats 3 \
-    --expected-result-count 90 --require-report-files \
+    --expected-result-count 108 --require-report-files \
     --require-command-examples \
     --require-source-papers \
     --require-dispatch pto_persistent_dag_tensor=3,1,2,1 \
     --require-dispatch pto_persistent_dag_graph_tensor=3,1,2,1 \
-    --require-dispatch pto_persistent_dag_tensor_core=10,1,2,1
+    --require-dispatch pto_persistent_dag_tensor_core=10,1,2,1 \
+    --require-dispatch pto_persistent_dag_graph_tensor_core=10,1,2,1
 ```
 
 Use `--single-baseline pto_persistent_dag_tensor_core` for a quick benchmark
@@ -1733,6 +1736,17 @@ path check of the WMMA tensor-core generated-dispatch DAG:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
     --single-baseline pto_persistent_dag_tensor_core \
+    --sizes 256 --arch compute_80 \
+    --tensor-rows 16 --tensor-cols 16 --tensor-inner 16
+```
+
+Use `--single-baseline pto_persistent_dag_graph_tensor_core` for the matching
+explicit graph descriptor path with a WMMA first task:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  python3 .agents/skills/cuda-backend-eval/scripts/cuda_benchmark.py \
+    --single-baseline pto_persistent_dag_graph_tensor_core \
     --sizes 256 --arch compute_80 \
     --tensor-rows 16 --tensor-cols 16 --tensor-inner 16
 ```

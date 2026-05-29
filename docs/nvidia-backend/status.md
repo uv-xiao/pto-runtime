@@ -2206,6 +2206,67 @@ validated source-paper metadata, sanitized command examples, generated report
 files, zero scheduler errors, and expected dispatch `[3,1,2,1]`. The sample
 device times were `51200 ns` on A100 and `38080 ns` on H200.
 
+The explicit graph tensor-core path is now exposed as the
+`pto_persistent_dag_graph_tensor_core` benchmark and tensor-shape sweep
+baseline. It uses `dag_shape=graph_tensor_core_tile`, preserves the same
+graph descriptor metadata as the smoke path, and records the WMMA first task
+as dispatch `[10,1,2,1]`.
+
+The focused benchmark tests first failed because the tensor-shape sweep parser
+rejected the new baseline, `run_single_sample` treated it as unknown, and the
+publish validators still expected only the fixed tensor-core row. After adding
+the baseline to the benchmark, sweep, and validator flows, the focused selector
+passed:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python -m pytest \
+  tests/ut/py/test_cuda_benchmark_report.py -q \
+  -k 'graph_tensor_core or tensor_sweep_validator_compact_preset_keeps_dispatch_commas'
+```
+
+Paired A100/H200 evidence used the tensor-shape sweep with one repeat and a
+`16x16x16` descriptor:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_tensor_shape_sweep.py \
+    --baselines pto_persistent_dag_graph_tensor_core \
+    --shapes 16x16x16 --n 256 --repeats 1 \
+    --sync-remote-tree \
+    --output-root tmp/cuda-backend/graph-tensor-core-benchmark-working
+```
+
+The validated working-tree artifact is:
+
+```text
+tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/
+```
+
+Validation used:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_tensor_sweep.py \
+    tmp/cuda-backend/graph-tensor-core-benchmark-working/tensor-shape-sweep-debe979d/cuda-tensor-shape-sweep.json \
+    --require-artifact a100 --require-artifact h200 \
+    --require-baseline pto_persistent_dag_graph_tensor_core \
+    --require-size 256 --require-shape 16x16x16 \
+    --expected-repeats 1 --expected-result-count 2 \
+    --require-dispatch pto_persistent_dag_graph_tensor_core=10,1,2,1 \
+    --require-report-files --require-command-examples \
+    --require-source-papers
+```
+
+| GPU | Device ns | Host ns | PTX | Graph fan-in | Status |
+| --- | --------- | ------- | --- | ------------ | ------ |
+| A100 | 52224 | 73631 | `compute_80` | `0,1,1,2` | pass |
+| H200 | 50144 | 64644 | `compute_90` | `0,1,1,2` | pass |
+
+Both rows record graph dependents `[1,2,3,3]`, tensor tile `16x16x16`,
+tensor-core metadata `wmma:m16n16k8:tf32->f32`, source-paper metadata, and
+zero scheduler errors. The artifact label uses the then-current `HEAD`
+because the sweep was captured from an uncommitted working tree.
+
 The persistent scalar-scale scene-test adapter was then added to cover the
 single-tensor plus scalar descriptor shape on the persistent-device runtime.
 It compiles a generated-dispatch `func_id=11` task body, runs it before the

@@ -30,6 +30,7 @@ _ALLOWED_BASELINES = frozenset(
         "pto_persistent_dag_tensor",
         "pto_persistent_dag_graph_tensor",
         "pto_persistent_dag_tensor_core",
+        "pto_persistent_dag_graph_tensor_core",
         "cublas_sgemm",
         "cublas_sgemm_graph",
     }
@@ -54,6 +55,7 @@ WORKLOAD_DESCRIPTIONS = {
     "pto_persistent_dag_tensor": "PTO persistent DAG with scalar tiled GEMM work.",
     "pto_persistent_dag_graph_tensor": "PTO persistent DAG with explicit graph scalar tiled GEMM work.",
     "pto_persistent_dag_tensor_core": "PTO persistent DAG with a block-wide WMMA TF32/F32 task.",
+    "pto_persistent_dag_graph_tensor_core": ("PTO persistent DAG with explicit graph WMMA TF32/F32 tensor-core work."),
     "cublas_sgemm": "CUDA Runtime API plus cuBLAS SGEMM over the same descriptor.",
     "cublas_sgemm_graph": "cuBLAS SGEMM captured into a CUDA Graph and replayed on the same descriptor.",
 }
@@ -544,6 +546,7 @@ def render_svg(payload: dict[str, Any]) -> str:
         "pto_persistent_dag_tensor": "#2a9d8f",
         "pto_persistent_dag_graph_tensor": "#4c78a8",
         "pto_persistent_dag_tensor_core": "#d1495b",
+        "pto_persistent_dag_graph_tensor_core": "#9b5de5",
         "cublas_sgemm": "#006d77",
         "cublas_sgemm_graph": "#7b2cbf",
     }
@@ -586,6 +589,7 @@ def render_throughput_svg(payload: dict[str, Any]) -> str:
         "pto_persistent_dag_tensor": "#2a9d8f",
         "pto_persistent_dag_graph_tensor": "#4c78a8",
         "pto_persistent_dag_tensor_core": "#d1495b",
+        "pto_persistent_dag_graph_tensor_core": "#9b5de5",
         "cublas_sgemm": "#006d77",
         "cublas_sgemm_graph": "#7b2cbf",
     }

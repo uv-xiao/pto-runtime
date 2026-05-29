@@ -23,6 +23,7 @@ COMPACT_TENSOR_BASELINE_BASELINES = (
     "pto_persistent_dag_tensor",
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_tensor_core",
+    "pto_persistent_dag_graph_tensor_core",
     "cublas_sgemm",
     "cublas_sgemm_graph",
 )
@@ -39,6 +40,7 @@ COMPACT_TENSOR_BASELINE_DISPATCH = {
     "pto_persistent_dag_tensor": "3,1,2,1",
     "pto_persistent_dag_graph_tensor": "3,1,2,1",
     "pto_persistent_dag_tensor_core": "10,1,2,1",
+    "pto_persistent_dag_graph_tensor_core": "10,1,2,1",
 }
 REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 REPORT_FILES = (

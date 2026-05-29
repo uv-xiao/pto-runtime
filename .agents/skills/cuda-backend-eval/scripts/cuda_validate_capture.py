@@ -50,6 +50,7 @@ PAIRED_CURRENT_BASELINES = (
     "pto_persistent_dag_graph_triad",
     "pto_persistent_dag_graph_quad",
     "pto_persistent_dag_graph_tensor",
+    "pto_persistent_dag_graph_tensor_core",
     "pto_persistent_dag_unary_square",
     "pto_persistent_device",
     "pto_persistent_device_batch",
@@ -60,8 +61,8 @@ PAIRED_CURRENT_BASELINES = (
 PAIRED_CURRENT_SIZES = (1024, 65536, 1048576)
 COMPACT_CURRENT_SIZES = (1024,)
 COMPACT_CURRENT_EXPECTED_REPEATS = 1
-COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 72
-PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 954
+COMPACT_CURRENT_EXPECTED_RESULT_COUNT = 74
+PAIRED_CURRENT_EXPECTED_RESULT_COUNT = 972
 REQUIRED_SOURCE_PAPER_IDS = ("arXiv:2605.03190", "arXiv:2512.22219v1")
 REPORT_FILES = (
     "cuda-benchmark.md",
@@ -92,11 +93,13 @@ PAIRED_CURRENT_DISPATCH = {
     "pto_persistent_dag_tensor": "3,1,2,1",
     "pto_persistent_dag_graph_tensor": "3,1,2,1",
     "pto_persistent_dag_tensor_core": "10,1,2,1",
+    "pto_persistent_dag_graph_tensor_core": "10,1,2,1",
 }
 PAIRED_CURRENT_TENSOR_TILES = {
     "pto_persistent_dag_tensor": "16x16x16",
     "pto_persistent_dag_graph_tensor": "16x16x16",
     "pto_persistent_dag_tensor_core": "16x16x16",
+    "pto_persistent_dag_graph_tensor_core": "16x16x16",
     "cublas_sgemm": "16x16x16",
     "cublas_sgemm_graph": "16x16x16",
 }
@@ -118,6 +121,7 @@ PAIRED_CURRENT_GRAPH_FANIN = {
     "pto_persistent_dag_graph_triad": "0,0,2",
     "pto_persistent_dag_graph_quad": "0,0,2",
     "pto_persistent_dag_graph_tensor": "0,1,1,2",
+    "pto_persistent_dag_graph_tensor_core": "0,1,1,2",
 }
 PAIRED_CURRENT_GRAPH_DEPENDENTS = {
     "pto_persistent_dag_graph": "2,2",
@@ -129,6 +133,7 @@ PAIRED_CURRENT_GRAPH_DEPENDENTS = {
     "pto_persistent_dag_graph_triad": "2,2",
     "pto_persistent_dag_graph_quad": "2,2",
     "pto_persistent_dag_graph_tensor": "1,2,3,3",
+    "pto_persistent_dag_graph_tensor_core": "1,2,3,3",
 }
 
 

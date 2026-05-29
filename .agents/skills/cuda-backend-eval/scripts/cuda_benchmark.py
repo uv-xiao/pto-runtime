@@ -64,6 +64,7 @@ TENSOR_THROUGHPUT_BASELINES = {
     "pto_persistent_dag_tensor",
     "pto_persistent_dag_graph_tensor",
     "pto_persistent_dag_tensor_core",
+    "pto_persistent_dag_graph_tensor_core",
     "cublas_sgemm",
     "cublas_sgemm_graph",
 }
@@ -1488,10 +1489,10 @@ def run_persistent_sample(
     dag_shape: str = "fork_join",
     tensor_tile: dict[str, int] | None = None,
 ) -> dict[str, Any]:
-    if dag_shape == "tensor_core_tile":
+    if dag_shape in {"graph_tensor_core_tile", "tensor_core_tile"}:
         _validate_tensor_core_tile(tensor_tile or {"rows": 16, "cols": 16, "inner": 16})
     if task_count is None:
-        if dag_shape in {"graph_tensor_tile", "tensor_tile", "tensor_core_tile"}:
+        if dag_shape in {"graph_tensor_core_tile", "graph_tensor_tile", "tensor_core_tile", "tensor_tile"}:
             task_count = 4
         elif dag_shape == "scratch_reuse":
             task_count = 6
@@ -1774,6 +1775,16 @@ def run_single_sample(  # noqa: PLR0912
             dag_shape="tensor_core_tile",
             tensor_tile=tensor_tile,
         )
+    if baseline == "pto_persistent_dag_graph_tensor_core":
+        return run_persistent_sample(
+            device=device,
+            n=n,
+            arch=arch,
+            mode="dag",
+            baseline=baseline,
+            dag_shape="graph_tensor_core_tile",
+            tensor_tile=tensor_tile,
+        )
     if baseline == "cublas_sgemm":
         return run_cublas_sgemm_sample(device=device, n=n, tensor_tile=tensor_tile)
     if baseline == "cublas_sgemm_graph":
@@ -1959,6 +1970,7 @@ def run_benchmark(
                     "pto_persistent_dag_tensor",
                     "pto_persistent_dag_graph_tensor",
                     "pto_persistent_dag_tensor_core",
+                    "pto_persistent_dag_graph_tensor_core",
                     "cublas_sgemm",
                     "cublas_sgemm_graph",
                 ):
@@ -1969,6 +1981,7 @@ def run_benchmark(
                             "pto_persistent_dag_tensor",
                             "pto_persistent_dag_graph_tensor",
                             "pto_persistent_dag_tensor_core",
+                            "pto_persistent_dag_graph_tensor_core",
                             "cublas_sgemm",
                             "cublas_sgemm_graph",
                         }
@@ -2537,6 +2550,7 @@ def render_svg(summary: dict[tuple[str, str, int, int, int], dict[str, Any]]) ->
         "pto_persistent_dag_tensor": "#e76f51",
         "pto_persistent_dag_graph_tensor": "#c7522a",
         "pto_persistent_dag_tensor_core": "#d1495b",
+        "pto_persistent_dag_graph_tensor_core": "#9b5de5",
         "cublas_sgemm": "#006d77",
         "cublas_sgemm_graph": "#118ab2",
         "pto_persistent_device": "#9467bd",
@@ -2672,6 +2686,7 @@ def render_tensor_throughput_svg(payload: dict[str, Any]) -> str:
         "pto_persistent_dag_tensor": "#e76f51",
         "pto_persistent_dag_graph_tensor": "#c7522a",
         "pto_persistent_dag_tensor_core": "#d1495b",
+        "pto_persistent_dag_graph_tensor_core": "#9b5de5",
         "cublas_sgemm": "#006d77",
         "cublas_sgemm_graph": "#118ab2",
     }
@@ -2955,6 +2970,14 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             ),
             "  and the current `wmma:m16n16k8:tf32->f32` generated-dispatch body.",
             (
+                f"- `pto_persistent_dag_graph_tensor_core` uses an explicit graph descriptor with a configured "
+                f"{tensor_tile_shape} WMMA tensor-core task"
+                if tensor_tile_shape is not None
+                else "- `pto_persistent_dag_graph_tensor_core` uses an explicit graph descriptor with a default "
+                "16x16x16 WMMA tensor-core task"
+            ),
+            "  followed by the same residual, gate, and fan-in tasks.",
+            (
                 f"- `cublas_sgemm` measures cuBLAS SGEMM over a configured {tensor_tile_shape}"
                 if tensor_tile_shape is not None
                 else "- `cublas_sgemm` measures cuBLAS SGEMM over a default 16x16x16"
@@ -3087,6 +3110,7 @@ def main() -> None:
             "pto_persistent_dag_tensor",
             "pto_persistent_dag_graph_tensor",
             "pto_persistent_dag_tensor_core",
+            "pto_persistent_dag_graph_tensor_core",
             "cublas_sgemm",
             "cublas_sgemm_graph",
             "pto_host_schedule_batch",
@@ -3180,6 +3204,7 @@ def main() -> None:
                             "pto_persistent_dag_tensor",
                             "pto_persistent_dag_graph_tensor",
                             "pto_persistent_dag_tensor_core",
+                            "pto_persistent_dag_graph_tensor_core",
                             "cublas_sgemm",
                             "cublas_sgemm_graph",
                         }

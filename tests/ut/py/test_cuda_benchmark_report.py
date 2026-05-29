@@ -1522,6 +1522,7 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     assert "pto_persistent_dag_graph_quad" in args.require_baseline
     assert "pto_persistent_dag_graph_tensor" in args.require_baseline
     assert "pto_persistent_dag_tensor_core" in args.require_baseline
+    assert "pto_persistent_dag_graph_tensor_core" in args.require_baseline
     assert "cublas_sgemm" in args.require_baseline
     assert "cublas_sgemm_graph" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4=9,2,1" in args.require_dispatch
@@ -1544,10 +1545,14 @@ def test_cuda_capture_validator_paired_current_requires_generic_args_baseline():
     ) in args.require_graph_task_args
     assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_tensor_core=10,1,2,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_tensor_core=10,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_tensor=16x16x16" in args.require_tensor_tile
+    assert "pto_persistent_dag_graph_tensor_core=16x16x16" in args.require_tensor_tile
+    assert "pto_persistent_dag_graph_tensor_core=0,1,1,2" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_tensor_core=1,2,3,3" in args.require_graph_dependents
     assert "cublas_sgemm=16x16x16" in args.require_tensor_tile
     assert "cublas_sgemm_graph=16x16x16" in args.require_tensor_tile
-    assert args.expected_result_count == 954
+    assert args.expected_result_count == 972
 
 
 def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
@@ -1559,7 +1564,7 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert args.require_machine == ["hina", "dasys-h200x8"]
     assert args.require_size == ["1024"]
     assert args.expected_repeats == 1
-    assert args.expected_result_count == 72
+    assert args.expected_result_count == 74
     assert args.require_report_files is True
     assert args.require_command_examples is True
     assert args.require_zero_scheduler_errors is True
@@ -1573,8 +1578,8 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     assert "pto_persistent_dag_graph_tagged_inout" in args.require_baseline
     assert "pto_persistent_dag_graph_triad" in args.require_baseline
     assert "pto_persistent_dag_graph_quad" in args.require_baseline
-    assert args.expected_result_count == 72
     assert "pto_persistent_dag_graph_tensor" in args.require_baseline
+    assert "pto_persistent_dag_graph_tensor_core" in args.require_baseline
     assert "cublas_sgemm_graph" in args.require_baseline
     assert "pto_persistent_dag_graph_generic_args4=9,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in args.require_dispatch
@@ -1590,7 +1595,11 @@ def test_cuda_capture_validator_compact_current_preset_matches_docs_gate():
     ) in args.require_graph_task_args
     assert "pto_persistent_dag_graph_tensor=3,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_tensor_core=10,1,2,1" in args.require_dispatch
+    assert "pto_persistent_dag_graph_tensor_core=10,1,2,1" in args.require_dispatch
     assert "pto_persistent_dag_graph_tensor=16x16x16" in args.require_tensor_tile
+    assert "pto_persistent_dag_graph_tensor_core=16x16x16" in args.require_tensor_tile
+    assert "pto_persistent_dag_graph_tensor_core=0,1,1,2" in args.require_graph_fanin
+    assert "pto_persistent_dag_graph_tensor_core=1,2,3,3" in args.require_graph_dependents
     assert "cublas_sgemm=16x16x16" in args.require_tensor_tile
     assert "cublas_sgemm_graph=16x16x16" in args.require_tensor_tile
 
@@ -1842,12 +1851,14 @@ def test_cuda_tensor_sweep_validator_compact_preset_keeps_dispatch_commas():
     required_dispatch = cuda_validate_tensor_sweep._parse_required_dispatch(args.require_dispatch)
 
     assert args.expected_repeats == 3
-    assert args.expected_result_count == 60
+    assert args.expected_result_count == 72
     assert "cublas_sgemm_graph" in args.require_baseline
+    assert "pto_persistent_dag_graph_tensor_core" in args.require_baseline
     assert required_dispatch == {
         "pto_persistent_dag_tensor": "3,1,2,1",
         "pto_persistent_dag_graph_tensor": "3,1,2,1",
         "pto_persistent_dag_tensor_core": "10,1,2,1",
+        "pto_persistent_dag_graph_tensor_core": "10,1,2,1",
     }
 
 
@@ -2571,6 +2582,32 @@ def test_cuda_tensor_shape_sweep_accepts_graph_tensor_baseline(tmp_path):
     assert "--single-baseline" in local
     assert "pto_persistent_dag_graph_tensor" in local
     assert "--single-baseline pto_persistent_dag_graph_tensor" in remote[-1]
+    assert "--tensor-rows 16" in remote[-1]
+    assert "--tensor-cols 16" in remote[-1]
+    assert "--tensor-inner 16" in remote[-1]
+
+
+def test_cuda_tensor_shape_sweep_accepts_graph_tensor_core_baseline(tmp_path):
+    cuda_tensor_shape_sweep = _load_tensor_shape_sweep_module()
+    shape = cuda_tensor_shape_sweep.TensorShape(rows=16, cols=16, inner=16)
+    config = cuda_tensor_shape_sweep.TensorShapeSweepConfig(
+        remote="h200-box",
+        remote_workdir="/remote/pto-cu",
+        output_root=tmp_path / "cuda-backend",
+        local_python=".venv/bin/python",
+        remote_python=".venv/bin/python",
+        n=256,
+        baselines=cuda_tensor_shape_sweep.parse_baselines(
+            "pto_persistent_dag_tensor_core,pto_persistent_dag_graph_tensor_core"
+        ),
+    )
+
+    local = cuda_tensor_shape_sweep.build_local_sample_command(config, shape, "pto_persistent_dag_graph_tensor_core")
+    remote = cuda_tensor_shape_sweep.build_remote_sample_command(config, shape, "pto_persistent_dag_graph_tensor_core")
+
+    assert "--single-baseline" in local
+    assert "pto_persistent_dag_graph_tensor_core" in local
+    assert "--single-baseline pto_persistent_dag_graph_tensor_core" in remote[-1]
     assert "--tensor-rows 16" in remote[-1]
     assert "--tensor-cols 16" in remote[-1]
     assert "--tensor-inner 16" in remote[-1]
@@ -8604,6 +8641,76 @@ def test_run_single_sample_dispatches_tensor_core_dag(monkeypatch):
         "tensor_tile": tensor_tile,
     }
     assert result["baseline"] == "pto_persistent_dag_tensor_core"
+
+
+def test_run_single_sample_dispatches_graph_tensor_core_dag(monkeypatch):
+    cuda_benchmark = _load_benchmark_module()
+    seen = {}
+
+    def fake_run_persistent_sample(
+        device,
+        n,
+        arch,
+        mode="direct",
+        task_count=None,
+        baseline=None,
+        worker_blocks_per_task=1,
+        dag_shape="fork_join",
+        tensor_tile=None,
+    ):
+        seen.update(
+            {
+                "device": device,
+                "n": n,
+                "arch": arch,
+                "mode": mode,
+                "task_count": task_count,
+                "baseline": baseline,
+                "worker_blocks_per_task": worker_blocks_per_task,
+                "dag_shape": dag_shape,
+                "tensor_tile": tensor_tile,
+            }
+        )
+        return {
+            "baseline": baseline,
+            "n": n,
+            "task_count": task_count or 4,
+            "dag_shape": dag_shape,
+            "dispatch_func_ids": [10, 1, 2, 1],
+            "graph_descriptor": {"tasks": 4, "dependents": [1, 2, 3, 3], "fanin": [0, 1, 1, 2]},
+            "tensor_core": {"api": "wmma", "mma_shape": "m16n16k8", "input": "tf32", "accumulator": "f32"},
+            "device_wall_ns": 10,
+            "status": "pass",
+        }
+
+    tensor_tile = {"rows": 16, "cols": 16, "inner": 16}
+    monkeypatch.setattr(cuda_benchmark, "run_persistent_sample", fake_run_persistent_sample)
+
+    result = cuda_benchmark.run_single_sample(
+        baseline="pto_persistent_dag_graph_tensor_core",
+        device=3,
+        n=256,
+        block_dim=128,
+        arch="compute_80",
+        tensor_tile=tensor_tile,
+    )
+
+    assert seen == {
+        "device": 3,
+        "n": 256,
+        "arch": "compute_80",
+        "mode": "dag",
+        "task_count": None,
+        "baseline": "pto_persistent_dag_graph_tensor_core",
+        "worker_blocks_per_task": 1,
+        "dag_shape": "graph_tensor_core_tile",
+        "tensor_tile": tensor_tile,
+    }
+    assert result["baseline"] == "pto_persistent_dag_graph_tensor_core"
+    assert result["dag_shape"] == "graph_tensor_core_tile"
+    assert result["dispatch_func_ids"] == [10, 1, 2, 1]
+    assert result["graph_descriptor"] == {"tasks": 4, "dependents": [1, 2, 3, 3], "fanin": [0, 1, 1, 2]}
+    assert result["tensor_core"]["api"] == "wmma"
 
 
 def test_run_single_sample_dispatches_host_schedule_generic_args_baseline(monkeypatch):
