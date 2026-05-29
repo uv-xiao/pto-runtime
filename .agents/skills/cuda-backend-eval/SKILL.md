@@ -1285,7 +1285,8 @@ list-shaped callable registries used elsewhere in scene tests. For list-shaped
 registries, tasks may reference a callable by `name` or by zero-based list
 index. A list entry only needs `name` when tasks reference it by name; pure
 index-based graphs may use unnamed callable specs, or the compact integer
-form where each list element is the generated-dispatch `func_id`. The
+form where each list element is the generated-dispatch `func_id`. Dictionary
+registries may also use compact integer values such as `{"add": 1}`. The
 task-local fields override callable defaults, and the adapter resolves the
 callable before role-keyed `task_args`, temporary allocation, and tensor-flow
 edge inference. Use this form when checking the scene-test step toward normal

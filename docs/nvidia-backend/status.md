@@ -1974,8 +1974,12 @@ warning.
 The compact callable-registry slice is covered by
 `compact_callable_index_graph_with_ctypes_data`; integer list entries now
 lower directly to generated-dispatch `func_id` values for index-referenced
-graphs. That selector passed on the local A100 and remote H200, again with the
-known H200 PTO-ISA SSH refresh warning.
+graphs. The same compact form now works for dictionary registries such as
+`{"add": 1}` and is covered by
+`compact_callable_dict_graph_with_ctypes_data`. The focused selector passed
+locally with `2 passed, 111 deselected`, the full local A100 CUDA scene-test
+file passed with `113 passed`, and the H200 selector passed with `1 passed,
+112 deselected` while still emitting the known PTO-ISA SSH refresh warning.
 The role-keyed task-argument slice is covered by descriptor and real-data
 selectors
 `role_keyed_task_args` and `role_keyed_inout_graph_with_ctypes_data`. These

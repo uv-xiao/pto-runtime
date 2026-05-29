@@ -1324,7 +1324,10 @@ class _CudaPersistentDagSceneBuffers:
     def _graph_callables_by_name(graph: dict[str, Any]) -> dict[str, Any]:
         graph_callables = graph.get("callables", {})
         if isinstance(graph_callables, dict):
-            return graph_callables
+            return {
+                str(name): {"func_id": callable_spec} if isinstance(callable_spec, int) else callable_spec
+                for name, callable_spec in graph_callables.items()
+            }
         if not isinstance(graph_callables, list):
             raise ValueError("CUDA persistent_dag_graph_f32 graph callables must be a dictionary or list")
 
