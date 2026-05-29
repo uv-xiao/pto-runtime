@@ -2,8 +2,8 @@
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
 from commit `61cf96cd`, plus compact current-head validation captures. The
-latest compact gate is artifact label `493ce832`, which adds explicit graph
-tensor-core benchmark rows to the selected baseline matrix. The raw JSON,
+latest compact gate is artifact label `ca290b2a`, which revalidates graph
+tensor-core benchmark rows in the selected baseline matrix. The raw JSON,
 Markdown, and SVG reports are generated locally under `tmp/cuda-backend/` and
 intentionally remain uncommitted.
 
@@ -126,6 +126,14 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/current-head-compact-ca290b2a-working/a100-current-ca290b2a/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-compact-ca290b2a-working/h200-current-ca290b2a/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark.svg`
+- `tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.json`
 - `tmp/cuda-backend/a100-current-a46db551/cuda-benchmark.md`
 - `tmp/cuda-backend/h200-current-a46db551/cuda-benchmark.json`
@@ -198,8 +206,8 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 
 ## Latest Graph Tensor-Core Benchmark Gate
 
-The compact paired gate at artifact label `493ce832` adds
-`pto_persistent_dag_graph_tensor_core` to the selected benchmark matrix. It
+The compact paired gate at artifact label `ca290b2a` revalidates
+`pto_persistent_dag_graph_tensor_core` in the selected benchmark matrix. It
 uses the default `16x16x16` tensor descriptor, `N=1024`, one repeat,
 `batch_tasks=2`, and `worker_blocks_per_task=4`. The paired runner synced the
 local tree to `bizhaoh200`, captured local A100 and remote H200 reports,
@@ -210,7 +218,7 @@ Validation command:
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark.json \
+    tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark.json \
     --preset compact-current
 ```
 
@@ -225,8 +233,8 @@ Selected tensor rows:
 
 | GPU | Scalar tensor ns | Graph tensor ns | Tensor-core ns | Graph tensor-core ns | cuBLAS ns | cuBLAS Graph ns |
 | --- | ---------------- | --------------- | -------------- | -------------------- | --------- | --------------- |
-| A100 | 37888 | 36864 | 38912 | 38912 | 50175 | 11264 |
-| H200 | 35616 | 34976 | 32192 | 32800 | 76895 | 9344 |
+| A100 | 41984 | 36864 | 38912 | 37888 | 53247 | 11264 |
+| H200 | 40640 | 40608 | 38880 | 39424 | 50528 | 11615 |
 
 The graph tensor-core row validates dispatch `10,1,2,1`, graph fan-in
 `0,1,1,2`, dependents `1,2,3,3`, tensor tile `16x16x16`,

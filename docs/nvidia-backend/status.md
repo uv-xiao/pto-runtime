@@ -2898,11 +2898,11 @@ PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
   .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
     --sizes 1024 --repeats 1 --batch-tasks 2 \
     --worker-blocks-per-task 4 --sync-remote-tree \
-    --output-root tmp/cuda-backend/graph-tensor-core-compact-current-working
+    --output-root tmp/cuda-backend/current-head-compact-ca290b2a-working
 ```
 
 The paired runner wrote and validated
-`tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/cuda-benchmark.json`
+`tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/cuda-benchmark.json`
 with the `compact-current` preset. It required 74 samples, source-paper
 provenance, sanitized command examples, generated Markdown/SVG reports, zero
 scheduler errors, graph tensor-core dispatch `[10,1,2,1]`, graph fan-in
@@ -2910,8 +2910,8 @@ scheduler errors, graph tensor-core dispatch `[10,1,2,1]`, graph fan-in
 
 | GPU | Scalar tensor ns | Graph tensor ns | Tensor-core ns | Graph tensor-core ns | cuBLAS Graph ns |
 | --- | ---------------- | --------------- | -------------- | -------------------- | --------------- |
-| A100 | 37888 | 36864 | 38912 | 38912 | 11264 |
-| H200 | 35616 | 34976 | 32192 | 32800 | 9344 |
+| A100 | 41984 | 36864 | 38912 | 37888 | 11264 |
+| H200 | 40640 | 40608 | 38880 | 39424 | 11615 |
 
 Both graph tensor-core rows report `wmma:m16n16k8:tf32->f32`, target-specific
 PTX (`compute_80` on A100 and `compute_90` on H200), graph fan-in

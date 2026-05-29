@@ -1557,7 +1557,7 @@ PYTHONPATH=$PWD:$PWD/python \
 The historical compact paired benchmark capture with this row is under
 `tmp/cuda-backend/combined-current-dbb01406/`. The current compact selected
 baseline gate is under
-`tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/`
+`tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/`
 and also includes the graph tensor-core row. It uses `N=1024`, one repeat,
 `batch_tasks=2`, `worker_blocks_per_task=4`, validates source-paper
 provenance and zero scheduler errors, requires
@@ -1873,7 +1873,7 @@ graph-scratch-reuse baseline, graph-tagged-inout baseline, graph descriptor
 fan-in/dependent metadata, graph-triad and graph-quad baselines,
 task-argument tags, size `1024`, one repeat, `74` combined samples, and the
 Markdown/SVG report files. The current compact gate artifact is under
-`tmp/cuda-backend/graph-tensor-core-compact-current-working/combined-current-493ce832/`.
+`tmp/cuda-backend/current-head-compact-ca290b2a-working/combined-current-ca290b2a/`.
 Validate older captures with explicit `--require-*` checks if the current
 preset has gained new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the
