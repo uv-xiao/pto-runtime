@@ -339,6 +339,10 @@ node-link graph row joined the selected matrix.
 - `tmp/cuda-backend/scheduler-by-block-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-01b85c21/h200.json`
 - `tmp/cuda-backend/scheduler-by-block-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-01b85c21/cuda-smoke-report.md`
 - `tmp/cuda-backend/scheduler-by-block-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-01b85c21/cuda-smoke-report.svg`
+- `tmp/cuda-backend/parallel-chains-working/persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/a100.json`
+- `tmp/cuda-backend/parallel-chains-working/persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/h200.json`
+- `tmp/cuda-backend/parallel-chains-working/persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/cuda-smoke-report.md`
+- `tmp/cuda-backend/parallel-chains-working/persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/cuda-smoke-report.svg`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/cuda-scheduler-error-matrix.json`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/cuda-scheduler-error-matrix.md`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/cuda-scheduler-error-matrix.svg`
@@ -959,6 +963,47 @@ small graph does not provide enough completion work to keep every scheduler
 active on A100 at four scheduler blocks, which is visible in
 `scheduler_processed_by_block=[0,2,3,0]`, active scheduler count `2/4`, and
 busiest-scheduler share `60.0%`.
+
+## Latest Parallel-Chains Scheduler Load Smoke
+
+The parallel-chains smoke at artifact label `6ea3ef66` adds a wider
+explicit graph descriptor for scheduler-load evidence. The graph has four
+independent root tasks, two join tasks, two parallel consumers, and one final
+join, using only safe scratch-buffer reuse after prior consumers complete.
+It runs with `scheduler_blocks=4`, `worker_blocks=4`, `queue_capacity=4`,
+`block_dim=256`, and two repeat launches.
+
+Artifact paths:
+
+- `tmp/cuda-backend/parallel-chains-working/persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/a100.json`
+- `tmp/cuda-backend/parallel-chains-working/persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/h200.json`
+- `tmp/cuda-backend/parallel-chains-working/persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/cuda-smoke-report.md`
+- `tmp/cuda-backend/parallel-chains-working/persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/cuda-smoke-report.svg`
+
+Capture command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python .venv/bin/python \
+  .agents/skills/cuda-backend-eval/scripts/cuda_pair_persistent_smoke.py \
+    --dag-shape graph_descriptor_parallel_chains --task-count 9 \
+    --queue-capacity 4 --scheduler-blocks 4 --worker-blocks 4 \
+    --repeat-runs 2 --sync-remote-tree \
+    --output-root tmp/cuda-backend/parallel-chains-working
+```
+
+Selected rows:
+
+| GPU | Device ns | Host ns | Processed by block | Launch device ns |
+| --- | --------- | ------- | ------------------ | ---------------- |
+| A100 | 107520 | 140531 | `2,1,3,3` | `62464,45056` |
+| H200 | 93952 | 111346 | `3,3,2,1` | `52768,41184` |
+
+Both artifacts reported zero scheduler errors, repeat completions `[9,9]`,
+`scheduler_init_count=4`, `scheduler_loop_count=4`,
+`scheduler_processed_count=9`, dispatch `1,2,1,2,1,1,2,1,1`, graph fan-in
+`0,0,0,0,2,2,2,2,2`, and graph dependents `4,4,5,5,6,7,6,7,8,8`.
+The four-scheduler rows now show all scheduler blocks claiming completion
+work on both A100 and H200 for this wider graph.
 
 ## Latest Scheduler Error Matrix
 

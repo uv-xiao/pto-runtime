@@ -1341,6 +1341,107 @@ def _make_dag_shape(  # noqa: PLR0912, PLR0915
                 ),
             ),
         )
+    if dag_shape == "graph_descriptor_parallel_chains":
+        task_count = 9
+        host_fanin_t = ctypes.c_uint32 * task_count
+        dependents_t = ctypes.c_uint32 * 10
+        task_t = CudaPersistentDagTask * task_count
+        return (
+            host_fanin_t(0, 0, 0, 0, 2, 2, 2, 2, 2),
+            dependents_t(4, 4, 5, 5, 6, 7, 6, 7, 8, 8),
+            task_t(
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp0,
+                    n=n,
+                    dependent_begin=0,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp1,
+                    n=n,
+                    dependent_begin=1,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp2,
+                    n=n,
+                    dependent_begin=2,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=dev_a,
+                    b=dev_b,
+                    out=dev_tmp3,
+                    n=n,
+                    dependent_begin=3,
+                    dependent_count=1,
+                    initial_fanin=0,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp0,
+                    b=dev_tmp1,
+                    out=dev_tmp0,
+                    n=n,
+                    dependent_begin=4,
+                    dependent_count=2,
+                    initial_fanin=2,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp2,
+                    b=dev_tmp3,
+                    out=dev_tmp2,
+                    n=n,
+                    dependent_begin=6,
+                    dependent_count=2,
+                    initial_fanin=2,
+                ),
+                CudaPersistentDagTask(
+                    func_id=2,
+                    a=dev_tmp0,
+                    b=dev_tmp2,
+                    out=dev_tmp1,
+                    n=n,
+                    dependent_begin=8,
+                    dependent_count=1,
+                    initial_fanin=2,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp0,
+                    b=dev_tmp2,
+                    out=dev_tmp3,
+                    n=n,
+                    dependent_begin=9,
+                    dependent_count=1,
+                    initial_fanin=2,
+                ),
+                CudaPersistentDagTask(
+                    func_id=1,
+                    a=dev_tmp1,
+                    b=dev_tmp3,
+                    out=dev_out,
+                    n=n,
+                    dependent_begin=10,
+                    dependent_count=0,
+                    initial_fanin=2,
+                ),
+            ),
+        )
     if dag_shape in {"graph_tensor_core_tile", "graph_tensor_tile", "tensor_core_tile", "tensor_tile"}:
         descriptor = tensor_tile or _TENSOR_TILE_DESCRIPTOR
         task_count = 4
@@ -2666,6 +2767,14 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             if config.dag_shape in {"scratch_reuse", "graph_descriptor_scratch_reuse"}:
                 expected_tmp0 = [_f32(expected_tmp2[i] + host_a[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp3[i]) for i in range(n)]
+            if config.dag_shape == "graph_descriptor_parallel_chains":
+                root_add = [_f32(host_a[i] + host_b[i]) for i in range(n)]
+                root_mul = [_f32(host_a[i] * host_b[i]) for i in range(n)]
+                expected_tmp0 = [_f32(root_add[i] + root_mul[i]) for i in range(n)]
+                expected_tmp2 = [_f32(root_add[i] + root_mul[i]) for i in range(n)]
+                expected_tmp1 = [_f32(expected_tmp0[i] * expected_tmp2[i]) for i in range(n)]
+                expected_tmp3 = [_f32(expected_tmp0[i] + expected_tmp2[i]) for i in range(n)]
+                expected_out = [_f32(expected_tmp1[i] + expected_tmp3[i]) for i in range(n)]
             if config.dag_shape in {"scalar_axpy", "graph_descriptor_scalar_axpy"}:
                 expected_tmp0 = [_f32(_f32(1.5 * host_a[i]) + host_b[i]) for i in range(n)]
                 expected_out = [_f32(expected_tmp0[i] + expected_tmp1[i]) for i in range(n)]
@@ -2765,6 +2874,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     "graph_descriptor_diamond",
                     "graph_descriptor_generic_args4",
                     "graph_descriptor_node_attrs",
+                    "graph_descriptor_parallel_chains",
                     "graph_descriptor_reordered",
                     "graph_descriptor_scratch_reuse",
                     "graph_descriptor_submit_groups",
@@ -2778,6 +2888,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 in {
                     "chain",
                     "graph_descriptor_chain",
+                    "graph_descriptor_parallel_chains",
                     "scratch_reuse",
                     "graph_descriptor_scratch_reuse",
                     "quad",
@@ -2890,6 +3001,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             "graph_descriptor_node_op",
             "graph_descriptor_node_port_dict",
             "graph_descriptor_pair_inout",
+            "graph_descriptor_parallel_chains",
             "graph_descriptor_quad",
             "graph_descriptor_reordered",
             "graph_descriptor_role_map_inout",
@@ -3097,6 +3209,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
         "graph_descriptor_node_op",
         "graph_descriptor_node_port_dict",
         "graph_descriptor_pair_inout",
+        "graph_descriptor_parallel_chains",
         "graph_descriptor_quad",
         "graph_descriptor_reordered",
         "graph_descriptor_role_map_inout",
@@ -3179,6 +3292,7 @@ def run_persistent_smoke(  # noqa: PLR0912, PLR0913, PLR0915
             "graph_descriptor_node_op",
             "graph_descriptor_node_port_dict",
             "graph_descriptor_pair_inout",
+            "graph_descriptor_parallel_chains",
             "graph_descriptor_reordered",
             "graph_descriptor_role_map_inout",
             "graph_descriptor_scalar_affine",
@@ -3415,6 +3529,7 @@ def main() -> None:
             "graph_descriptor_node_op",
             "graph_descriptor_node_port_dict",
             "graph_descriptor_pair_inout",
+            "graph_descriptor_parallel_chains",
             "graph_descriptor_quad",
             "graph_descriptor_reordered",
             "graph_descriptor_role_map_inout",

@@ -990,6 +990,48 @@ def test_persistent_smoke_builds_graph_descriptor_chain_dag_shape():
     assert tasks[4].out == 0x7000
 
 
+def test_persistent_smoke_builds_graph_descriptor_parallel_chains_dag_shape():
+    cuda_persistent_smoke = _load_persistent_smoke_module()
+
+    fanin, dependents, tasks = cuda_persistent_smoke._make_dag_shape(
+        "graph_descriptor_parallel_chains",
+        17,
+        0x1000,
+        0x2000,
+        0x3000,
+        0x4000,
+        0x5000,
+        0x6000,
+        0x7000,
+    )
+
+    assert list(fanin) == [0, 0, 0, 0, 2, 2, 2, 2, 2]
+    assert list(dependents) == [4, 4, 5, 5, 6, 7, 6, 7, 8, 8]
+    assert [task.func_id for task in tasks] == [1, 2, 1, 2, 1, 1, 2, 1, 1]
+    assert [task.initial_fanin for task in tasks] == [0, 0, 0, 0, 2, 2, 2, 2, 2]
+    assert [task.dependent_count for task in tasks] == [1, 1, 1, 1, 2, 2, 1, 1, 0]
+    assert [task.dependent_begin for task in tasks] == [0, 1, 2, 3, 4, 6, 8, 9, 10]
+    assert tasks[0].out == 0x3000
+    assert tasks[1].out == 0x4000
+    assert tasks[2].out == 0x5000
+    assert tasks[3].out == 0x6000
+    assert tasks[4].a == 0x3000
+    assert tasks[4].b == 0x4000
+    assert tasks[4].out == 0x3000
+    assert tasks[5].a == 0x5000
+    assert tasks[5].b == 0x6000
+    assert tasks[5].out == 0x5000
+    assert tasks[6].a == 0x3000
+    assert tasks[6].b == 0x5000
+    assert tasks[6].out == 0x4000
+    assert tasks[7].a == 0x3000
+    assert tasks[7].b == 0x5000
+    assert tasks[7].out == 0x6000
+    assert tasks[8].a == 0x4000
+    assert tasks[8].b == 0x6000
+    assert tasks[8].out == 0x7000
+
+
 def test_persistent_smoke_builds_graph_tensor_tile_dag_shape():
     cuda_persistent_smoke = _load_persistent_smoke_module()
     descriptor = cuda_persistent_smoke._make_tensor_tile_descriptor(rows=8, cols=4, inner=12)

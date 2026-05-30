@@ -863,6 +863,59 @@ assert result["device_scheduler_errors"] == {"count": 0, "code": 0, "task_id": 0
 
 
 @requires_cuda
+def test_cuda_persistent_device_smoke_runs_parallel_chains_scheduler_load():
+    script = """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(".agents/skills/cuda-backend-eval/scripts").resolve()))
+from cuda_persistent_smoke import run_persistent_smoke
+
+result = run_persistent_smoke(
+    device=0,
+    task_count=9,
+    n=1024,
+    arch="compute_80",
+    mode="dag",
+    queue_capacity=4,
+    dag_shape="graph_descriptor_parallel_chains",
+    scheduler_blocks=4,
+    worker_blocks=4,
+    repeat_runs=2,
+)
+assert result["status"] == "pass"
+assert result["runtime"] == "persistent_device"
+assert result["mode"] == "dag"
+assert result["dag_shape"] == "graph_descriptor_parallel_chains"
+assert result["task_count"] == 9
+assert result["completed_count"] == 9
+assert result["launch_completed_counts"] == [9, 9]
+assert result["scheduler_blocks"] == 4
+assert result["worker_blocks"] == 4
+assert result["scheduler_init_count"] == 4
+assert result["scheduler_loop_count"] == 4
+assert result["scheduler_processed_count"] == 9
+assert len(result["scheduler_processed_by_block"]) == 4
+assert sum(result["scheduler_processed_by_block"]) == 9
+assert result["dispatch_func_ids"] == [1, 2, 1, 2, 1, 1, 2, 1, 1]
+assert result["fanin_remaining"] == [0, 0, 0, 0, 0, 0, 0, 0, 0]
+assert result["graph_descriptor"] == {
+    "tasks": 9,
+    "dependents": [4, 4, 5, 5, 6, 7, 6, 7, 8, 8],
+    "fanin": [0, 0, 0, 0, 2, 2, 2, 2, 2],
+}
+assert result["device_scheduler_errors"] == {"count": 0, "code": 0, "task_id": 0}
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+
+@requires_cuda
 def test_cuda_persistent_device_smoke_reports_device_scheduler_errors():
     script = """
 import sys

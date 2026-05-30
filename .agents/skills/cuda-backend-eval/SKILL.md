@@ -898,6 +898,17 @@ the reused `tmp0` buffer. The paired validator now requires
 report renders that alias so the physical storage reuse is visible in the
 artifact. The current capture is under
 `tmp/cuda-backend/persistent-graph_descriptor_scratch_reuse-repeat2-smoke-d8f6d0bf/`.
+Use `--dag-shape graph_descriptor_parallel_chains --scheduler-blocks 4
+--worker-blocks 4 --queue-capacity 4 --repeat-runs 2` to validate a wider
+nine-task graph with four independent roots, two joins, two parallel
+consumers, and a final join. This records fan-in `[0,0,0,0,2,2,2,2,2]`,
+dependents `[4,4,5,5,6,7,6,7,8,8]`, and dispatch
+`1,2,1,2,1,1,2,1,1`. The paired A100/H200 capture under
+`tmp/cuda-backend/parallel-chains-working/`
+`persistent-graph_descriptor_parallel_chains-sched4-repeat2-smoke-6ea3ef66/`
+reported zero scheduler errors, repeat completions `[9,9]`, and
+per-scheduler completion counters `[2,1,3,3]` on A100 and `[3,3,2,1]` on
+H200.
 For `--dag-shape tensor_tile`, pass `--tensor-rows`, `--tensor-cols`, and
 `--tensor-inner`; the artifact directory includes the descriptor shape, such
 as `persistent-tensor_tile-8x4x12-smoke-<commit>/`.

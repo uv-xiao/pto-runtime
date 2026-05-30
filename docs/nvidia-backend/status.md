@@ -4680,9 +4680,17 @@ Needed:
   graph's load-balance limit directly: A100 processed completions as
   `[0,2,3,0]` with active schedulers `2/4` and a `60.0%` busiest-scheduler
   completion share, while H200 processed `[2,1,1,1]` with active schedulers
-  `4/4` and a `40.0%` busiest share. The remaining policy gap is now broader
-  graph-size and load-balance studies rather than launch resource partitioning,
-  root seeding, completion-ring ownership, or artifact validation;
+  `4/4` and a `40.0%` busiest share. The parallel-chains capture under
+  `tmp/cuda-backend/parallel-chains-working/` adds a nine-task graph with four
+  roots, two joins, two parallel consumers, and one final join over
+  `scheduler_blocks=4`, `worker_blocks=4`, and `queue_capacity=4`. It validates
+  dispatch `1,2,1,2,1,1,2,1,1`, graph fan-in `0,0,0,0,2,2,2,2,2`, graph
+  dependents `4,4,5,5,6,7,6,7,8,8`, repeat completions `[9,9]`, and zero
+  scheduler errors on A100 and H200. A100 processed completions as
+  `[2,1,3,3]`; H200 processed `[3,3,2,1]`. The remaining policy gap is now
+  larger graph-size sweeps and baseline integration rather than launch
+  resource partitioning, root seeding, completion-ring ownership, or artifact
+  validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,
   duplicate-dependent, self-dependent, initial-fan-in, and

@@ -110,6 +110,10 @@ latest multi-size tensor baseline sweep uses `e79edba2`:
   scheduler scaling smoke sweep over `scheduler_blocks=1,2,4`, with paired
   A100/H200 JSON, Markdown, SVG, and a compact scaling summary report that
   includes active scheduler count and busiest scheduler completion share.
+- [Current capture](evaluation-current.md) records the `6ea3ef66`
+  parallel-chains scheduler-load smoke, a nine-task explicit graph descriptor
+  with four roots, two joins, two parallel consumers, one final join, and
+  paired A100/H200 Markdown/SVG artifacts.
 - [Current capture](evaluation-current.md) records the `35de3303` scheduler
   error matrix that captures all synthetic malformed-DAG diagnostics on A100
   and H200 with JSON, Markdown, and SVG artifacts validated by
