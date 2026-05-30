@@ -357,6 +357,10 @@ node-link graph row joined the selected matrix.
 - `tmp/cuda-backend/tensor-sweep-current-working/tensor-shape-sweep-219042f5/cuda-tensor-shape-sweep.md`
 - `tmp/cuda-backend/tensor-sweep-current-working/tensor-shape-sweep-219042f5/cuda-tensor-shape-sweep.svg`
 - `tmp/cuda-backend/tensor-sweep-current-working/tensor-shape-sweep-219042f5/cuda-tensor-shape-throughput.svg`
+- `tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/cuda-tensor-shape-sweep.json`
+- `tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/cuda-tensor-shape-sweep.md`
+- `tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/cuda-tensor-shape-sweep.svg`
+- `tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/cuda-tensor-shape-throughput.svg`
 - `tmp/cuda-backend/graph-unary-benchmark-working/a100-current-f074746a/cuda-benchmark.json`
 - `tmp/cuda-backend/graph-unary-benchmark-working/h200-current-f074746a/cuda-benchmark.json`
 - `tmp/cuda-backend/graph-unary-benchmark-working/combined-current-f074746a/cuda-benchmark.json`
@@ -2785,6 +2789,53 @@ scalar/tensor-core/graph tensor-core/cuBLAS/cuBLAS Graph
 the cuBLAS Graph row is the best launch-replay baseline, while the PTO graph
 tensor rows validate scheduler and descriptor plumbing rather than tuned
 large-GEMM throughput.
+
+A current-head one-repeat size sweep at commit `76422250` extends the same six
+selected tensor baselines to `N=256`, `4096`, and `65536` for the default
+`16x16x16` descriptor. The artifact is under
+`tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/` and
+was validated with required A100/H200 rows, required report files, visible
+throughput content, command examples, VDCores/MPK source-paper metadata, and
+PTO dispatch sequences.
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_tensor_sweep.py \
+    tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/cuda-tensor-shape-sweep.json \
+    --require-artifact a100 --require-artifact h200 \
+    --require-baseline pto_persistent_dag_tensor \
+    --require-baseline pto_persistent_dag_graph_tensor \
+    --require-baseline pto_persistent_dag_tensor_core \
+    --require-baseline pto_persistent_dag_graph_tensor_core \
+    --require-baseline cublas_sgemm \
+    --require-baseline cublas_sgemm_graph \
+    --require-size 256 --require-size 4096 --require-size 65536 \
+    --require-shape 16x16x16 --expected-repeats 1 \
+    --expected-result-count 36 --require-report-files \
+    --require-report-throughput --require-command-examples \
+    --require-source-papers \
+    --require-dispatch pto_persistent_dag_tensor=3,1,2,1 \
+    --require-dispatch pto_persistent_dag_graph_tensor=3,1,2,1 \
+    --require-dispatch pto_persistent_dag_tensor_core=10,1,2,1 \
+    --require-dispatch pto_persistent_dag_graph_tensor_core=10,1,2,1
+```
+
+| GPU | N | Scalar ns | Graph scalar ns | Tensor-core ns | Graph tensor-core ns | cuBLAS ns | cuBLAS Graph ns | Scalar GF/s | Graph tensor-core GF/s | cuBLAS Graph GF/s |
+| --- | - | --------- | --------------- | -------------- | -------------------- | --------- | --------------- | ----------- | ---------------------- | ----------------- |
+| A100 | 256 | 54272 | 51200 | 52224 | 53248 | 41983 | 8191 | 0.15 | 0.15 | 1.00 |
+| A100 | 4096 | 78848 | 76800 | 91136 | 86016 | 32767 | 13311 | 1.66 | 1.52 | 9.85 |
+| A100 | 65536 | 437184 | 439392 | 579360 | 583840 | 30719 | 11264 | 4.80 | 3.59 | 186.18 |
+| H200 | 256 | 44224 | 43648 | 44896 | 43872 | 41728 | 9151 | 0.19 | 0.19 | 0.90 |
+| H200 | 4096 | 63936 | 64832 | 57856 | 58848 | 39071 | 9312 | 2.05 | 2.23 | 14.08 |
+| H200 | 65536 | 424448 | 426752 | 343904 | 343136 | 43039 | 8448 | 4.94 | 6.11 | 248.24 |
+
+At `N=65536`, the explicit graph descriptor stays close to the generated
+scalar tensor DAG on both GPUs, which is useful runtime-shape evidence. The
+H200 WMMA tensor-core rows improve over scalar tensor rows at larger `N`,
+while A100's current WMMA row is slower in this one-repeat capture. cuBLAS
+Graph remains the fastest launch-replay baseline, especially at larger `N`;
+this confirms that the PTO persistent-device tensor path still needs tuned
+kernel-body work, not just descriptor and scheduler plumbing.
 
 ## Tensor-Core Callable Smoke
 

@@ -635,6 +635,22 @@ graph tensor row is `4.00x` cuBLAS Graph device time on A100 and `3.36x` on
 H200 for `16x16x16`, while explicit graph tensor-core is `5.44x` on A100 and
 `3.16x` on H200 for `16x16x64`.
 
+A current-head one-repeat size sweep at commit `76422250` extends the same
+six selected tensor baselines across `N=256`, `4096`, and `65536` for
+`16x16x16`. The artifact under
+`tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/`
+validated 36 rows with required A100/H200 artifacts, report files, visible
+throughput content, command examples, VDCores/MPK source-paper metadata, and
+PTO dispatch sequences. At `N=65536`, A100 measured scalar/graph/tensor-core/
+graph-tensor-core/cuBLAS/cuBLAS-graph device times of
+`437184/439392/579360/583840/30719/11264 ns`; H200 measured
+`424448/426752/343904/343136/43039/8448 ns`. The explicit graph descriptor
+tracks the generated scalar tensor DAG closely at large `N`, while H200's
+WMMA tensor-core rows improve over scalar tensor and A100's current WMMA row
+does not in this one-repeat capture. cuBLAS Graph remains the fastest
+launch-replay baseline, so the next gap is still tuned PTO tensor body work
+rather than descriptor, graph, or report plumbing.
+
 Evidence:
 
 - [evaluation.md](evaluation.md) is the evaluation landing page.

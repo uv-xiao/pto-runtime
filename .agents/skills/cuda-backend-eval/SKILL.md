@@ -2551,6 +2551,12 @@ The current validated compact tensor-baseline artifact is:
 tmp/cuda-backend/tensor-sweep-current-working/tensor-shape-sweep-219042f5/
 ```
 
+The current validated one-repeat tensor size-sweep artifact is:
+
+```text
+tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/
+```
+
 Validate a size sweep by spelling out the required sizes and result count:
 
 ```bash
@@ -2575,6 +2581,9 @@ PYTHONPATH=$PWD:$PWD/python \
     --require-dispatch pto_persistent_dag_tensor_core=10,1,2,1 \
     --require-dispatch pto_persistent_dag_graph_tensor_core=10,1,2,1
 ```
+
+For a one-repeat exploratory size sweep, use the same command with
+`--expected-repeats 1` and `--expected-result-count 36`.
 
 Use `--single-baseline pto_persistent_dag_tensor_core` for a quick benchmark
 path check of the WMMA tensor-core generated-dispatch DAG:

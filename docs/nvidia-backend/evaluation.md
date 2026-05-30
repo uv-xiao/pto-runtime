@@ -16,7 +16,7 @@ taken at commits `c0ada3ad` and `0879aa9e`. The first cuBLAS library baseline
 capture uses the `343924df` artifact label, and the first cuBLAS CUDA Graph
 baseline capture is under `cublas-graph-compact-working`. The first
 multi-baseline tensor shape sweep used the `6f9a0b78` artifact label, and the
-latest multi-size tensor baseline sweep uses `e79edba2`:
+latest current-head multi-size tensor baseline sweep uses `76422250`:
 
 - [Current capture](evaluation-current.md) summarizes the latest
   `8x4x12` tensor-descriptor sweep, selected baselines, host-schedule unary
@@ -36,6 +36,10 @@ latest multi-size tensor baseline sweep uses `e79edba2`:
 - [Current capture](evaluation-current.md) records the regenerated
   `219042f5` compact tensor sweep report with cuBLAS Graph baseline
   comparisons for each matching GPU, size, and shape.
+- [Current capture](evaluation-current.md) records the current-head
+  `76422250` multi-size tensor baseline sweep over `N=256,4096,65536` with
+  scalar tensor DAG, explicit-graph scalar tensor DAG, WMMA tensor-core DAG,
+  explicit-graph WMMA tensor-core DAG, cuBLAS, and cuBLAS Graph rows.
 - [Current capture](evaluation-current.md) records the compact `d361006f`
   paired gate that validates the default `16x16x16` tensor descriptor with
   scalar tensor DAG, WMMA tensor-core DAG, and cuBLAS rows in one current-head
@@ -197,6 +201,7 @@ committed:
 - `tmp/cuda-backend/tensor-shape-sweep-47d857e1/`
 - `tmp/cuda-backend/tensor-shape-sweep-e79edba2/`
 - `tmp/cuda-backend/tensor-sweep-current-working/tensor-shape-sweep-219042f5/`
+- `tmp/cuda-backend/tensor-size-sweep-working/tensor-shape-sweep-76422250/`
 - `tmp/cuda-backend/compact-role-benchmark-working/a100-current-30a8974f/`
 - `tmp/cuda-backend/compact-role-benchmark-working/h200-current-30a8974f/`
 - `tmp/cuda-backend/compact-role-benchmark-working/combined-current-30a8974f/`
