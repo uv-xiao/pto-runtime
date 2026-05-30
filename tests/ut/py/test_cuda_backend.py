@@ -846,6 +846,8 @@ assert result["completed_count"] == 5
 assert result["scheduler_init_count"] == 2
 assert result["scheduler_loop_count"] == 2
 assert result["scheduler_processed_count"] == 5
+assert len(result["scheduler_processed_by_block"]) == 2
+assert sum(result["scheduler_processed_by_block"]) == 5
 assert result["dispatch_func_ids"] == [9, 2, 1, 2, 1]
 assert result["fanin_remaining"] == [0, 0, 0, 0, 0]
 assert result["device_scheduler_errors"] == {"count": 0, "code": 0, "task_id": 0}

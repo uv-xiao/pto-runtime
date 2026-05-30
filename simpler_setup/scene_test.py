@@ -1148,8 +1148,10 @@ class _CudaPersistentDagSceneBuffers:
 
         flags_t = ctypes.c_uint32 * queue_capacity
         counters_t = ctypes.c_uint32 * 11
+        scheduler_processed_by_block_t = ctypes.c_uint32 * 1
         self.host_flags = flags_t(*([0] * queue_capacity))
         self.host_counters = counters_t(*([0] * 11))
+        self.host_scheduler_processed_by_block = scheduler_processed_by_block_t(0)
 
         self.dev_tasks = self._malloc(ctypes.sizeof(self.host_tasks))
         self.dev_dependents = self._malloc(ctypes.sizeof(self.host_dependents))
@@ -1159,6 +1161,7 @@ class _CudaPersistentDagSceneBuffers:
         self.dev_completion_queue = self._malloc(ctypes.sizeof(ctypes.c_uint32 * queue_capacity))
         self.dev_completion_flags = self._malloc(ctypes.sizeof(self.host_flags))
         self.dev_counters = self._malloc(ctypes.sizeof(self.host_counters))
+        self.dev_scheduler_processed_by_block = self._malloc(ctypes.sizeof(self.host_scheduler_processed_by_block))
         self.dev_state = self._malloc(ctypes.sizeof(CudaPersistentDagState))
 
         self.worker.copy_to(self.dev_tasks, ctypes.addressof(self.host_tasks), ctypes.sizeof(self.host_tasks))
@@ -1190,6 +1193,7 @@ class _CudaPersistentDagSceneBuffers:
             scheduler_init_count=self.dev_counters + 8 * ctypes.sizeof(ctypes.c_uint32),
             scheduler_loop_count=self.dev_counters + 9 * ctypes.sizeof(ctypes.c_uint32),
             scheduler_processed_count=self.dev_counters + 10 * ctypes.sizeof(ctypes.c_uint32),
+            scheduler_processed_by_block=self.dev_scheduler_processed_by_block,
         )
         self.worker.copy_to(self.dev_state, ctypes.addressof(state), ctypes.sizeof(state))
         self.args = CudaPersistentDagArgs(state=self.dev_state)
@@ -2111,16 +2115,28 @@ class _CudaPersistentDagSceneBuffers:
             ctypes.addressof(self.host_counters),
             ctypes.sizeof(self.host_counters),
         )
+        self.worker.copy_to(
+            self.dev_scheduler_processed_by_block,
+            ctypes.addressof(self.host_scheduler_processed_by_block),
+            ctypes.sizeof(self.host_scheduler_processed_by_block),
+        )
 
     def copy_outputs_from_device(self, output_names: list[str]) -> None:
         self.tensor_buffers.copy_outputs_from_device(output_names)
 
-    def read_counters(self) -> dict[str, int]:
+    def read_counters(self) -> dict[str, int | list[int]]:
         import ctypes  # noqa: PLC0415
 
         counters_t = ctypes.c_uint32 * 11
+        scheduler_processed_by_block_t = ctypes.c_uint32 * 1
         counters = counters_t()
+        scheduler_processed_by_block = scheduler_processed_by_block_t()
         self.worker.copy_from(ctypes.addressof(counters), self.dev_counters, ctypes.sizeof(counters))
+        self.worker.copy_from(
+            ctypes.addressof(scheduler_processed_by_block),
+            self.dev_scheduler_processed_by_block,
+            ctypes.sizeof(scheduler_processed_by_block),
+        )
         return {
             "queue_head": int(counters[0]),
             "queue_tail": int(counters[1]),
@@ -2133,6 +2149,7 @@ class _CudaPersistentDagSceneBuffers:
             "scheduler_init_count": int(counters[8]),
             "scheduler_loop_count": int(counters[9]),
             "scheduler_processed_count": int(counters[10]),
+            "scheduler_processed_by_block": [int(value) for value in scheduler_processed_by_block],
         }
 
     def free(self) -> None:

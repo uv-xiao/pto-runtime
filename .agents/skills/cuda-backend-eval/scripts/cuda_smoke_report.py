@@ -140,11 +140,15 @@ def _resource_policy(row: dict[str, Any]) -> str:
 def _scheduler_flow(row: dict[str, Any]) -> str:
     loop_count = row.get("scheduler_loop_count")
     processed_count = row.get("scheduler_processed_count")
-    if loop_count is None and processed_count is None:
+    processed_by_block = row.get("scheduler_processed_by_block")
+    if loop_count is None and processed_count is None and not isinstance(processed_by_block, list):
         return "-"
     loops = loop_count if loop_count is not None else "-"
     processed = processed_count if processed_count is not None else "-"
-    return f"loops={loops},processed={processed}"
+    parts = [f"loops={loops}", f"processed={processed}"]
+    if isinstance(processed_by_block, list):
+        parts.append("by_block=" + ",".join(str(item) for item in processed_by_block))
+    return ",".join(parts)
 
 
 def _scalar_args(row: dict[str, Any]) -> str:
@@ -258,7 +262,7 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
 def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
     width = 760
     bar_height = 28
-    row_gap = 160
+    row_gap = 174
     left = 170
     right = 40
     top = 70
@@ -282,6 +286,7 @@ def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
         scheduler_errors = _scheduler_errors(row)
         lifecycle = _lifecycle(row)
         resource_policy = _resource_policy(row)
+        scheduler_flow = _scheduler_flow(row)
         scalar_args = _scalar_args(row)
         tensor_args = _tensor_args(row)
         scratch_reuse = _scratch_reuse(row)
@@ -316,40 +321,45 @@ def render_svg_report(payloads: list[dict[str, Any]], label: str) -> str:
                 (
                     f'<text x="{left}" y="{y + bar_height + 56}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
-                    f"scalars: {html.escape(scalar_args)}</text>"
+                    f"scheduler: {html.escape(scheduler_flow)}</text>"
                 ),
                 (
                     f'<text x="{left}" y="{y + bar_height + 70}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
-                    f"tensors: {html.escape(tensor_args)}</text>"
+                    f"scalars: {html.escape(scalar_args)}</text>"
                 ),
                 (
                     f'<text x="{left}" y="{y + bar_height + 84}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
-                    f"scratch: {html.escape(scratch_reuse)}</text>"
+                    f"tensors: {html.escape(tensor_args)}</text>"
                 ),
                 (
                     f'<text x="{left}" y="{y + bar_height + 98}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
-                    f"graph: {html.escape(graph_descriptor)}</text>"
+                    f"scratch: {html.escape(scratch_reuse)}</text>"
                 ),
                 (
                     f'<text x="{left}" y="{y + bar_height + 112}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
-                    f"task arg key: {html.escape(graph_task_arg_key)}</text>"
+                    f"graph: {html.escape(graph_descriptor)}</text>"
                 ),
                 (
                     f'<text x="{left}" y="{y + bar_height + 126}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
-                    f"task args: {html.escape(graph_task_args)}</text>"
+                    f"task arg key: {html.escape(graph_task_arg_key)}</text>"
                 ),
                 (
                     f'<text x="{left}" y="{y + bar_height + 140}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
-                    f"node attrs: {html.escape(graph_node_attrs)}</text>"
+                    f"task args: {html.escape(graph_task_args)}</text>"
                 ),
                 (
                     f'<text x="{left}" y="{y + bar_height + 154}" '
+                    'font-family="sans-serif" font-size="11" fill="#555">'
+                    f"node attrs: {html.escape(graph_node_attrs)}</text>"
+                ),
+                (
+                    f'<text x="{left}" y="{y + bar_height + 168}" '
                     'font-family="sans-serif" font-size="11" fill="#555">'
                     f"node ops: {html.escape(graph_node_ops)}</text>"
                 ),

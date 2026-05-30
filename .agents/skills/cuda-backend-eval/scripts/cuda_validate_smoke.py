@@ -76,6 +76,7 @@ class SmokeValidationExpectation:
     scheduler_init_count: int | None = None
     scheduler_loop_count: int | None = None
     scheduler_processed_count: int | None = None
+    scheduler_processed_block_count: int | None = None
     resource_policy: ResourcePolicyExpectation | None = None
     require_report_files: bool = False
     require_report_scalar_args: bool = False
@@ -265,6 +266,42 @@ def _validate_top_level_count(
         found = payload.get(field_name)
         if found != expected_count:
             errors.append(f"expected {field_name} {expected_count} for artifact={artifact}, found {found}")
+    return errors
+
+
+def _validate_scheduler_processed_by_block(
+    payloads: list[dict[str, Any]],
+    *,
+    expected_block_count: int | None,
+    expected_processed_count: int | None,
+) -> list[str]:
+    errors: list[str] = []
+    if expected_block_count is None:
+        return errors
+    for payload in payloads:
+        artifact = payload.get("_artifact", "unknown")
+        values = payload.get("scheduler_processed_by_block")
+        if not isinstance(values, list):
+            errors.append(f"missing scheduler_processed_by_block for artifact={artifact}")
+            continue
+        if len(values) != expected_block_count:
+            errors.append(
+                f"expected scheduler_processed_by_block length {expected_block_count} "
+                f"for artifact={artifact}, found {len(values)}"
+            )
+        try:
+            total = sum(int(value) for value in values)
+        except (TypeError, ValueError):
+            errors.append(f"invalid scheduler_processed_by_block values for artifact={artifact}")
+            continue
+        expected_total = expected_processed_count
+        if expected_total is None and isinstance(payload.get("scheduler_processed_count"), int):
+            expected_total = int(payload["scheduler_processed_count"])
+        if expected_total is not None and total != expected_total:
+            errors.append(
+                f"expected scheduler_processed_by_block sum {total} to match "
+                f"scheduler_processed_count {expected_total} for artifact={artifact}"
+            )
     return errors
 
 
@@ -671,6 +708,13 @@ def validate_smoke(
         )
     )
     errors.extend(
+        _validate_scheduler_processed_by_block(
+            payloads,
+            expected_block_count=expectation.scheduler_processed_block_count,
+            expected_processed_count=expectation.scheduler_processed_count,
+        )
+    )
+    errors.extend(
         _validate_graph_descriptor(
             payloads,
             expected_fanin=expectation.graph_fanin,
@@ -781,6 +825,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-scheduler-init-count", type=int)
     parser.add_argument("--expected-scheduler-loop-count", type=int)
     parser.add_argument("--expected-scheduler-processed-count", type=int)
+    parser.add_argument("--expected-scheduler-processed-block-count", type=int)
     parser.add_argument("--expected-scheduler-blocks", type=int)
     parser.add_argument("--expected-worker-blocks", type=int)
     parser.add_argument("--expected-worker-blocks-per-task", type=int)
@@ -836,6 +881,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             scheduler_init_count=args.expected_scheduler_init_count,
             scheduler_loop_count=args.expected_scheduler_loop_count,
             scheduler_processed_count=args.expected_scheduler_processed_count,
+            scheduler_processed_block_count=args.expected_scheduler_processed_block_count,
             resource_policy=_resource_policy_expectation(args),
             require_report_files=args.require_report_files,
             require_report_scalar_args=args.require_report_scalar_args,

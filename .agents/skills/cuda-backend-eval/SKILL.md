@@ -272,6 +272,16 @@ dependents. The A100 and H200 artifacts both require
 `9,2,1,2,1`, graph fan-in `0,0,2,2,2`, graph dependents `2,3,2,3,4,4`,
 scalar/tensor arg metadata, and zero scheduler errors. Device times were
 `97280 ns` on A100 and `72928 ns` on H200 for `N=1024`.
+The paired scheduler by-block policy capture under
+`tmp/cuda-backend/scheduler-by-block-policy-working/`
+`persistent-graph_descriptor_diamond-repeat2-smoke-01b85c21/` validates the
+same graph and resource policy after adding per-scheduler completion counters.
+The A100 and H200 artifacts both require `scheduler_processed_by_block=[2,3]`
+in addition to `scheduler_loop_count=2`, `scheduler_processed_count=5`,
+`scheduler_init_count=2`, repeat completions `[5,5]`, dispatch
+`9,2,1,2,1`, graph topology, scalar/tensor arg metadata, and zero scheduler
+errors. Device times were `97280 ns` on A100 and `71136 ns` on H200 for
+`N=1024`.
 
 Run the bounded-ring persistent smoke with wraparound:
 

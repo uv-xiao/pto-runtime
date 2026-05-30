@@ -119,6 +119,7 @@ struct PtoCudaPersistentDagState {
     uint32_t *scheduler_init_count;
     uint32_t *scheduler_loop_count;
     uint32_t *scheduler_processed_count;
+    uint32_t *scheduler_processed_by_block;
 };
 
 struct PtoCudaPersistentDagArgs {

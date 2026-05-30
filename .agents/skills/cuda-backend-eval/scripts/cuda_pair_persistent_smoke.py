@@ -559,6 +559,8 @@ def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> 
                 str(expected_scheduler_blocks),
                 "--expected-scheduler-processed-count",
                 str(_expected_completed_count(config)),
+                "--expected-scheduler-processed-block-count",
+                str(expected_scheduler_blocks),
             ]
         )
     expected_dispatch = _expected_dispatch(config)

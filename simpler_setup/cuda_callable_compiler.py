@@ -322,6 +322,7 @@ class CudaPersistentDagState(ctypes.Structure):
         ("scheduler_init_count", ctypes.c_void_p),
         ("scheduler_loop_count", ctypes.c_void_p),
         ("scheduler_processed_count", ctypes.c_void_p),
+        ("scheduler_processed_by_block", ctypes.c_void_p),
     ]
 
 
@@ -667,6 +668,7 @@ struct PtoCudaPersistentDagState {{
     unsigned int *scheduler_init_count;
     unsigned int *scheduler_loop_count;
     unsigned int *scheduler_processed_count;
+    unsigned int *scheduler_processed_by_block;
 }};
 
 __device__ void pto_dag_record_error(
@@ -771,7 +773,8 @@ __device__ unsigned int pto_dag_first_unready_task(const PtoCudaPersistentDagSta
 
 __device__ void pto_dag_process_completion(
     const PtoCudaPersistentDagState *state,
-    unsigned int task_id) {{
+    unsigned int task_id,
+    unsigned int scheduler_block_id) {{
     PtoCudaPersistentDagTask task = state->tasks[task_id];
     unsigned long long dependent_begin =
         static_cast<unsigned long long>(task.dependent_begin);
@@ -813,6 +816,10 @@ __device__ void pto_dag_process_completion(
         }}
     }}
     atomicAdd(state->scheduler_processed_count, 1U);
+    if (state->scheduler_processed_by_block != nullptr &&
+        scheduler_block_id < state->scheduler_blocks) {{
+        atomicAdd(&state->scheduler_processed_by_block[scheduler_block_id], 1U);
+    }}
     atomicAdd(state->completed_count, 1U);
 }}
 
@@ -849,7 +856,7 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
                    atomicAdd(state->error_count, 0U) == 0U) {{
                 unsigned int completed_task_id = 0U;
                 if (pto_dag_try_pop_completion(state, &completed_task_id)) {{
-                    pto_dag_process_completion(state, completed_task_id);
+                    pto_dag_process_completion(state, completed_task_id, blockIdx.x);
                     continue;
                 }}
                 if (blockIdx.x == 0) {{
@@ -861,7 +868,7 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
                         static_cast<unsigned long long>(completed) < state->task_count) {{
                         unsigned int late_completed_task_id = 0U;
                         if (pto_dag_try_pop_completion(state, &late_completed_task_id)) {{
-                            pto_dag_process_completion(state, late_completed_task_id);
+                            pto_dag_process_completion(state, late_completed_task_id, blockIdx.x);
                             continue;
                         }}
                         published = atomicAdd(state->queue_tail, 0U);

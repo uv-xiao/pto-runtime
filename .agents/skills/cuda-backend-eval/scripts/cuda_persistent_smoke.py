@@ -965,6 +965,7 @@ class CudaPersistentDagState(ctypes.Structure):
         ("scheduler_init_count", ctypes.c_void_p),
         ("scheduler_loop_count", ctypes.c_void_p),
         ("scheduler_processed_count", ctypes.c_void_p),
+        ("scheduler_processed_by_block", ctypes.c_void_p),
     ]
 
 
@@ -2413,6 +2414,9 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
     b_nbytes = ctypes.sizeof(host_b)
     output_nbytes = ctypes.sizeof(host_out)
 
+    scheduler_blocks = config.scheduler_blocks
+    worker_blocks = config.worker_blocks
+
     dev_a = runtime.device_malloc_ctx(ctx, a_nbytes)
     dev_b = runtime.device_malloc_ctx(ctx, b_nbytes)
     dev_tmp0 = runtime.device_malloc_ctx(ctx, output_nbytes)
@@ -2446,6 +2450,9 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
     dev_completion_queue = runtime.device_malloc_ctx(ctx, ctypes.sizeof(ctypes.c_uint32 * queue_capacity))
     dev_completion_flags = runtime.device_malloc_ctx(ctx, ctypes.sizeof(host_flags))
     dev_counters = runtime.device_malloc_ctx(ctx, ctypes.sizeof(host_counters))
+    host_scheduler_processed_by_block_t = ctypes.c_uint32 * scheduler_blocks
+    host_scheduler_processed_by_block = host_scheduler_processed_by_block_t(*([0] * scheduler_blocks))
+    dev_scheduler_processed_by_block = runtime.device_malloc_ctx(ctx, ctypes.sizeof(host_scheduler_processed_by_block))
     dev_state = runtime.device_malloc_ctx(ctx, ctypes.sizeof(CudaPersistentDagState))
     allocated = (
         dev_a,
@@ -2463,6 +2470,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         dev_completion_queue,
         dev_completion_flags,
         dev_counters,
+        dev_scheduler_processed_by_block,
         dev_state,
     )
     if not all(allocated):
@@ -2502,6 +2510,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             scheduler_init_count=dev_counters + 8 * ctypes.sizeof(ctypes.c_uint32),
             scheduler_loop_count=dev_counters + 9 * ctypes.sizeof(ctypes.c_uint32),
             scheduler_processed_count=dev_counters + 10 * ctypes.sizeof(ctypes.c_uint32),
+            scheduler_processed_by_block=dev_scheduler_processed_by_block,
         )
         if runtime.copy_to_device_ctx(ctx, dev_state, ctypes.byref(state), ctypes.sizeof(state)) != 0:
             raise RuntimeError("copy_to_device dag state failed")
@@ -2509,11 +2518,12 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         initial_fanin = [int(value) for value in host_fanin]
         zero_output = array_t()
 
-        def reset_launch_state() -> tuple[Any, Any]:
+        def reset_launch_state() -> tuple[Any, Any, Any]:
             launch_fanin_t = ctypes.c_uint32 * len(initial_fanin)
             launch_fanin = launch_fanin_t(*initial_fanin)
             launch_flags = host_flags_t(*([0] * queue_capacity))
             launch_counters = host_counters_t(*([0] * 11))
+            launch_scheduler_processed_by_block = host_scheduler_processed_by_block_t(*([0] * scheduler_blocks))
             reset_copies = [
                 (dev_fanin, ctypes.byref(launch_fanin), ctypes.sizeof(launch_fanin), "fanin"),
                 (dev_ready_flags, ctypes.byref(launch_flags), ctypes.sizeof(launch_flags), "ready flags"),
@@ -2524,6 +2534,12 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                     "completion flags",
                 ),
                 (dev_counters, ctypes.byref(launch_counters), ctypes.sizeof(launch_counters), "counters"),
+                (
+                    dev_scheduler_processed_by_block,
+                    ctypes.byref(launch_scheduler_processed_by_block),
+                    ctypes.sizeof(launch_scheduler_processed_by_block),
+                    "scheduler processed by block",
+                ),
                 (dev_tmp1, ctypes.byref(zero_output), output_nbytes, "tmp1"),
                 (dev_tmp2, ctypes.byref(zero_output), output_nbytes, "tmp2"),
                 (dev_out, ctypes.byref(zero_output), output_nbytes, "out"),
@@ -2541,10 +2557,8 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             for dst, src, size, label in reset_copies:
                 if runtime.copy_to_device_ctx(ctx, dst, src, size) != 0:
                     raise RuntimeError(f"copy_to_device dag {label} failed")
-            return launch_fanin, launch_counters
+            return launch_fanin, launch_counters, launch_scheduler_processed_by_block
 
-        scheduler_blocks = config.scheduler_blocks
-        worker_blocks = config.worker_blocks
         artifact = config.persistent_artifact or CudaPersistentCallableArtifact(
             cache_key="embedded",
             cache_hit=True,
@@ -2577,8 +2591,9 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
         scheduler_init_count = 0
         scheduler_loop_count = 0
         scheduler_processed_count = 0
+        scheduler_processed_by_block: list[int] = []
         for launch_idx in range(config.repeat_runs):
-            host_fanin, host_counters = reset_launch_state()
+            host_fanin, host_counters, host_scheduler_processed_by_block = reset_launch_state()
             timing = PtoRunTiming()
             if (
                 runtime.run_prepared(
@@ -2618,6 +2633,16 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
                 raise RuntimeError("copy_from_device dag counters failed")
             if runtime.copy_from_device_ctx(ctx, ctypes.byref(host_fanin), dev_fanin, ctypes.sizeof(host_fanin)) != 0:
                 raise RuntimeError("copy_from_device dag fanin failed")
+            if (
+                runtime.copy_from_device_ctx(
+                    ctx,
+                    ctypes.byref(host_scheduler_processed_by_block),
+                    dev_scheduler_processed_by_block,
+                    ctypes.sizeof(host_scheduler_processed_by_block),
+                )
+                != 0
+            ):
+                raise RuntimeError("copy_from_device dag scheduler processed by block failed")
 
             error_count = int(host_counters[5])
             error_code = int(host_counters[6])
@@ -2625,6 +2650,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             scheduler_init_count = int(host_counters[8])
             scheduler_loop_count = int(host_counters[9])
             scheduler_processed_count = int(host_counters[10])
+            scheduler_processed_by_block = [int(value) for value in host_scheduler_processed_by_block]
             if error_count != 0:
                 raise RuntimeError(
                     f"persistent dag scheduler error code={error_code} task_id={error_task_id} count={error_count}"
@@ -2798,6 +2824,7 @@ def _run_dag_smoke(config: DagSmokeConfig) -> dict:  # noqa: PLR0912, PLR0915
             "scheduler_init_count": scheduler_init_count,
             "scheduler_loop_count": scheduler_loop_count,
             "scheduler_processed_count": scheduler_processed_count,
+            "scheduler_processed_by_block": scheduler_processed_by_block,
             "launch_completed_counts": launch_completed_counts,
             "device_scheduler_errors": {
                 "count": error_count,
