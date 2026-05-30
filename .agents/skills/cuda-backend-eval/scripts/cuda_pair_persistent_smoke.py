@@ -68,14 +68,15 @@ def _git_commit(runner: Runner = subprocess.run) -> str:
 
 def _artifact_label(config: PairedPersistentSmokeConfig, suffix: str) -> str:
     repeat = f"-repeat{config.repeat_runs}" if config.repeat_runs > 1 else ""
+    scheduler = f"-sched{config.scheduler_blocks}" if config.mode == "dag" and config.scheduler_blocks != 1 else ""
     if config.mode != "dag":
         return f"persistent-{config.mode}{repeat}-smoke-{suffix}"
     if _is_tensor_tile_shape(config.dag_shape):
         return (
             f"persistent-{config.dag_shape}-{config.tensor_rows}x"
-            f"{config.tensor_cols}x{config.tensor_inner}{repeat}-smoke-{suffix}"
+            f"{config.tensor_cols}x{config.tensor_inner}{scheduler}{repeat}-smoke-{suffix}"
         )
-    return f"persistent-{config.dag_shape}{repeat}-smoke-{suffix}"
+    return f"persistent-{config.dag_shape}{scheduler}{repeat}-smoke-{suffix}"
 
 
 def _output_dir(config: PairedPersistentSmokeConfig, suffix: str) -> Path:

@@ -282,6 +282,15 @@ in addition to `scheduler_loop_count=2`, `scheduler_processed_count=5`,
 `9,2,1,2,1`, graph topology, scalar/tensor arg metadata, and zero scheduler
 errors. Device times were `97280 ns` on A100 and `71136 ns` on H200 for
 `N=1024`.
+Use `cuda_scheduler_scaling.py` to summarize a scheduler-block sweep after
+capturing the individual paired smokes. The paired scheduler scaling capture
+under `tmp/cuda-backend/scheduler-scaling-working/` sweeps
+`scheduler_blocks=1,2,4` with `worker_blocks=3`, writes a compact JSON,
+Markdown, and SVG summary under `scheduler-scaling-a5ca4fac/`, and shows
+A100 device times `110592/97280/98304 ns` and H200 device times
+`82240/70368/70752 ns` for `1/2/4` scheduler blocks. The report also exposes
+the load-balance counters, including A100 `[0,2,3,0]` and H200 `[2,1,1,1]`
+for the four-scheduler row.
 
 Run the bounded-ring persistent smoke with wraparound:
 

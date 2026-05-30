@@ -4671,9 +4671,16 @@ Needed:
   same graph and resource policy, exposes per-scheduler completion counters,
   and validates `scheduler_processed_by_block=[2,3]` on both A100 and H200.
   A100 reported `device_wall_ns=97280`; H200 reported
-  `device_wall_ns=71136`, so the remaining policy gap is scheduler-block
-  scaling and load-balance studies over broader graphs rather than launch
-  resource partitioning, root seeding, completion-ring ownership, or artifact
+  `device_wall_ns=71136`. The scheduler scaling sweep under
+  `tmp/cuda-backend/scheduler-scaling-working/` validates the same graph over
+  `scheduler_blocks=1,2,4` with paired A100/H200 smoke JSON and a summary
+  report under `scheduler-scaling-a5ca4fac/`. A100 reported
+  `110592/97280/98304 ns` for `1/2/4` scheduler blocks; H200 reported
+  `82240/70368/70752 ns`. The four-scheduler rows expose the current small
+  graph's load-balance limit directly: A100 processed completions as
+  `[0,2,3,0]`, while H200 processed `[2,1,1,1]`. The remaining policy gap is
+  now broader graph-size and load-balance studies rather than launch resource
+  partitioning, root seeding, completion-ring ownership, or artifact
   validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,

@@ -106,6 +106,9 @@ latest multi-size tensor baseline sweep uses `e79edba2`:
 - [Current capture](evaluation-current.md) records the `01b85c21`
   scheduler by-block policy smoke that validates per-scheduler completion
   counters with `scheduler_processed_by_block=[2,3]` on A100 and H200.
+- [Current capture](evaluation-current.md) records the `a5ca4fac`
+  scheduler scaling smoke sweep over `scheduler_blocks=1,2,4`, with paired
+  A100/H200 JSON, Markdown, SVG, and a compact scaling summary report.
 - [Current capture](evaluation-current.md) records the `35de3303` scheduler
   error matrix that captures all synthetic malformed-DAG diagnostics on A100
   and H200 with JSON, Markdown, and SVG artifacts validated by
@@ -204,6 +207,7 @@ committed:
   `persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/`
 - `tmp/cuda-backend/scheduler-by-block-policy-working/`
   `persistent-graph_descriptor_diamond-repeat2-smoke-01b85c21/`
+- `tmp/cuda-backend/scheduler-scaling-working/scheduler-scaling-a5ca4fac/`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/`
 - `tmp/cuda-backend/index.md`
 

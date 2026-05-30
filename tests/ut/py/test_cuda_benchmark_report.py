@@ -195,6 +195,26 @@ def _load_persistent_lifecycle_matrix_module():
         sys.path.remove(str(script_dir))
 
 
+def _load_scheduler_scaling_module():
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / ".agents"
+        / "skills"
+        / "cuda-backend-eval"
+        / "scripts"
+        / "cuda_scheduler_scaling.py"
+    )
+    spec = importlib.util.spec_from_file_location("cuda_scheduler_scaling", script_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.modules.pop(spec.name, None)
+
+
 def _load_current_summary_module():
     script_dir = Path(__file__).resolve().parents[3] / ".agents" / "skills" / "cuda-backend-eval" / "scripts"
     script_path = script_dir / "cuda_current_summary.py"
@@ -5870,7 +5890,9 @@ def test_cuda_pair_persistent_smoke_passes_scheduler_blocks(tmp_path):
     local = cuda_pair_persistent_smoke.build_local_smoke_command(config, "abc123")
     remote = cuda_pair_persistent_smoke.build_remote_smoke_command(config, "abc123")
     validate = cuda_pair_persistent_smoke.build_validate_command(config, "abc123")
+    output_dir = cuda_pair_persistent_smoke._output_dir(config, "abc123")
 
+    assert output_dir.name == "persistent-graph_descriptor_diamond-sched2-smoke-abc123"
     assert "--scheduler-blocks" in local
     assert "2" in local
     assert "--worker-blocks" in local
@@ -5887,6 +5909,93 @@ def test_cuda_pair_persistent_smoke_passes_scheduler_blocks(tmp_path):
     assert "--expected-scheduler-loop-count" in validate
     assert "--expected-scheduler-processed-count" in validate
     assert "--expected-scheduler-processed-block-count" in validate
+
+
+def test_cuda_scheduler_scaling_report_summarizes_by_block_smokes(tmp_path):
+    cuda_scheduler_scaling = _load_scheduler_scaling_module()
+    payloads = [
+        {
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": "dag",
+            "dag_shape": "graph_descriptor_diamond",
+            "n": 1024,
+            "device_wall_ns": 100000,
+            "host_wall_ns": 130000,
+            "scheduler_blocks": 1,
+            "worker_blocks": 3,
+            "scheduler_loop_count": 1,
+            "scheduler_processed_count": 5,
+            "scheduler_processed_by_block": [5],
+            "launch_completed_counts": [5, 5],
+            "dispatch_func_ids": [9, 2, 1, 2, 1],
+            "resource_policy": {"scheduler_blocks": 1, "worker_blocks": 3, "grid_dim": 4},
+            "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+        },
+        {
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": "dag",
+            "dag_shape": "graph_descriptor_diamond",
+            "n": 1024,
+            "device_wall_ns": 90000,
+            "host_wall_ns": 120000,
+            "scheduler_blocks": 2,
+            "worker_blocks": 3,
+            "scheduler_loop_count": 2,
+            "scheduler_processed_count": 5,
+            "scheduler_processed_by_block": [2, 3],
+            "launch_completed_counts": [5, 5],
+            "dispatch_func_ids": [9, 2, 1, 2, 1],
+            "resource_policy": {"scheduler_blocks": 2, "worker_blocks": 3, "grid_dim": 5},
+            "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+        },
+        {
+            "status": "pass",
+            "runtime": "persistent_device",
+            "mode": "dag",
+            "dag_shape": "graph_descriptor_diamond",
+            "n": 1024,
+            "device_wall_ns": 110000,
+            "host_wall_ns": 140000,
+            "scheduler_blocks": 4,
+            "worker_blocks": 3,
+            "scheduler_loop_count": 4,
+            "scheduler_processed_count": 5,
+            "scheduler_processed_by_block": [2, 1, 1, 1],
+            "launch_completed_counts": [5, 5],
+            "dispatch_func_ids": [9, 2, 1, 2, 1],
+            "resource_policy": {"scheduler_blocks": 4, "worker_blocks": 3, "grid_dim": 7},
+            "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+        },
+    ]
+    paths = []
+    for scheduler_blocks, payload in zip((1, 2, 4), payloads, strict=True):
+        for artifact in ("a100", "h200"):
+            path = tmp_path / f"sched{scheduler_blocks}" / f"{artifact}.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_payload = {
+                **payload,
+                "device_wall_ns": payload["device_wall_ns"] + (0 if artifact == "a100" else 7),
+            }
+            path.write_text(json.dumps(artifact_payload) + "\n")
+            paths.append(path)
+
+    rows = cuda_scheduler_scaling.load_scaling_rows(paths)
+    markdown = cuda_scheduler_scaling.render_markdown_report(rows, label="scheduler-scaling-test")
+    svg = cuda_scheduler_scaling.render_svg_report(rows, label="scheduler-scaling-test")
+    output_dir = tmp_path / "report"
+
+    cuda_scheduler_scaling.write_scaling_report(rows, output_dir, label="scheduler-scaling-test")
+
+    payload = json.loads((output_dir / "cuda-scheduler-scaling.json").read_text())
+    assert len(payload["rows"]) == 6
+    assert "| a100 | 2 | 90000 | 120000 | `2,3` | `2/5` | `0.90x` |" in markdown
+    assert "| h200 | 4 | 110007 | 140000 | `2,1,1,1` | `4/5` | `1.10x` |" in markdown
+    assert "scheduler-scaling-test" in svg
+    assert "sched=4; by_block=2,1,1,1" in svg
+    assert (output_dir / "cuda-scheduler-scaling.md").exists()
+    assert (output_dir / "cuda-scheduler-scaling.svg").exists()
 
 
 def test_cuda_pair_persistent_smoke_passes_repeat_runs(tmp_path):
