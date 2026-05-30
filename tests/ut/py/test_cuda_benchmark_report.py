@@ -1251,8 +1251,9 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
 
     assert (
         "| Tensor core | Dispatch | Graph fan-in | Graph dependents | Scheduler errors | "
-        "Repeat runs | Launch completions | Resource policy | Scalar args | Tensor args | "
-        "Scratch reuse | Graph task arg key | Graph task args | Graph node attrs | Graph node ops |" in markdown
+        "Repeat runs | Launch completions | Resource policy | Scheduler flow | Scalar args | "
+        "Tensor args | Scratch reuse | Graph task arg key | Graph task args | Graph node attrs | "
+        "Graph node ops |" in markdown
     )
     assert "| a100 | pass | persistent_device | dag/tensor_tile | 4096 | `compute_80` | 102400 | 122260 |" in markdown
     assert "| h200 | pass | persistent_device | dag/tensor_tile | 4096 | `compute_90` | 70464 | 79788 |" in markdown
@@ -1260,7 +1261,7 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
         "| `wmma:m16n16k8:tf32->f32` | `3,1,2,1` | `0,1,1,2` | `1,2,3,3` | "
         "`count=0,code=0,task=0` | `2` | `4,4` | "
         "`sched=1,workers=2,wp=1,stream=1,block=256,grid=3` | "
-        "`scalar0=1.5` | `c=tmp0` | "
+        "`-` | `scalar0=1.5` | `c=tmp0` | "
         "`reused_buffer=tmp0,reuse_task=4` | "
         "`role` | "
         "`task0=input:a,input:b,output:tmp1;task1=input:a,input:b,output:tmp2` | "
@@ -1271,7 +1272,7 @@ def test_cuda_smoke_report_renders_markdown_and_svg(tmp_path):
         "| `3,1,2,1` | `0,1,1,2` | `1,2,3,3` | "
         "`count=1,code=7(unreachable_task),task=3` | `2` | `4,4` | "
         "`sched=1,workers=2,wp=1,stream=1,block=256,grid=3` | "
-        "`scalar0=1.5` | `c=tmp0` | `reused_buffer=tmp0,reuse_task=4` |" in markdown
+        "`-` | `scalar0=1.5` | `c=tmp0` | `reused_buffer=tmp0,reuse_task=4` |" in markdown
     )
     assert "nvcc-persistent-generated-dispatch-compute_90" in markdown
     assert "<svg" in svg
@@ -3540,6 +3541,40 @@ def test_cuda_smoke_validator_checks_scheduler_init_count(tmp_path):
     )
 
     assert "expected scheduler_init_count 2 for artifact=a100, found 1" in errors
+
+
+def test_cuda_smoke_validator_checks_scheduler_loop_counts(tmp_path):
+    cuda_validate_smoke = _load_smoke_validator_module()
+    artifact_dir = tmp_path / "persistent-scheduler-loop-smoke"
+    artifact_dir.mkdir()
+    payload = {
+        "status": "pass",
+        "runtime": "persistent_device",
+        "mode": "dag",
+        "dag_shape": "graph_descriptor_diamond",
+        "n": 1024,
+        "repeat_runs": 1,
+        "completed_count": 5,
+        "scheduler_init_count": 2,
+        "scheduler_loop_count": 1,
+        "scheduler_processed_count": 4,
+        "launch_completed_counts": [5],
+        "dispatch_func_ids": [9, 2, 1, 2, 1],
+        "device_scheduler_errors": {"count": 0, "code": 0, "task_id": 0},
+    }
+    (artifact_dir / "a100.json").write_text(json.dumps(payload) + "\n")
+
+    payloads = cuda_validate_smoke.load_smoke_payloads([artifact_dir / "a100.json"])
+    errors = cuda_validate_smoke.validate_smoke(
+        payloads,
+        expectation=cuda_validate_smoke.SmokeValidationExpectation(
+            scheduler_loop_count=2,
+            scheduler_processed_count=5,
+        ),
+    )
+
+    assert "expected scheduler_loop_count 2 for artifact=a100, found 1" in errors
+    assert "expected scheduler_processed_count 5 for artifact=a100, found 4" in errors
 
 
 def test_cuda_smoke_validator_checks_graph_descriptor_metadata(tmp_path):
@@ -5837,6 +5872,8 @@ def test_cuda_pair_persistent_smoke_passes_scheduler_blocks(tmp_path):
     assert "--expected-grid-dim" in validate
     assert "5" in validate
     assert "--expected-scheduler-init-count" in validate
+    assert "--expected-scheduler-loop-count" in validate
+    assert "--expected-scheduler-processed-count" in validate
 
 
 def test_cuda_pair_persistent_smoke_passes_repeat_runs(tmp_path):

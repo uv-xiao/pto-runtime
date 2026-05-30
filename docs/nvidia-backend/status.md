@@ -4656,9 +4656,19 @@ Needed:
   dependents `2,3,2,3,4,4`, scalar/tensor arg metadata, generated
   Markdown/SVG reports, and zero device scheduler errors on A100 and H200.
   A100 reported `device_wall_ns=77824`; H200 reported
-  `device_wall_ns=52768`, so the remaining policy gap is now deeper
-  scheduler-loop sharding beyond distributed root seeding rather than launch
-  resource partitioning or artifact validation;
+  `device_wall_ns=52768`. The scheduler-loop policy capture under
+  `tmp/cuda-backend/scheduler-loop-policy-working/`
+  `persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/` moves
+  dependent release out of worker blocks and into scheduler blocks through a
+  bounded completion ring. It validates the same graph shape with
+  `scheduler_loop_count=2`, `scheduler_processed_count=5`,
+  `scheduler_init_count=2`, repeat completions `[5,5]`, generated
+  Markdown/SVG reports, and zero device scheduler errors on A100 and H200.
+  A100 reported `device_wall_ns=97280`; H200 reported
+  `device_wall_ns=72928`, so the remaining policy gap is now deeper
+  scheduler work stealing and scaling beyond the completion-ring tracer
+  bullet rather than launch resource partitioning, root seeding, or artifact
+  validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,
   duplicate-dependent, self-dependent, initial-fan-in, and

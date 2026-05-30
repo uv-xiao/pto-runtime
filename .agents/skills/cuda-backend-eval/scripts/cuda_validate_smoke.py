@@ -74,6 +74,8 @@ class SmokeValidationExpectation:
     graph_node_ops: str | None = None
     scratch_reuse: str | None = None
     scheduler_init_count: int | None = None
+    scheduler_loop_count: int | None = None
+    scheduler_processed_count: int | None = None
     resource_policy: ResourcePolicyExpectation | None = None
     require_report_files: bool = False
     require_report_scalar_args: bool = False
@@ -246,6 +248,23 @@ def _validate_scheduler_init_count(
         found = payload.get("scheduler_init_count")
         if found != expected_count:
             errors.append(f"expected scheduler_init_count {expected_count} for artifact={artifact}, found {found}")
+    return errors
+
+
+def _validate_top_level_count(
+    payloads: list[dict[str, Any]],
+    *,
+    field_name: str,
+    expected_count: int | None,
+) -> list[str]:
+    errors: list[str] = []
+    if expected_count is None:
+        return errors
+    for payload in payloads:
+        artifact = payload.get("_artifact", "unknown")
+        found = payload.get(field_name)
+        if found != expected_count:
+            errors.append(f"expected {field_name} {expected_count} for artifact={artifact}, found {found}")
     return errors
 
 
@@ -638,6 +657,20 @@ def validate_smoke(
         )
     )
     errors.extend(
+        _validate_top_level_count(
+            payloads,
+            field_name="scheduler_loop_count",
+            expected_count=expectation.scheduler_loop_count,
+        )
+    )
+    errors.extend(
+        _validate_top_level_count(
+            payloads,
+            field_name="scheduler_processed_count",
+            expected_count=expectation.scheduler_processed_count,
+        )
+    )
+    errors.extend(
         _validate_graph_descriptor(
             payloads,
             expected_fanin=expectation.graph_fanin,
@@ -746,6 +779,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-graph-node-ops")
     parser.add_argument("--expected-scratch-reuse")
     parser.add_argument("--expected-scheduler-init-count", type=int)
+    parser.add_argument("--expected-scheduler-loop-count", type=int)
+    parser.add_argument("--expected-scheduler-processed-count", type=int)
     parser.add_argument("--expected-scheduler-blocks", type=int)
     parser.add_argument("--expected-worker-blocks", type=int)
     parser.add_argument("--expected-worker-blocks-per-task", type=int)
@@ -799,6 +834,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             graph_node_ops=args.expected_graph_node_ops,
             scratch_reuse=args.expected_scratch_reuse,
             scheduler_init_count=args.expected_scheduler_init_count,
+            scheduler_loop_count=args.expected_scheduler_loop_count,
+            scheduler_processed_count=args.expected_scheduler_processed_count,
             resource_policy=_resource_policy_expectation(args),
             require_report_files=args.require_report_files,
             require_report_scalar_args=args.require_report_scalar_args,

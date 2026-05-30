@@ -137,6 +137,16 @@ def _resource_policy(row: dict[str, Any]) -> str:
     )
 
 
+def _scheduler_flow(row: dict[str, Any]) -> str:
+    loop_count = row.get("scheduler_loop_count")
+    processed_count = row.get("scheduler_processed_count")
+    if loop_count is None and processed_count is None:
+        return "-"
+    loops = loop_count if loop_count is not None else "-"
+    processed = processed_count if processed_count is not None else "-"
+    return f"loops={loops},processed={processed}"
+
+
 def _scalar_args(row: dict[str, Any]) -> str:
     scalars = row.get("scalar_args")
     if not isinstance(scalars, dict) or not scalars:
@@ -209,8 +219,8 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
             "| Artifact | Status | Runtime | Mode | N | PTX arch | Device ns | "
             "Host ns | Tensor shape | Tiles | Tensor core | Dispatch | "
             "Graph fan-in | Graph dependents | Scheduler errors | Repeat runs | "
-            "Launch completions | Resource policy | Scalar args | Tensor args | "
-            "Scratch reuse | Graph task arg key | Graph task args | "
+            "Launch completions | Resource policy | Scheduler flow | Scalar args | "
+            "Tensor args | Scratch reuse | Graph task arg key | Graph task args | "
             "Graph node attrs | Graph node ops |"
         ),
         (
@@ -218,8 +228,8 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
             "------- | ------------ | ----- | ----------- | -------- | "
             "------------ | ---------------- | ---------------- | ----------- | "
             "------------------ | --------------- | ----------- | ----------- | "
-            "------------- | ------------------ | --------------- | "
-            "---------------- | -------------- |"
+            "-------------- | ------------------ | --------------- | "
+            "---------------- | --------------- | ---------------- | -------------- |"
         ),
     ]
     for row in payloads:
@@ -233,7 +243,7 @@ def render_markdown_report(payloads: list[dict[str, Any]], label: str) -> str:
             f"`{_graph_descriptor_field(row, 'dependents')}` | "
             f"`{_scheduler_errors(row)}` | `{_repeat_runs(row)}` | "
             f"`{_launch_completed_counts(row)}` | `{_resource_policy(row)}` | "
-            f"`{_scalar_args(row)}` | `{_tensor_args(row)}` | "
+            f"`{_scheduler_flow(row)}` | `{_scalar_args(row)}` | `{_tensor_args(row)}` | "
             f"`{_scratch_reuse(row)}` | `{_graph_task_arg_key(row)}` | "
             f"`{_graph_task_args(row)}` | `{_graph_node_attrs(row)}` | `{_graph_node_ops(row)}` |"
         )

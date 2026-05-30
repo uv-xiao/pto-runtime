@@ -104,15 +104,21 @@ struct PtoCudaPersistentDagState {
     uint32_t *fanin;
     uint32_t *ready_queue;
     uint32_t *ready_flags;
+    uint32_t *completion_queue;
+    uint32_t *completion_flags;
     uint32_t queue_capacity;
     uint32_t *queue_head;
     uint32_t *queue_tail;
+    uint32_t *completion_head;
+    uint32_t *completion_tail;
     uint32_t *completed_count;
     uint32_t *error_count;
     uint32_t *error_code;
     uint32_t *error_task_id;
     uint32_t scheduler_blocks;
     uint32_t *scheduler_init_count;
+    uint32_t *scheduler_loop_count;
+    uint32_t *scheduler_processed_count;
 };
 
 struct PtoCudaPersistentDagArgs {

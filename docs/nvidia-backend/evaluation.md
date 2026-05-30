@@ -98,6 +98,11 @@ latest multi-size tensor baseline sweep uses `e79edba2`:
   `scheduler_blocks=2`, `scheduler_init_count=2`, `worker_blocks=3`,
   `grid_dim=5`, graph topology, scalar/tensor arg metadata, report files, and
   zero scheduler errors on A100 and H200.
+- [Current capture](evaluation-current.md) records the `5d7b3961`
+  scheduler-loop policy smoke that validates scheduler-side completion-ring
+  processing with `scheduler_loop_count=2`,
+  `scheduler_processed_count=5`, graph topology, report files, and zero
+  scheduler errors on A100 and H200.
 - [Current capture](evaluation-current.md) records the `35de3303` scheduler
   error matrix that captures all synthetic malformed-DAG diagnostics on A100
   and H200 with JSON, Markdown, and SVG artifacts validated by
@@ -192,6 +197,8 @@ committed:
 - `tmp/cuda-backend/lifecycle-tensor-core-working/persistent-lifecycle-matrix-1c683c1c/`
 - `tmp/cuda-backend/scheduler-distribution-policy-working/`
   `persistent-graph_descriptor_diamond-repeat2-smoke-93e0a299/`
+- `tmp/cuda-backend/scheduler-loop-policy-working/`
+  `persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/`
 - `tmp/cuda-backend/index.md`
 

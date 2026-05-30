@@ -331,6 +331,10 @@ node-link graph row joined the selected matrix.
 - `tmp/cuda-backend/lifecycle-tensor-core-working/persistent-lifecycle-matrix-1c683c1c/cuda-lifecycle-matrix.json`
 - `tmp/cuda-backend/lifecycle-tensor-core-working/persistent-lifecycle-matrix-1c683c1c/cuda-lifecycle-matrix.md`
 - `tmp/cuda-backend/lifecycle-tensor-core-working/persistent-lifecycle-matrix-1c683c1c/cuda-lifecycle-matrix.svg`
+- `tmp/cuda-backend/scheduler-loop-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/a100.json`
+- `tmp/cuda-backend/scheduler-loop-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/h200.json`
+- `tmp/cuda-backend/scheduler-loop-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/cuda-smoke-report.md`
+- `tmp/cuda-backend/scheduler-loop-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/cuda-smoke-report.svg`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/cuda-scheduler-error-matrix.json`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/cuda-scheduler-error-matrix.md`
 - `tmp/cuda-backend/scheduler-error-matrix-working/scheduler-error-matrix-35de3303/cuda-scheduler-error-matrix.svg`
@@ -801,6 +805,53 @@ Both artifacts reported zero scheduler errors, repeat completions `[5,5]`,
 `scheduler_init_count=2`, dispatch `9,2,1,2,1`, graph fan-in `0,0,2,2,2`,
 graph dependents `2,3,2,3,4,4`, scalar args `1.5,0.25`, and tensor args
 `tmp0,tmp3`.
+
+## Latest Scheduler-Loop Policy Smoke
+
+The scheduler-loop policy smoke at artifact label `5d7b3961` keeps the same
+five-task graph-diamond descriptor and resource policy as the previous
+scheduler-distribution capture, but moves dependent release out of worker
+blocks. Worker blocks now publish completed task IDs to a bounded completion
+ring. Scheduler blocks enter the scheduler loop, pop completion records,
+release downstream fan-in, and publish newly ready tasks.
+
+Validation command:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_smoke.py \
+    tmp/cuda-backend/scheduler-loop-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/a100.json \
+    tmp/cuda-backend/scheduler-loop-policy-working/persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/h200.json \
+    --require-artifact a100 --require-artifact h200 \
+    --expected-runtime persistent_device --expected-mode dag \
+    --expected-dag-shape graph_descriptor_diamond --expected-repeat-runs 2 \
+    --expected-scheduler-init-count 2 --expected-scheduler-loop-count 2 \
+    --expected-scheduler-processed-count 5 \
+    --expected-completed-count 5 --expected-dispatch 9,2,1,2,1 \
+    --expected-graph-fanin 0,0,2,2,2 \
+    --expected-graph-dependents 2,3,2,3,4,4 \
+    --expected-scheduler-blocks 2 --expected-worker-blocks 3 \
+    --expected-worker-blocks-per-task 1 --expected-stream-id 2 \
+    --expected-block-dim 256 --expected-grid-dim 5 \
+    --require-report-files --require-report-graph-topology \
+    --expected-scalar-args 'scalar_args[0]=1.5,scalar_args[1]=0.25' \
+    --require-report-scalar-args \
+    --expected-tensor-args 'tensor_args[0]=tmp0,tensor_args[1]=tmp3' \
+    --require-report-tensor-args
+```
+
+Selected rows:
+
+| GPU | Device ns | Host ns | Launches ns | Scheduler flow |
+| --- | --------- | ------- | ----------- | -------------- |
+| A100 | 97280 | 131913 | `60416,36864` | `loops=2,processed=5` |
+| H200 | 72928 | 92768 | `38944,33984` | `loops=2,processed=5` |
+
+Both artifacts reported zero scheduler errors, repeat completions `[5,5]`,
+`scheduler_init_count=2`, `scheduler_loop_count=2`,
+`scheduler_processed_count=5`, dispatch `9,2,1,2,1`, graph fan-in
+`0,0,2,2,2`, graph dependents `2,3,2,3,4,4`, scalar args `1.5,0.25`, and
+tensor args `tmp0,tmp3`.
 
 ## Latest Scheduler Error Matrix
 

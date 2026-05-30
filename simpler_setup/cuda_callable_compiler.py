@@ -307,15 +307,21 @@ class CudaPersistentDagState(ctypes.Structure):
         ("fanin", ctypes.c_void_p),
         ("ready_queue", ctypes.c_void_p),
         ("ready_flags", ctypes.c_void_p),
+        ("completion_queue", ctypes.c_void_p),
+        ("completion_flags", ctypes.c_void_p),
         ("queue_capacity", ctypes.c_uint32),
         ("queue_head", ctypes.c_void_p),
         ("queue_tail", ctypes.c_void_p),
+        ("completion_head", ctypes.c_void_p),
+        ("completion_tail", ctypes.c_void_p),
         ("completed_count", ctypes.c_void_p),
         ("error_count", ctypes.c_void_p),
         ("error_code", ctypes.c_void_p),
         ("error_task_id", ctypes.c_void_p),
         ("scheduler_blocks", ctypes.c_uint32),
         ("scheduler_init_count", ctypes.c_void_p),
+        ("scheduler_loop_count", ctypes.c_void_p),
+        ("scheduler_processed_count", ctypes.c_void_p),
     ]
 
 
@@ -646,15 +652,21 @@ struct PtoCudaPersistentDagState {{
     unsigned int *fanin;
     unsigned int *ready_queue;
     unsigned int *ready_flags;
+    unsigned int *completion_queue;
+    unsigned int *completion_flags;
     unsigned int queue_capacity;
     unsigned int *queue_head;
     unsigned int *queue_tail;
+    unsigned int *completion_head;
+    unsigned int *completion_tail;
     unsigned int *completed_count;
     unsigned int *error_count;
     unsigned int *error_code;
     unsigned int *error_task_id;
     unsigned int scheduler_blocks;
     unsigned int *scheduler_init_count;
+    unsigned int *scheduler_loop_count;
+    unsigned int *scheduler_processed_count;
 }};
 
 __device__ void pto_dag_record_error(
@@ -696,6 +708,43 @@ __device__ bool pto_dag_pop_ready(const PtoCudaPersistentDagState *state, unsign
     return true;
 }}
 
+__device__ void pto_dag_push_completion(const PtoCudaPersistentDagState *state, unsigned int task_id) {{
+    unsigned int ticket = atomicAdd(state->completion_tail, 1U);
+    unsigned int slot = ticket % state->queue_capacity;
+    while (atomicAdd(&state->completion_flags[slot], 0U) != 0U) {{
+    }}
+    state->completion_queue[slot] = task_id;
+    __threadfence();
+    atomicExch(&state->completion_flags[slot], ticket + 1U);
+}}
+
+__device__ bool pto_dag_try_pop_completion(const PtoCudaPersistentDagState *state, unsigned int *task_id) {{
+    unsigned int ticket = 0U;
+    while (true) {{
+        unsigned int head = atomicAdd(state->completion_head, 0U);
+        unsigned int tail = atomicAdd(state->completion_tail, 0U);
+        if (static_cast<unsigned long long>(head) >= state->task_count || head >= tail) {{
+            return false;
+        }}
+        unsigned int observed = atomicCAS(state->completion_head, head, head + 1U);
+        if (observed == head) {{
+            ticket = head;
+            break;
+        }}
+    }}
+    unsigned int slot = ticket % state->queue_capacity;
+    unsigned int ready_value = ticket + 1U;
+    while (atomicAdd(&state->completion_flags[slot], 0U) != ready_value) {{
+        if (atomicAdd(state->error_count, 0U) != 0U) {{
+            return false;
+        }}
+    }}
+    *task_id = state->completion_queue[slot];
+    __threadfence();
+    atomicExch(&state->completion_flags[slot], 0U);
+    return true;
+}}
+
 __device__ unsigned int pto_dag_try_decrement_fanin(
     const PtoCudaPersistentDagState *state,
     unsigned int task_id) {{
@@ -717,7 +766,54 @@ __device__ unsigned int pto_dag_first_unready_task(const PtoCudaPersistentDagSta
             return idx;
         }}
     }}
-    return 0U;
+    return static_cast<unsigned int>(state->task_count);
+}}
+
+__device__ void pto_dag_process_completion(
+    const PtoCudaPersistentDagState *state,
+    unsigned int task_id) {{
+    PtoCudaPersistentDagTask task = state->tasks[task_id];
+    unsigned long long dependent_begin =
+        static_cast<unsigned long long>(task.dependent_begin);
+    unsigned long long dependent_end =
+        dependent_begin + static_cast<unsigned long long>(task.dependent_count);
+    if (dependent_end > state->dependent_count) {{
+        pto_dag_record_error(state, 3U, task_id);
+        return;
+    }}
+    for (unsigned int idx = 0; idx < task.dependent_count; ++idx) {{
+        unsigned int dependent_id = state->dependents[task.dependent_begin + idx];
+        if (static_cast<unsigned long long>(dependent_id) >= state->task_count) {{
+            pto_dag_record_error(state, 2U, dependent_id);
+            continue;
+        }}
+        if (dependent_id == task_id) {{
+            pto_dag_record_error(state, 9U, dependent_id);
+            continue;
+        }}
+        bool duplicate_dependent = false;
+        for (unsigned int prev = 0; prev < idx; ++prev) {{
+            unsigned int previous_id = state->dependents[task.dependent_begin + prev];
+            if (previous_id == dependent_id) {{
+                duplicate_dependent = true;
+                break;
+            }}
+        }}
+        if (duplicate_dependent) {{
+            pto_dag_record_error(state, 8U, dependent_id);
+            continue;
+        }}
+        unsigned int old = pto_dag_try_decrement_fanin(state, dependent_id);
+        if (old == 0U) {{
+            pto_dag_record_error(state, 4U, dependent_id);
+            continue;
+        }}
+        if (old == 1U) {{
+            pto_dag_push_ready(state, dependent_id);
+        }}
+    }}
+    atomicAdd(state->scheduler_processed_count, 1U);
+    atomicAdd(state->completed_count, 1U);
 }}
 
 {rendered_tasks}
@@ -730,8 +826,8 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
 
     unsigned int scheduler_blocks = state->scheduler_blocks == 0U ? 1U : state->scheduler_blocks;
     if (blockIdx.x < scheduler_blocks) {{
-        if (blockIdx.x == 0 && threadIdx.x == 0) {{
-            for (unsigned int idx = 0; static_cast<unsigned long long>(idx) < state->task_count;
+        if (threadIdx.x == 0) {{
+            for (unsigned int idx = blockIdx.x; static_cast<unsigned long long>(idx) < state->task_count;
                  idx += scheduler_blocks) {{
                 if (state->fanin[idx] != state->tasks[idx].initial_fanin) {{
                     pto_dag_record_error(state, 5U, idx);
@@ -745,30 +841,45 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
             while (atomicAdd(state->scheduler_init_count, 0U) < scheduler_blocks &&
                    atomicAdd(state->error_count, 0U) == 0U) {{
             }}
-            if (state->task_count != 0ULL && atomicAdd(state->queue_tail, 0U) == 0U) {{
+            if (blockIdx.x == 0 && state->task_count != 0ULL && atomicAdd(state->queue_tail, 0U) == 0U) {{
                 pto_dag_record_error(state, 6U, 0U);
             }}
+            atomicAdd(state->scheduler_loop_count, 1U);
             while (atomicAdd(state->completed_count, 0U) < state->task_count &&
                    atomicAdd(state->error_count, 0U) == 0U) {{
-                unsigned int published = atomicAdd(state->queue_tail, 0U);
-                unsigned int completed = atomicAdd(state->completed_count, 0U);
-                if (published == completed && static_cast<unsigned long long>(completed) < state->task_count) {{
-                    pto_dag_record_error(state, 7U, pto_dag_first_unready_task(state));
-                    break;
-                }}
-            }}
-        }} else if (threadIdx.x == 0) {{
-            for (unsigned int idx = blockIdx.x; static_cast<unsigned long long>(idx) < state->task_count;
-                 idx += scheduler_blocks) {{
-                if (state->fanin[idx] != state->tasks[idx].initial_fanin) {{
-                    pto_dag_record_error(state, 5U, idx);
+                unsigned int completed_task_id = 0U;
+                if (pto_dag_try_pop_completion(state, &completed_task_id)) {{
+                    pto_dag_process_completion(state, completed_task_id);
                     continue;
                 }}
-                if (state->tasks[idx].initial_fanin == 0U) {{
-                    pto_dag_push_ready(state, idx);
+                if (blockIdx.x == 0) {{
+                    unsigned int published = atomicAdd(state->queue_tail, 0U);
+                    unsigned int finished = atomicAdd(state->completion_tail, 0U);
+                    unsigned int claimed = atomicAdd(state->completion_head, 0U);
+                    unsigned int completed = atomicAdd(state->completed_count, 0U);
+                    if (published == finished && claimed == completed &&
+                        static_cast<unsigned long long>(completed) < state->task_count) {{
+                        unsigned int late_completed_task_id = 0U;
+                        if (pto_dag_try_pop_completion(state, &late_completed_task_id)) {{
+                            pto_dag_process_completion(state, late_completed_task_id);
+                            continue;
+                        }}
+                        published = atomicAdd(state->queue_tail, 0U);
+                        finished = atomicAdd(state->completion_tail, 0U);
+                        claimed = atomicAdd(state->completion_head, 0U);
+                        completed = atomicAdd(state->completed_count, 0U);
+                        if (!(published == finished && claimed == completed &&
+                              static_cast<unsigned long long>(completed) < state->task_count)) {{
+                            continue;
+                        }}
+                        unsigned int unready_task = pto_dag_first_unready_task(state);
+                        if (static_cast<unsigned long long>(unready_task) < state->task_count) {{
+                            pto_dag_record_error(state, 7U, unready_task);
+                            break;
+                        }}
+                    }}
                 }}
             }}
-            atomicAdd(state->scheduler_init_count, 1U);
         }}
         return;
     }}
@@ -790,46 +901,7 @@ extern "C" __global__ void pto_persistent_dag_f32_executor(const PtoCudaPersiste
             if (!task_ok) {{
                 pto_dag_record_error(state, 1U, task_id);
             }} else {{
-                unsigned long long dependent_begin =
-                    static_cast<unsigned long long>(task.dependent_begin);
-                unsigned long long dependent_end =
-                    dependent_begin + static_cast<unsigned long long>(task.dependent_count);
-                if (dependent_end > state->dependent_count) {{
-                    pto_dag_record_error(state, 3U, task_id);
-                    continue;
-                }}
-                for (unsigned int idx = 0; idx < task.dependent_count; ++idx) {{
-                    unsigned int dependent_id = state->dependents[task.dependent_begin + idx];
-                    if (static_cast<unsigned long long>(dependent_id) >= state->task_count) {{
-                        pto_dag_record_error(state, 2U, dependent_id);
-                        continue;
-                    }}
-                    if (dependent_id == task_id) {{
-                        pto_dag_record_error(state, 9U, dependent_id);
-                        continue;
-                    }}
-                    bool duplicate_dependent = false;
-                    for (unsigned int prev = 0; prev < idx; ++prev) {{
-                        unsigned int previous_id = state->dependents[task.dependent_begin + prev];
-                        if (previous_id == dependent_id) {{
-                            duplicate_dependent = true;
-                            break;
-                        }}
-                    }}
-                    if (duplicate_dependent) {{
-                        pto_dag_record_error(state, 8U, dependent_id);
-                        continue;
-                    }}
-                    unsigned int old = pto_dag_try_decrement_fanin(state, dependent_id);
-                    if (old == 0U) {{
-                        pto_dag_record_error(state, 4U, dependent_id);
-                        continue;
-                    }}
-                    if (old == 1U) {{
-                        pto_dag_push_ready(state, dependent_id);
-                    }}
-                }}
-                atomicAdd(state->completed_count, 1U);
+                pto_dag_push_completion(state, task_id);
             }}
         }}
     }}

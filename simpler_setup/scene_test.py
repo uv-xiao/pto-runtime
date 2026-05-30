@@ -1147,15 +1147,17 @@ class _CudaPersistentDagSceneBuffers:
             self.host_fanin = (ctypes.c_uint32 * 4)(0, 1, 1, 2)
 
         flags_t = ctypes.c_uint32 * queue_capacity
-        counters_t = ctypes.c_uint32 * 7
+        counters_t = ctypes.c_uint32 * 11
         self.host_flags = flags_t(*([0] * queue_capacity))
-        self.host_counters = counters_t(0, 0, 0, 0, 0, 0, 0)
+        self.host_counters = counters_t(*([0] * 11))
 
         self.dev_tasks = self._malloc(ctypes.sizeof(self.host_tasks))
         self.dev_dependents = self._malloc(ctypes.sizeof(self.host_dependents))
         self.dev_fanin = self._malloc(ctypes.sizeof(self.host_fanin))
         self.dev_ready_queue = self._malloc(ctypes.sizeof(ctypes.c_uint32 * queue_capacity))
         self.dev_ready_flags = self._malloc(ctypes.sizeof(self.host_flags))
+        self.dev_completion_queue = self._malloc(ctypes.sizeof(ctypes.c_uint32 * queue_capacity))
+        self.dev_completion_flags = self._malloc(ctypes.sizeof(self.host_flags))
         self.dev_counters = self._malloc(ctypes.sizeof(self.host_counters))
         self.dev_state = self._malloc(ctypes.sizeof(CudaPersistentDagState))
 
@@ -1173,15 +1175,21 @@ class _CudaPersistentDagSceneBuffers:
             fanin=self.dev_fanin,
             ready_queue=self.dev_ready_queue,
             ready_flags=self.dev_ready_flags,
+            completion_queue=self.dev_completion_queue,
+            completion_flags=self.dev_completion_flags,
             queue_capacity=queue_capacity,
             queue_head=self.dev_counters,
             queue_tail=self.dev_counters + ctypes.sizeof(ctypes.c_uint32),
-            completed_count=self.dev_counters + 2 * ctypes.sizeof(ctypes.c_uint32),
-            error_count=self.dev_counters + 3 * ctypes.sizeof(ctypes.c_uint32),
-            error_code=self.dev_counters + 4 * ctypes.sizeof(ctypes.c_uint32),
-            error_task_id=self.dev_counters + 5 * ctypes.sizeof(ctypes.c_uint32),
+            completion_head=self.dev_counters + 2 * ctypes.sizeof(ctypes.c_uint32),
+            completion_tail=self.dev_counters + 3 * ctypes.sizeof(ctypes.c_uint32),
+            completed_count=self.dev_counters + 4 * ctypes.sizeof(ctypes.c_uint32),
+            error_count=self.dev_counters + 5 * ctypes.sizeof(ctypes.c_uint32),
+            error_code=self.dev_counters + 6 * ctypes.sizeof(ctypes.c_uint32),
+            error_task_id=self.dev_counters + 7 * ctypes.sizeof(ctypes.c_uint32),
             scheduler_blocks=1,
-            scheduler_init_count=self.dev_counters + 6 * ctypes.sizeof(ctypes.c_uint32),
+            scheduler_init_count=self.dev_counters + 8 * ctypes.sizeof(ctypes.c_uint32),
+            scheduler_loop_count=self.dev_counters + 9 * ctypes.sizeof(ctypes.c_uint32),
+            scheduler_processed_count=self.dev_counters + 10 * ctypes.sizeof(ctypes.c_uint32),
         )
         self.worker.copy_to(self.dev_state, ctypes.addressof(state), ctypes.sizeof(state))
         self.args = CudaPersistentDagArgs(state=self.dev_state)
@@ -2094,6 +2102,11 @@ class _CudaPersistentDagSceneBuffers:
             ctypes.sizeof(self.host_flags),
         )
         self.worker.copy_to(
+            self.dev_completion_flags,
+            ctypes.addressof(self.host_flags),
+            ctypes.sizeof(self.host_flags),
+        )
+        self.worker.copy_to(
             self.dev_counters,
             ctypes.addressof(self.host_counters),
             ctypes.sizeof(self.host_counters),
@@ -2105,16 +2118,21 @@ class _CudaPersistentDagSceneBuffers:
     def read_counters(self) -> dict[str, int]:
         import ctypes  # noqa: PLC0415
 
-        counters_t = ctypes.c_uint32 * 6
+        counters_t = ctypes.c_uint32 * 11
         counters = counters_t()
         self.worker.copy_from(ctypes.addressof(counters), self.dev_counters, ctypes.sizeof(counters))
         return {
             "queue_head": int(counters[0]),
             "queue_tail": int(counters[1]),
-            "completed_count": int(counters[2]),
-            "error_count": int(counters[3]),
-            "error_code": int(counters[4]),
-            "error_task_id": int(counters[5]),
+            "completion_head": int(counters[2]),
+            "completion_tail": int(counters[3]),
+            "completed_count": int(counters[4]),
+            "error_count": int(counters[5]),
+            "error_code": int(counters[6]),
+            "error_task_id": int(counters[7]),
+            "scheduler_init_count": int(counters[8]),
+            "scheduler_loop_count": int(counters[9]),
+            "scheduler_processed_count": int(counters[10]),
         }
 
     def free(self) -> None:

@@ -555,6 +555,10 @@ def build_validate_command(config: PairedPersistentSmokeConfig, suffix: str) -> 
                 config.dag_shape,
                 "--expected-scheduler-init-count",
                 str(expected_scheduler_blocks),
+                "--expected-scheduler-loop-count",
+                str(expected_scheduler_blocks),
+                "--expected-scheduler-processed-count",
+                str(_expected_completed_count(config)),
             ]
         )
     expected_dispatch = _expected_dispatch(config)

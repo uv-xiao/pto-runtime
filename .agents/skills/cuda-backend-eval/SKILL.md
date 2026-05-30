@@ -261,6 +261,17 @@ same graph shape with `scheduler_blocks=2`, `scheduler_init_count=2`,
 completions `[5,5]`, dispatch `9,2,1,2,1`, fan-in `0,0,2,2,2`, dependents
 `2,3,2,3,4,4`, scalar/tensor arg metadata, and zero scheduler errors. Device
 times were `77824 ns` on A100 and `52768 ns` on H200 for `N=1024`.
+The paired scheduler-loop policy capture under
+`tmp/cuda-backend/scheduler-loop-policy-working/`
+`persistent-graph_descriptor_diamond-repeat2-smoke-5d7b3961/` validates the
+same graph shape after workers were changed to publish completed task IDs to a
+bounded completion ring and scheduler blocks were changed to release
+dependents. The A100 and H200 artifacts both require
+`scheduler_loop_count=2`, `scheduler_processed_count=5`,
+`scheduler_init_count=2`, repeat completions `[5,5]`, dispatch
+`9,2,1,2,1`, graph fan-in `0,0,2,2,2`, graph dependents `2,3,2,3,4,4`,
+scalar/tensor arg metadata, and zero scheduler errors. Device times were
+`97280 ns` on A100 and `72928 ns` on H200 for `N=1024`.
 
 Run the bounded-ring persistent smoke with wraparound:
 
