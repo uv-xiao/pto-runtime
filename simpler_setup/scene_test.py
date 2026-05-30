@@ -1255,6 +1255,8 @@ class _CudaPersistentDagSceneBuffers:
             raise ValueError("CUDA persistent_dag_graph_f32 requires at least one graph task")
         task_defaults = self._graph_task_defaults(graph)
         task_specs = [self._merge_graph_task_defaults(task_defaults, task_spec) for task_spec in task_specs]
+        task_overrides = self._graph_task_overrides(graph)
+        task_specs = self._merge_graph_task_overrides(task_overrides, task_specs)
         task_specs = [self._resolve_graph_task_callable(graph, task_spec) for task_spec in task_specs]
         task_specs = [self._normalize_graph_task_func_id(task_spec) for task_spec in task_specs]
         task_specs = [self._normalize_graph_task_spec(task_spec) for task_spec in task_specs]
@@ -1396,6 +1398,48 @@ class _CudaPersistentDagSceneBuffers:
         merged = dict(defaults)
         merged.update(task_spec)
         return _CudaPersistentDagSceneBuffers._normalize_graph_task_shape(merged)
+
+    @staticmethod
+    def _graph_task_overrides(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        overrides = graph.get("task_overrides", graph.get("task_metadata", {}))
+        if overrides is None:
+            return {}
+        if not isinstance(overrides, dict):
+            raise ValueError("CUDA persistent_dag_graph_f32 graph task overrides must be a dictionary")
+        normalized: dict[str, dict[str, Any]] = {}
+        for task_name, override in overrides.items():
+            if not isinstance(override, dict):
+                raise ValueError("CUDA persistent_dag_graph_f32 graph task override values must be dictionaries")
+            normalized[str(task_name)] = _CudaPersistentDagSceneBuffers._normalize_graph_task_shape(override)
+        return normalized
+
+    @staticmethod
+    def _merge_graph_task_overrides(
+        overrides: dict[str, dict[str, Any]],
+        task_specs: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        if not overrides:
+            return task_specs
+        unused = set(overrides)
+        merged_specs: list[dict[str, Any]] = []
+        for task_spec in task_specs:
+            keys = [
+                str(value)
+                for value in (task_spec.get("name"), task_spec.get("id"), task_spec.get("task_id"))
+                if value is not None
+            ]
+            override_key = next((key for key in keys if key in overrides), None)
+            if override_key is None:
+                merged_specs.append(task_spec)
+                continue
+            unused.discard(override_key)
+            merged = dict(task_spec)
+            merged.update(overrides[override_key])
+            merged_specs.append(_CudaPersistentDagSceneBuffers._normalize_graph_task_shape(merged))
+        if unused:
+            unknown = ", ".join(sorted(unused))
+            raise ValueError(f"CUDA persistent_dag_graph_f32 graph task overrides reference unknown tasks: {unknown}")
+        return merged_specs
 
     @staticmethod
     def _graph_submit_group_task_specs(submit_groups: Any) -> list[dict[str, Any]]:

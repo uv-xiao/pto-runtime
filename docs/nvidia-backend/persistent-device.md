@@ -403,6 +403,13 @@ The graph descriptor may be loaded from a JSON file with `graph_path` or
 metadata is then treated as an overlay on top of the file contents, so a raw
 `deps.json` file can stay unmodified while the CUDA scene spec supplies
 runtime-specific fields such as `task_defaults`.
+For heterogeneous imported graphs, `task_overrides` can be keyed by
+`name`/`id`/`task_id` and merged after defaults and the raw task row. This
+lets an unmodified `deps.json` task list stay structural while the CUDA scene
+spec maps selected task IDs onto different generated-dispatch `func_id` values
+or different temporary/output bindings. `task_metadata` is accepted as the same
+override field when the descriptor should read as metadata enrichment rather
+than replacement.
 `graph.edges` may also be an adjacency dictionary from source task name/id to
 a single target or a list of targets.
 `graph.links` is accepted as the same edge-list field when importing

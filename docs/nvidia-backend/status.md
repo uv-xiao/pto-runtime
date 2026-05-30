@@ -2068,6 +2068,15 @@ were seen and the graph had no tasks, then passed locally on A100 with
 `2 passed, 153 deselected`; the H200 run printed the known PTO-ISA SSH refresh
 warning first. The JSON-file test uses the v2 `deps.json` shape: large string
 task IDs, `tasks[]`, `tensors[]`, and annotated `pred`/`succ` edges.
+Imported graph tasks can now receive keyed `task_overrides` or `task_metadata`
+after defaults and raw task rows are merged. The keyed override path keeps the
+raw `deps.json` structural while mapping individual task IDs to different
+CUDA `func_id` values and temporary/output bindings. The focused selector
+first failed because task `4294967296` still dispatched `func_id=1` and the
+ctypes output was plain `a+b`, then passed locally on A100 with
+`2 passed, 155 deselected` and remotely on H200 with
+`2 passed, 155 deselected`; the H200 run printed the known PTO-ISA SSH refresh
+warning first.
 The same graph-shaped path now accepts `graph.tasks` as a dictionary keyed by
 task name, so descriptor specs can keep node names in one place and reference
 those names from top-level edges. The ctypes-backed
@@ -4677,12 +4686,12 @@ Needed:
   dictionaries including annotated real `deps.json` rows with `source`
   metadata, dep-gen-style `task_id` graph task identities, graph task defaults
   for runnable metadata shared by dep-gen task rows, external JSON graph files
-  with inline overlays, adjacency dictionaries, `graph.links` aliases,
-  `graph.nodes` aliases, node `id` identity aliases, node-link `data`
-  payloads, node-style IO fields, dictionary-valued node IO port maps, node
-  `op` callable aliases, callable metadata `callable_id` / `cid` aliases, and
-  paired smoke including node-link `links` and dictionary-valued node IO port
-  maps,
+  with inline overlays, keyed task overrides for heterogeneous imported graph
+  rows, adjacency dictionaries, `graph.links` aliases, `graph.nodes` aliases,
+  node `id` identity aliases, node-link `data` payloads, node-style IO fields,
+  dictionary-valued node IO port maps, node `op` callable aliases, callable
+  metadata `callable_id` / `cid` aliases, and paired smoke including node-link
+  `links` and dictionary-valued node IO port maps,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, role-map task-argument dictionaries with paired smoke,
   submit-shaped graph descriptors, submit-group descriptor expansion in the
