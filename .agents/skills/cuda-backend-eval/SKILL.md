@@ -1637,6 +1637,15 @@ PYTHONPATH=$PWD:$PWD/python \
     -q -k dep_gen_task_metadata_file --platform cuda
 ```
 
+After changing task metadata sidecar-file loading for inline graph
+descriptors, use:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k inline_task_metadata_file --platform cuda
+```
+
 For H200, sync the changed files or use the paired sync workflow first, then
 export `CUDA_HOME=/usr/local/cuda-12.8` and prepend that `bin` directory to
 `PATH` in the non-interactive shell.

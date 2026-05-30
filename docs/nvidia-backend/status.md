@@ -2087,6 +2087,10 @@ TDD selector first failed because the sidecar file was ignored, task
 `4294967296` still dispatched `func_id=1`, and the ctypes output stayed plain
 `a+b`; after loading the sidecar, it passed locally on A100 with
 `2 passed, 159 deselected`.
+The same sidecar loader now also runs for inline graph descriptors and graph
+JSON files before task extraction. The focused inline selector first failed
+with task `4294967296` still dispatching `func_id=1` and then passed locally
+on A100 with `2 passed, 161 deselected`.
 The same graph-shaped path now accepts `graph.tasks` as a dictionary keyed by
 task name, so descriptor specs can keep node names in one place and reference
 those names from top-level edges. The ctypes-backed
@@ -4698,10 +4702,11 @@ Needed:
   for runnable metadata shared by dep-gen task rows, external JSON graph files
   with inline overlays, keyed task overrides for heterogeneous imported graph
   rows, list-shaped task metadata sidecars, task metadata sidecar files,
-  adjacency dictionaries, `graph.links` aliases, `graph.nodes` aliases, node
-  `id` identity aliases, node-link `data` payloads, node-style IO fields,
-  dictionary-valued node IO port maps, node `op` callable aliases, callable
-  metadata `callable_id` / `cid` aliases, and paired smoke including
+  task metadata sidecars on inline descriptors, adjacency dictionaries,
+  `graph.links` aliases, `graph.nodes` aliases, node `id` identity aliases,
+  node-link `data` payloads, node-style IO fields, dictionary-valued node IO
+  port maps, node `op` callable aliases, callable metadata `callable_id` /
+  `cid` aliases, and paired smoke including
   node-link `links` and dictionary-valued node IO port maps,
   tagged TaskArgs-like graph task lowering including `inout` producer
   chaining, role-map task-argument dictionaries with paired smoke,
