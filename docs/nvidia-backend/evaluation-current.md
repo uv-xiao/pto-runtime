@@ -10,6 +10,11 @@ The compact current-head gate before the full refresh remains the capture under
 `combined-current-193ccc4d/`, which validates the selected compact benchmark
 matrix after submit-group graph task-argument metadata joined the selected
 graph-node rows.
+The latest compact current-head gate is under
+`tmp/cuda-backend/parallel-chains-compact-current-working/`
+`combined-current-c3274430/`, which validates the selected compact benchmark
+matrix after the nine-task parallel-chains graph descriptor joined the
+selected graph rows.
 The raw
 JSON, Markdown, and SVG reports are generated locally under
 `tmp/cuda-backend/` and intentionally remain uncommitted.
@@ -33,9 +38,9 @@ The earlier `5424bcca` full capture remains useful as historical evidence,
 but it validated `1242` samples before the role-map row was included.
 The compact `193ccc4d` gate validates `100` samples after the submit-groups
 graph row joined the selected matrix.
-After adding `pto_persistent_dag_graph_parallel_chains`, the next compact
-current-head selected gate is expected to validate `102` samples, and the
-next full paired-current gate is expected to validate `1296` samples. The
+The compact `c3274430` gate validates `102` samples after
+`pto_persistent_dag_graph_parallel_chains` joined the selected matrix. The
+next full paired-current gate is expected to validate `1296` samples; the
 latest full capture above remains the latest full paired run until that
 refresh is captured.
 The older `9ec5511e` full capture remains useful as historical evidence, but
@@ -1105,31 +1110,39 @@ generated vector task bodies, not a tuned model-kernel benchmark.
 
 The current-head selected benchmark path now includes
 `pto_persistent_dag_graph_parallel_chains`, the explicit nine-task graph
-descriptor used by the scheduler-scaling smoke. A quick A100/H200 single-row
-capture at commit `3d32a7e4` validates that the selected-benchmark dispatcher
-uses `graph_descriptor_parallel_chains` with generated-dispatch PTX on both
-machines.
+descriptor used by the scheduler-scaling smoke. A compact paired A100/H200
+gate at artifact label `c3274430` validates that the selected-benchmark
+dispatcher includes the row in the normal 102-row report and that the paired
+validator requires its dispatch and graph topology metadata.
 
 Artifacts:
 
-- `tmp/cuda-backend/graph-parallel-chains-selected-working/a100-current-3d32a7e4.json`
-- `tmp/cuda-backend/graph-parallel-chains-selected-working/h200-current-3d32a7e4.json`
-- `tmp/cuda-backend/graph-parallel-chains-selected-working/cuda-smoke-report.md`
-- `tmp/cuda-backend/graph-parallel-chains-selected-working/cuda-smoke-report.svg`
+- `tmp/cuda-backend/parallel-chains-compact-current-working/a100-current-c3274430/cuda-benchmark.json`
+- `tmp/cuda-backend/parallel-chains-compact-current-working/h200-current-c3274430/cuda-benchmark.json`
+- `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark.json`
+- `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark.md`
+- `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark.svg`
+- `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark-throughput.svg`
 
 Selected rows:
 
-| GPU | PTX arch | Device ns | Host ns | Completed | Dispatch |
-| --- | -------- | --------- | ------- | --------- | -------- |
-| A100 | `compute_80` | 87040 | 107290 | 9 | `1,2,1,2,1,1,2,1,1` |
-| H200 | `compute_90` | 69376 | 79147 | 9 | `1,2,1,2,1,1,2,1,1` |
+| GPU | PTX arch | Device ns | Host ns | Tasks | Dispatch |
+| --- | -------- | --------- | ------- | ----- | -------- |
+| A100 | `compute_80` | 70656 | 81848 | 9 | `1,2,1,2,1,1,2,1,1` |
+| H200 | `compute_90` | 65183 | 73939 | 9 | `1,2,1,2,1,1,2,1,1` |
 
-Both artifacts report zero device scheduler errors, fan-in
+The combined report validated `102` rows with source-paper provenance,
+sanitized local/remote command examples, Markdown/SVG report files, tensor
+throughput rows, report-visible graph topology, and zero scheduler errors.
+The parallel-chains rows report fan-in
 `0,0,0,0,2,2,2,2,2`, dependents `4,4,5,5,6,7,6,7,8,8`,
-`scheduler_processed_by_block=[9]`, and one scheduler block plus nine worker
-blocks. This row is a selected-benchmark integration check for the wider DAG;
-the paired scheduler-scaling captures above remain the better evidence for
-multi-scheduler behavior.
+and generated-dispatch PTX for `compute_80` and `compute_90`. The earlier
+single-row smoke under
+`tmp/cuda-backend/graph-parallel-chains-selected-working/` remains useful as
+a narrow dispatcher check; the paired scheduler-scaling captures above remain
+the better evidence for multi-scheduler behavior.
 
 ## Latest Scheduler Error Matrix
 

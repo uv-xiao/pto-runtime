@@ -2076,7 +2076,7 @@ PYTHONPATH=$PWD:$PWD/python \
 ```
 
 Use this compact paired gate after changing selected persistent graph
-benchmark rows. With `--batch-tasks 0`, it validates 100 non-batch samples
+benchmark rows. With `--batch-tasks 0`, it validates 102 non-batch samples
 across A100 and H200, including `pto_persistent_dag_graph_node_attrs`,
 `pto_persistent_dag_graph_node_io`, `pto_persistent_dag_graph_node_link`,
 `pto_persistent_dag_graph_named_callable`, `pto_persistent_dag_graph_node_op`,
@@ -2085,12 +2085,13 @@ across A100 and H200, including `pto_persistent_dag_graph_node_attrs`,
 `pto_persistent_dag_graph_scalar_scale`,
 `pto_persistent_dag_graph_scalar_affine`,
 `pto_persistent_dag_graph_reordered`,
-`pto_persistent_dag_graph_triad`, `pto_persistent_dag_graph_quad`, and
+`pto_persistent_dag_graph_triad`, `pto_persistent_dag_graph_quad`,
+`pto_persistent_dag_graph_parallel_chains`, and
 `pto_persistent_dag_graph_compact_role_inout` and
 `pto_persistent_dag_graph_role_map_inout` and
 `pto_persistent_dag_graph_submit_groups` with dispatch `9,2,1`, `1,2,1`,
 `1,2,1`, `1,2,1`, `1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `1,9,2`,
-`6,2,1`, `8,2,1`, `1,1,1`, `1,1,1`, and `1,1,1`.
+`6,2,1`, `8,2,1`, `1,2,1,2,1,1,2,1,1`, `1,1,1`, `1,1,1`, and `1,1,1`.
 The node-attrs row requires
 `graph_node_attrs=task0=attrs:tensor_args,scalar_args`,
 `scalar_args[0]=1.5,scalar_args[1]=0.25`, and
@@ -2119,12 +2120,13 @@ PYTHONPATH=$PWD:$PWD/python \
 ```
 
 The current compact capture under
-`tmp/cuda-backend/persistent-named-callable-baseline-working/`
-`combined-current-95be2b5b/` is the latest checked compact form of this gate.
-It validates 96 A100/H200 samples and requires report-visible graph topology,
-node-IO task args, node-link/named-callable graph-node ops, scalar/tensor
-node-attrs descriptor args, selected tensor-throughput rows, sanitized
-command examples, source-paper metadata, and zero scheduler errors.
+`tmp/cuda-backend/parallel-chains-compact-current-working/`
+`combined-current-c3274430/` is the latest checked compact form of this gate.
+It validates 102 A100/H200 samples and requires report-visible graph
+topology, node-IO task args, node-link/named-callable graph-node ops,
+scalar/tensor node-attrs descriptor args, selected tensor-throughput rows,
+parallel-chain graph fan-in/dependent metadata, sanitized command examples,
+source-paper metadata, and zero scheduler errors.
 The generated
 `cuda_current_summary.py --section graph-metadata` output includes a
 `Task args` column for copying graph node IO metadata into evaluation docs.
@@ -2805,11 +2807,11 @@ fan-in/dependent metadata, graph-triad and graph-quad baselines, the tagged
 scalar graph baseline, the graph unary-square baseline, task-argument tags,
 visible Markdown/SVG graph topology and task-argument metadata, visible
 Markdown/SVG tensor throughput rows for required tensor/cuBLAS descriptors,
-size `1024`, one repeat, `100` non-batch combined samples, and the
+size `1024`, one repeat, `102` non-batch combined samples, and the
 Markdown/SVG report files. The current compact gate artifact with
-submit-groups coverage is under
-`tmp/cuda-backend/submit-groups-selected-benchmark-working/`
-`combined-current-193ccc4d/`.
+parallel-chains coverage is under
+`tmp/cuda-backend/parallel-chains-compact-current-working/`
+`combined-current-c3274430/`.
 Validate older captures with explicit `--require-*` checks if the current
 preset has gained new selected rows since that capture.
 New paired-runner captures use a dynamic validator command because the

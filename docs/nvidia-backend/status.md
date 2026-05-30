@@ -4745,13 +4745,14 @@ Needed:
   the four-scheduler per-task rows are `19660 ns` vs. `12856 ns` on A100 and
   `14150 ns` vs. `10030 ns` on H200 for diamond vs. parallel chains. The
   parallel-chains descriptor is now also wired into the selected benchmark
-  path as `pto_persistent_dag_graph_parallel_chains`; a current-head quick
-  A100/H200 capture under
-  `tmp/cuda-backend/graph-parallel-chains-selected-working/` validates
-  dispatch `1,2,1,2,1,1,2,1,1`, fan-in/dependent metadata, generated-dispatch
-  PTX, and zero scheduler errors. The remaining policy gap is broader graph
-  families and a full paired-current refresh with this row rather than launch
-  resource partitioning, root seeding,
+  path as `pto_persistent_dag_graph_parallel_chains`; the compact paired
+  current-head gate under
+  `tmp/cuda-backend/parallel-chains-compact-current-working/`
+  `combined-current-c3274430/` validates 102 A100/H200 rows, dispatch
+  `1,2,1,2,1,1,2,1,1`, fan-in/dependent metadata, generated-dispatch PTX,
+  Markdown/SVG reports, and zero scheduler errors. The remaining policy gap
+  is broader graph families and a full paired-current refresh with this row
+  rather than launch resource partitioning, root seeding,
   completion-ring ownership, graph-size reporting, or artifact validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,

@@ -4825,7 +4825,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "--expected-repeats" in validate
     assert "2" in validate
     assert "--expected-result-count" in validate
-    assert "440" in validate
+    assert "448" in validate
     assert "--require-baseline" in validate
     baselines = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-baseline"]
     assert "pto_host_schedule_generic_args" in baselines
@@ -4843,6 +4843,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_chain" in baselines
     assert "pto_persistent_dag_graph_scratch_reuse" in baselines
     assert "pto_persistent_dag_graph_diamond" in baselines
+    assert "pto_persistent_dag_graph_parallel_chains" in baselines
     assert "pto_persistent_dag_graph_tagged" in baselines
     assert "pto_persistent_dag_graph_tagged_inout" in baselines
     assert "pto_persistent_dag_graph_role_keyed_inout" in baselines
@@ -4871,6 +4872,7 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_chain=1,2,1,2,1" in dispatch
     assert "pto_persistent_dag_graph_scratch_reuse=1,2,1,2,1,1" in dispatch
     assert "pto_persistent_dag_graph_diamond=9,2,1,2,1" in dispatch
+    assert "pto_persistent_dag_graph_parallel_chains=1,2,1,2,1,1,2,1,1" in dispatch
     assert "pto_persistent_dag_graph_tagged=9,2,1" in dispatch
     assert "pto_persistent_dag_graph_tagged_inout=1,1,1" in dispatch
     assert "pto_persistent_dag_graph_role_keyed_inout=1,1,1" in dispatch
@@ -4901,6 +4903,8 @@ def test_cuda_pair_benchmark_validate_command_matches_configured_capture(tmp_pat
     assert "pto_persistent_dag_graph_scalar_affine=2,2" in validate
     assert "pto_persistent_dag_graph_reordered=2,0,0" in validate
     assert "pto_persistent_dag_graph_reordered=0,0" in validate
+    assert "pto_persistent_dag_graph_parallel_chains=0,0,0,0,2,2,2,2,2" in validate
+    assert "pto_persistent_dag_graph_parallel_chains=4,4,5,5,6,7,6,7,8,8" in validate
     assert "pto_persistent_dag_graph_role_map_inout=0,1,1" in validate
     assert "pto_persistent_dag_graph_role_map_inout=1,2" in validate
     tensor_tiles = [validate[index + 1] for index, part in enumerate(validate) if part == "--require-tensor-tile"]
@@ -4985,7 +4989,7 @@ def test_cuda_pair_benchmark_omits_empty_batch_sweeps(tmp_path):
     assert "pto_host_schedule_batch" not in validate
     assert "pto_persistent_device_grid_batch" not in validate
     assert "--expected-result-count" in validate
-    assert "100" in validate
+    assert "102" in validate
 
 
 def test_cuda_pair_benchmark_treats_zero_batch_sweeps_as_empty(tmp_path):
@@ -5007,7 +5011,7 @@ def test_cuda_pair_benchmark_treats_zero_batch_sweeps_as_empty(tmp_path):
     assert "pto_host_schedule_batch" not in validate
     assert "pto_persistent_device_grid_batch" not in validate
     assert "--expected-result-count" in validate
-    assert "100" in validate
+    assert "102" in validate
 
 
 def test_cuda_pair_benchmark_merge_command_records_sanitized_examples(tmp_path):

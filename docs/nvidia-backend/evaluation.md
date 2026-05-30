@@ -90,6 +90,10 @@ latest current-head multi-size tensor baseline sweep uses `76422250`:
 - [Current capture](evaluation-current.md) records the compact `193ccc4d`
   paired gate that promotes submit-group graph task-argument metadata into the
   selected A100/H200 benchmark matrix with 100 non-batch validated samples.
+- [Current capture](evaluation-current.md) records the compact `c3274430`
+  paired gate that promotes the nine-task parallel-chains graph descriptor
+  into the selected A100/H200 benchmark matrix with 102 non-batch validated
+  samples.
 - [Current capture](evaluation-current.md) records the full `c183d1ad`
   paired-current gate that promotes submit-group graph task-argument metadata
   into the three-size A100/H200 benchmark matrix with 1278 validated samples.
@@ -130,12 +134,9 @@ latest current-head multi-size tensor baseline sweep uses `76422250`:
   five-task diamond and nine-task parallel-chain sweeps in one JSON,
   Markdown, and SVG report with task count, device ns/task, and
   tasks/scheduler columns.
-- [Current capture](evaluation-current.md) records the current-head
-  `3d32a7e4` selected-benchmark smoke row that promotes the nine-task
-  `pto_persistent_dag_graph_parallel_chains` descriptor into the selected
-  benchmark matrix. The quick A100/H200 artifacts validate dispatch, graph
-  topology, generated-dispatch PTX, and zero scheduler errors before the next
-  full paired refresh.
+- [Current capture](evaluation-current.md) also preserves the focused
+  `3d32a7e4` single-row selected-benchmark smoke for
+  `pto_persistent_dag_graph_parallel_chains` as a narrow dispatcher check.
 - [Current capture](evaluation-current.md) records the `35de3303` scheduler
   error matrix that captures all synthetic malformed-DAG diagnostics on A100
   and H200 with JSON, Markdown, and SVG artifacts validated by
