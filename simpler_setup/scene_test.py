@@ -2431,9 +2431,21 @@ def _resolve_chip_entry_paths(entry, cls_dir):
     """Resolve relative source paths in a chip entry (orchestration + incores)."""
     if "cuda" in entry:
         cuda = entry["cuda"]
-        if isinstance(cuda, dict) and "source" in cuda and not os.path.isabs(cuda["source"]):
+        if isinstance(cuda, dict):
             entry["cuda"] = dict(cuda)
-            entry["cuda"]["source"] = str(cls_dir / cuda["source"])
+            for key in ("source", "graph_path", "graph_file"):
+                if key in entry["cuda"]:
+                    entry["cuda"][key] = _resolve_path_value(entry["cuda"][key], cls_dir)
+            if isinstance(entry["cuda"].get("graph"), (str, os.PathLike)):
+                entry["cuda"]["graph"] = _resolve_path_value(entry["cuda"]["graph"], cls_dir)
+            if "task_sources" in entry["cuda"]:
+                resolved_sources = []
+                for task_source in entry["cuda"]["task_sources"]:
+                    task_source = dict(task_source)
+                    if "source_path" in task_source:
+                        task_source["source_path"] = _resolve_path_value(task_source["source_path"], cls_dir)
+                    resolved_sources.append(task_source)
+                entry["cuda"]["task_sources"] = resolved_sources
     if "orchestration" in entry:
         orch = entry["orchestration"]
         if isinstance(orch, dict) and "source" in orch and not os.path.isabs(orch["source"]):
@@ -2447,6 +2459,13 @@ def _resolve_chip_entry_paths(entry, cls_dir):
                 k["source"] = str(cls_dir / k["source"])
             resolved.append(k)
         entry["incores"] = resolved
+
+
+def _resolve_path_value(path_value, cls_dir):
+    path = Path(path_value)
+    if path.is_absolute():
+        return str(path)
+    return str(cls_dir / path)
 
 
 def _extract_name_map(callable_spec: dict) -> dict:

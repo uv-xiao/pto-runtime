@@ -2102,6 +2102,13 @@ resolved beside the graph JSON file. The focused selector first failed with
 `2 passed, 165 deselected` and remotely on H200 with
 `2 passed, 165 deselected`; the H200 run printed the known PTO-ISA SSH refresh
 warning first.
+`SceneTestCase` now resolves CUDA persistent-device `task_sources[*].source_path`
+and graph descriptor paths relative to the test class file. The focused
+selector first failed with `graph_path` still equal to `deps.json` and then
+with `FileNotFoundError: add.pto.cu`; after extending callable path
+resolution, it passed locally on A100 with `2 passed, 167 deselected` and
+remotely on H200 with `2 passed, 167 deselected`; the H200 run printed the
+known PTO-ISA SSH refresh warning first.
 The same graph-shaped path now accepts `graph.tasks` as a dictionary keyed by
 task name, so descriptor specs can keep node names in one place and reference
 those names from top-level edges. The ctypes-backed

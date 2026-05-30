@@ -402,7 +402,10 @@ The graph descriptor may be loaded from a JSON file with `graph_path` or
 `graph_file`, or by setting `graph` itself to a path string. Inline `graph`
 metadata is then treated as an overlay on top of the file contents, so a raw
 `deps.json` file can stay unmodified while the CUDA scene spec supplies
-runtime-specific fields such as `task_defaults`.
+runtime-specific fields such as `task_defaults`. In a `SceneTestCase`
+CALLABLE, relative CUDA `task_sources[*].source_path`, `graph_path`,
+`graph_file`, and string-valued `graph` entries are resolved relative to the
+test class file, matching the existing relative CUDA source behavior.
 For heterogeneous imported graphs, `task_overrides` can be keyed by
 `name`/`id`/`task_id` and merged after defaults and the raw task row. This
 lets an unmodified `deps.json` task list stay structural while the CUDA scene

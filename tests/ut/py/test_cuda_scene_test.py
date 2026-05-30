@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import ctypes
+import importlib
 import json
 from typing import Any, cast
 
@@ -40,6 +41,8 @@ from simpler_setup.scene_test import (
     _CudaPersistentDagSceneBuffers,
     scene_test,
 )
+
+scene_test_module = importlib.import_module("simpler_setup.scene_test")
 
 _CUDA_SKIP_REASON = cuda_skip_reason(require_nvcc=True)
 requires_cuda = pytest.mark.skipif(_CUDA_SKIP_REASON is not None, reason=_CUDA_SKIP_REASON or "")
@@ -3004,6 +3007,28 @@ def test_scene_test_builds_cuda_persistent_graph_from_dep_gen_json_file(tmp_path
         (1, 0, 1),
         (1, 1, 1),
         (1, 2, 0),
+    ]
+
+
+def test_scene_test_decorator_resolves_cuda_relative_graph_path_to_class_file(monkeypatch, tmp_path):
+    scene_dir = tmp_path / "scene"
+    scene_dir.mkdir()
+    fake_scene_file = scene_dir / "test_scene.py"
+    fake_scene_file.write_text("")
+    graph_path = scene_dir / "deps.json"
+    _write_dep_gen_json_file(graph_path)
+    monkeypatch.setattr(scene_test_module.inspect, "getfile", lambda cls: str(fake_scene_file))
+
+    @scene_test(level=2, runtime="persistent_device")
+    class CudaPersistentRelativeGraphPathScene(SceneTestCase):
+        CALLABLE = _cuda_persistent_dep_gen_json_file_graph_spec("add.pto.cu", "mul.pto.cu", "deps.json")
+
+    cuda_spec = CudaPersistentRelativeGraphPathScene.CALLABLE["cuda"]
+
+    assert cuda_spec["graph_path"] == str(graph_path)
+    assert [item["source_path"] for item in cuda_spec["task_sources"]] == [
+        str(scene_dir / "add.pto.cu"),
+        str(scene_dir / "mul.pto.cu"),
     ]
 
 
@@ -8503,6 +8528,65 @@ def test_scene_test_runs_cuda_persistent_device_dep_gen_json_file_graph_with_cty
             worker,
             callable_obj,
             CudaPersistentDepGenJsonFileGraphCtypesScene.CASES[0],
+            skip_golden=True,
+        )
+        args = scene.last_args
+        a_values = args.a.to_list()
+        b_values = args.b.to_list()
+        actual = args.out.to_list()
+        expected = [a_values[idx] + b_values[idx] for idx in range(len(actual))]
+        assert actual == pytest.approx(expected)
+    finally:
+        worker.close()
+
+
+@requires_cuda
+def test_scene_test_runs_cuda_persistent_device_relative_graph_path_with_ctypes_data(monkeypatch, tmp_path):
+    scene_dir = tmp_path / "scene"
+    scene_dir.mkdir()
+    fake_scene_file = scene_dir / "test_scene.py"
+    fake_scene_file.write_text("")
+    add_source = scene_dir / "add.pto.cu"
+    mul_source = scene_dir / "mul.pto.cu"
+    dep_graph_path = scene_dir / "deps.json"
+    add_source.write_text(_PERSISTENT_ADD_BODY)
+    mul_source.write_text(_PERSISTENT_MUL_BODY)
+    _write_dep_gen_json_file(dep_graph_path)
+    monkeypatch.setattr(scene_test_module.inspect, "getfile", lambda cls: str(fake_scene_file))
+
+    @scene_test(level=2, runtime="persistent_device")
+    class CudaPersistentRelativeGraphPathCtypesScene(SceneTestCase):
+        CALLABLE = _cuda_persistent_dep_gen_json_file_graph_spec("add.pto.cu", "mul.pto.cu", "deps.json")
+        CASES = [
+            {
+                "name": "n1024",
+                "platforms": ["cuda"],
+                "params": {"n": 1024},
+                "config": {"block_dim": 256},
+            }
+        ]
+
+        def generate_args(self, params):
+            n = params["n"]
+            args = TaskArgsBuilder(
+                Tensor("a", _CtypesFloatTensor(float(i + 1) for i in range(n))),
+                Tensor("b", _CtypesFloatTensor(float(i) * 0.5 for i in range(n))),
+                Tensor("out", _CtypesFloatTensor(0.0 for _ in range(n))),
+            )
+            self.last_args = args
+            return args
+
+        def compute_golden(self, args, params):
+            raise AssertionError("ctypes scene uses explicit post-run validation")
+
+    scene = CudaPersistentRelativeGraphPathCtypesScene()
+    worker = CudaPersistentRelativeGraphPathCtypesScene._create_worker("cuda", device_id=0, build=False)
+    try:
+        callable_obj = scene.build_callable("cuda")
+        scene._run_and_validate_l2(
+            worker,
+            callable_obj,
+            CudaPersistentRelativeGraphPathCtypesScene.CASES[0],
             skip_golden=True,
         )
         args = scene.last_args

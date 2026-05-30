@@ -1611,6 +1611,15 @@ PYTHONPATH=$PWD:$PWD/python \
     -q -k dep_gen_json_file --platform cuda
 ```
 
+After changing SceneTestCase relative CUDA task-source or graph-path
+resolution, use:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k relative_graph_path --platform cuda
+```
+
 After changing keyed task overrides for imported dep-gen JSON graphs, use:
 
 ```bash
