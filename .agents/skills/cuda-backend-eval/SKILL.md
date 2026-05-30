@@ -962,6 +962,13 @@ The same graph shape is a selected benchmark baseline as
 `N=1024`, including dispatch `1,1,2,1,1,2,1`, fan-in `0,1,1,1,2,2,2`,
 dependents `1,2,3,4,4,5,5,6,6`, source-paper provenance, report files,
 command examples, and zero device scheduler errors.
+The full paired gate under
+`tmp/cuda-backend/current-head-full-wide-fanout-5d84690d-working/`
+`combined-current-5d84690d/` validates 1314 A100/H200 rows across
+`N=1024,65536,1048576`, repeats `3`, batch tasks `2,6,12`, and worker grid
+values `32,64,128,256`. The wide-fanout median device times are
+`59392/275040/4225504 ns` on A100 and `55232/259168/3492544 ns` on H200 for
+the three sizes.
 For `--dag-shape tensor_tile`, pass `--tensor-rows`, `--tensor-cols`, and
 `--tensor-inner`; the artifact directory includes the descriptor shape, such
 as `persistent-tensor_tile-8x4x12-smoke-<commit>/`.
@@ -2225,14 +2232,13 @@ Use `--dry-run` to print the commands without launching benchmarks. The paired
 benchmark default tensor descriptor is `16x16x16` so the scalar tensor DAG,
 explicit graph tensor DAG, WMMA tensor-core DAG, and cuBLAS rows can run
 together. The current committed summary keeps the full current-head
-`4e81fbff` capture plus compact current-head gates in
+`5d84690d` capture plus compact current-head gates in
 `docs/nvidia-backend/evaluation-current.md`.
 The full current-head artifact under
-`tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/`
-`combined-current-4e81fbff/` validated `1296` A100/H200 samples after the
-parallel-chains graph row joined the selected matrix and benchmark DAG rows
-were changed to use a ready/completion queue capacity equal to task count.
-Full captures should validate `1296` samples with sizes
+`tmp/cuda-backend/current-head-full-wide-fanout-5d84690d-working/`
+`combined-current-5d84690d/` validated `1314` A100/H200 samples after the
+wide-fanout graph row joined the selected matrix.
+Full captures should validate `1314` samples with sizes
 `1024,65536,1048576`, three repeats, tensor descriptor `16x16x16`, task
 counts `2,6,12`, worker-grid values `32,64,128,256`, source-paper
 provenance, sanitized command examples, graph topology and TaskArgs metadata
@@ -2243,7 +2249,9 @@ scheduler errors. The role-map row must report dispatch `1,1,1`, fan-in
 submit-groups row must report dispatch `1,1,1`, fan-in `0,0,2`, dependents
 `2,2`, and `graph_task_arg_key=submit_groups`; the parallel-chains row must
 report dispatch `1,2,1,2,1,1,2,1,1`, queue capacity `9`, fan-in
-`0,0,0,0,2,2,2,2,2`, and dependents `4,4,5,5,6,7,6,7,8,8`.
+`0,0,0,0,2,2,2,2,2`, and dependents `4,4,5,5,6,7,6,7,8,8`; the
+wide-fanout row must report dispatch `1,1,2,1,1,2,1`, queue capacity `7`,
+fan-in `0,1,1,1,2,2,2`, and dependents `1,2,3,4,4,5,5,6,6`.
 
 Run the full paired-current gate with:
 
@@ -2251,11 +2259,11 @@ Run the full paired-current gate with:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
     --sync-remote-tree \
-    --output-root tmp/cuda-backend/current-head-full-parallel-chains-working
+    --output-root tmp/cuda-backend/current-head-full-wide-fanout-working
 ```
 
 Use this compact paired gate after changing selected persistent graph
-benchmark rows. With `--batch-tasks 0`, it validates 102 non-batch samples
+benchmark rows. With `--batch-tasks 0`, it validates 104 non-batch samples
 across A100 and H200, including `pto_persistent_dag_graph_node_attrs`,
 `pto_persistent_dag_graph_node_io`, `pto_persistent_dag_graph_node_link`,
 `pto_persistent_dag_graph_named_callable`, `pto_persistent_dag_graph_node_op`,
@@ -2265,12 +2273,14 @@ across A100 and H200, including `pto_persistent_dag_graph_node_attrs`,
 `pto_persistent_dag_graph_scalar_affine`,
 `pto_persistent_dag_graph_reordered`,
 `pto_persistent_dag_graph_triad`, `pto_persistent_dag_graph_quad`,
-`pto_persistent_dag_graph_parallel_chains`, and
-`pto_persistent_dag_graph_compact_role_inout` and
+`pto_persistent_dag_graph_parallel_chains`,
+`pto_persistent_dag_graph_wide_fanout`,
+`pto_persistent_dag_graph_compact_role_inout`,
 `pto_persistent_dag_graph_role_map_inout` and
 `pto_persistent_dag_graph_submit_groups` with dispatch `9,2,1`, `1,2,1`,
 `1,2,1`, `1,2,1`, `1,2,1`, `4,2,1`, `11,2,1`, `5,2,1`, `1,9,2`,
-`6,2,1`, `8,2,1`, `1,2,1,2,1,1,2,1,1`, `1,1,1`, `1,1,1`, and `1,1,1`.
+`6,2,1`, `8,2,1`, `1,2,1,2,1,1,2,1,1`, `1,1,2,1,1,2,1`, `1,1,1`,
+`1,1,1`, and `1,1,1`.
 The node-attrs row requires
 `graph_node_attrs=task0=attrs:tensor_args,scalar_args`,
 `scalar_args[0]=1.5,scalar_args[1]=0.25`, and
@@ -2299,13 +2309,13 @@ PYTHONPATH=$PWD:$PWD/python \
 ```
 
 The current compact capture under
-`tmp/cuda-backend/parallel-chains-compact-current-working/`
-`combined-current-c3274430/` is the latest checked compact form of this gate.
-It validates 102 A100/H200 samples and requires report-visible graph
+`tmp/cuda-backend/wide-fanout-selected-current-working/`
+`combined-current-a540a014/` is the latest checked compact form of this gate.
+It validates 104 A100/H200 samples and requires report-visible graph
 topology, node-IO task args, node-link/named-callable graph-node ops,
 scalar/tensor node-attrs descriptor args, selected tensor-throughput rows,
-parallel-chain graph fan-in/dependent metadata, sanitized command examples,
-source-paper metadata, and zero scheduler errors.
+parallel-chain and wide-fanout graph fan-in/dependent metadata, sanitized
+command examples, source-paper metadata, and zero scheduler errors.
 The generated
 `cuda_current_summary.py --section graph-metadata` output includes a
 `Task args` column for copying graph node IO metadata into evaluation docs.

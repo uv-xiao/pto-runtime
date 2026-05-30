@@ -344,38 +344,38 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - same-work batch rows;
 - worker-grid batch rows.
 
-The latest full paired capture at commit `4e81fbff` uses the `16x16x16`
+The latest full paired capture at commit `5d84690d` uses the `16x16x16`
 tensor descriptor, sizes `1024,65536,1048576`, three repeats, task counts
 `2,6,12`, and worker-grid values `32,64,128,256`. It writes artifacts under
-`tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/`
-`combined-current-4e81fbff/` and validates `1296` combined samples after the
-parallel-chains graph row joined the selected matrix. The paired-runner
+`tmp/cuda-backend/current-head-full-wide-fanout-5d84690d-working/`
+`combined-current-5d84690d/` and validates `1314` combined samples after the
+wide-fanout graph row joined the selected matrix. The paired-runner
 validator checked
 source-paper provenance, sanitized command examples, generated Markdown/SVG
 reports, zero scheduler errors, selected tensor throughput reports, graph
 topology reports, graph TaskArgs-like metadata reports, expected generated
 dispatch sequences, tensor tile descriptors, graph fan-in/dependent arrays,
 node attrs/ops metadata, named-callable metadata, task-argument spellings,
-scratch-reuse metadata, and the nine-task parallel-chains queue capacity.
-This supersedes the older `c183d1ad`, `f99dc6b0`, `9ec5511e`, `cb300e82`,
-and `61cf96cd` full captures while keeping the same three-size/three-repeat
-comparison role.
+scratch-reuse metadata, the nine-task parallel-chains queue capacity, and the
+seven-task wide-fanout queue capacity. This supersedes the older `4e81fbff`,
+`c183d1ad`, `f99dc6b0`, `9ec5511e`, `cb300e82`, and `61cf96cd` full captures
+while keeping the same three-size/three-repeat comparison role.
 
 The selected benchmark preset now also includes
-`pto_persistent_dag_graph_wide_fanout`, so the next full three-size paired
-gate is expected to validate `1314` combined samples. The compact paired
-A100/H200 gate under
+`pto_persistent_dag_graph_wide_fanout`. The compact paired A100/H200 gate
+under
 `tmp/cuda-backend/wide-fanout-selected-current-working/`
 `combined-current-a540a014/` validates the no-batch `N=1024` selected matrix
 with `104` samples. Its wide-fanout row records dispatch `1,1,2,1,1,2,1`,
 fan-in `0,1,1,1,2,2,2`, dependents `1,2,3,4,4,5,5,6,6`, queue capacity `7`,
 generated-dispatch PTX, report-visible graph topology, source-paper
 provenance, sanitized local/remote command examples, and zero scheduler
-errors. A100 reported `device_wall_ns=59392`; H200 reported
-`device_wall_ns=56960`.
+errors. The full `5d84690d` capture reports wide-fanout medians of
+`59392/275040/4225504 ns` on A100 and `55232/259168/3492544 ns` on H200 for
+`N=1024,65536,1048576`.
 
 Selected current-head full-capture medians show that the compiler-backed
-host-schedule row remains within `0.84x-1.06x` of the handwritten
+host-schedule row remains within `0.72x-1.17x` of the handwritten
 host-schedule row across A100/H200 and vector sizes. The graph task-argument
 spelling rows also validate tag, role-keyed, compact, pair-shaped, and
 role-map spellings through the same in-place graph topology: dispatch
@@ -4887,12 +4887,12 @@ Needed:
   parallel-chains descriptor is now also wired into the selected benchmark
   path as `pto_persistent_dag_graph_parallel_chains`. The full paired
   current-head gate under
-  `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/`
-  `combined-current-4e81fbff/` validates 1296 A100/H200 rows, dispatch
-  `1,2,1,2,1,1,2,1,1`, queue capacity `9`, fan-in/dependent metadata,
-  generated-dispatch PTX, Markdown/SVG reports, tensor-throughput reports,
-  source-paper provenance, sanitized command examples, and zero scheduler
-  errors. The compact paired gate under
+  `tmp/cuda-backend/current-head-full-wide-fanout-5d84690d-working/`
+  `combined-current-5d84690d/` validates 1314 A100/H200 rows, including
+  the parallel-chain dispatch `1,2,1,2,1,1,2,1,1`, queue capacity `9`,
+  fan-in/dependent metadata, generated-dispatch PTX, Markdown/SVG reports,
+  tensor-throughput reports, source-paper provenance, sanitized command
+  examples, and zero scheduler errors. The compact paired gate under
   `tmp/cuda-backend/parallel-chains-compact-current-working/`
   `combined-current-c3274430/` remains the 102-row quick path. The remaining
   wide-fanout compact gate under
@@ -4901,14 +4901,15 @@ Needed:
   `pto_persistent_dag_graph_wide_fanout` to the selected benchmark path. The
   wide-fanout row records dispatch `1,1,2,1,1,2,1`, fan-in `0,1,1,1,2,2,2`,
   dependents `1,2,3,4,4,5,5,6,6`, queue capacity `7`, and zero scheduler
-  errors; A100 reported `device_wall_ns=59392`, and H200 reported
-  `device_wall_ns=56960`. The paired smoke under
+  errors; the full gate reports wide-fanout medians
+  `59392/275040/4225504 ns` on A100 and `55232/259168/3492544 ns` on H200.
+  The paired smoke under
   `tmp/cuda-backend/wide-fanout-smoke-a540a014/` separately validates two
   repeat launches with scheduler completions split `[3,4]` on A100 and
   `[4,3]` on H200. The remaining policy gap is broader graph families beyond
-  diamond, parallel-chain, and wide-fanout shapes plus a full three-size
-  wide-fanout current-head rerun, rather than launch resource partitioning,
-  root seeding, completion-ring ownership, graph-size reporting, or artifact
+  diamond, parallel-chain, and wide-fanout shapes, rather than launch
+  resource partitioning, root seeding, completion-ring ownership,
+  graph-size reporting, or artifact
   validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,
