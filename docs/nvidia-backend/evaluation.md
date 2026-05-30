@@ -9,8 +9,8 @@ local A100 runs, and remote H200 runs.
 ## Current Evidence
 
 The latest full paired A100/H200 benchmark capture was taken at commit
-`c183d1ad`, and the latest compact current-head paired gate before that full
-refresh uses artifact label `193ccc4d`. Supplemental tensor-shape and
+`4e81fbff`, and the latest compact current-head paired gate before that full
+refresh uses artifact label `c3274430`. Supplemental tensor-shape and
 tensor-core captures were
 taken at commits `c0ada3ad` and `0879aa9e`. The first cuBLAS library baseline
 capture uses the `343924df` artifact label, and the first cuBLAS CUDA Graph
@@ -94,6 +94,10 @@ latest current-head multi-size tensor baseline sweep uses `76422250`:
   paired gate that promotes the nine-task parallel-chains graph descriptor
   into the selected A100/H200 benchmark matrix with 102 non-batch validated
   samples.
+- [Current capture](evaluation-current.md) records the full `4e81fbff`
+  paired-current gate that promotes the nine-task parallel-chains graph
+  descriptor into the three-size A100/H200 benchmark matrix with 1296
+  validated samples.
 - [Current capture](evaluation-current.md) records the full `c183d1ad`
   paired-current gate that promotes submit-group graph task-argument metadata
   into the three-size A100/H200 benchmark matrix with 1278 validated samples.

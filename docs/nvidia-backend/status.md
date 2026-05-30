@@ -340,24 +340,25 @@ The current evaluation setup covers local A100 and remote H200 runs with:
 - same-work batch rows;
 - worker-grid batch rows.
 
-The latest full paired capture at commit `c183d1ad` uses the `16x16x16`
+The latest full paired capture at commit `4e81fbff` uses the `16x16x16`
 tensor descriptor, sizes `1024,65536,1048576`, three repeats, task counts
 `2,6,12`, and worker-grid values `32,64,128,256`. It writes artifacts under
-`tmp/cuda-backend/current-head-full-submit-groups-working/`
-`combined-current-c183d1ad/` and validates `1278` combined samples after the
-submit-groups graph row joined the selected matrix. The paired-runner
+`tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/`
+`combined-current-4e81fbff/` and validates `1296` combined samples after the
+parallel-chains graph row joined the selected matrix. The paired-runner
 validator checked
 source-paper provenance, sanitized command examples, generated Markdown/SVG
 reports, zero scheduler errors, selected tensor throughput reports, graph
 topology reports, graph TaskArgs-like metadata reports, expected generated
 dispatch sequences, tensor tile descriptors, graph fan-in/dependent arrays,
 node attrs/ops metadata, named-callable metadata, task-argument spellings,
-and scratch-reuse metadata. This supersedes the older `9ec5511e`,
-`cb300e82`, and `61cf96cd` full captures while keeping the same
-three-size/three-repeat comparison role.
+scratch-reuse metadata, and the nine-task parallel-chains queue capacity.
+This supersedes the older `c183d1ad`, `f99dc6b0`, `9ec5511e`, `cb300e82`,
+and `61cf96cd` full captures while keeping the same three-size/three-repeat
+comparison role.
 
 Selected current-head full-capture medians show that the compiler-backed
-host-schedule row remains within `0.50x-1.14x` of the handwritten
+host-schedule row remains within `0.84x-1.06x` of the handwritten
 host-schedule row across A100/H200 and vector sizes. The graph task-argument
 spelling rows also validate tag, role-keyed, compact, pair-shaped, and
 role-map spellings through the same in-place graph topology: dispatch
@@ -4745,15 +4746,19 @@ Needed:
   the four-scheduler per-task rows are `19660 ns` vs. `12856 ns` on A100 and
   `14150 ns` vs. `10030 ns` on H200 for diamond vs. parallel chains. The
   parallel-chains descriptor is now also wired into the selected benchmark
-  path as `pto_persistent_dag_graph_parallel_chains`; the compact paired
+  path as `pto_persistent_dag_graph_parallel_chains`. The full paired
   current-head gate under
+  `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/`
+  `combined-current-4e81fbff/` validates 1296 A100/H200 rows, dispatch
+  `1,2,1,2,1,1,2,1,1`, queue capacity `9`, fan-in/dependent metadata,
+  generated-dispatch PTX, Markdown/SVG reports, tensor-throughput reports,
+  source-paper provenance, sanitized command examples, and zero scheduler
+  errors. The compact paired gate under
   `tmp/cuda-backend/parallel-chains-compact-current-working/`
-  `combined-current-c3274430/` validates 102 A100/H200 rows, dispatch
-  `1,2,1,2,1,1,2,1,1`, fan-in/dependent metadata, generated-dispatch PTX,
-  Markdown/SVG reports, and zero scheduler errors. The remaining policy gap
-  is broader graph families and a full paired-current refresh with this row
-  rather than launch resource partitioning, root seeding,
-  completion-ring ownership, graph-size reporting, or artifact validation;
+  `combined-current-c3274430/` remains the 102-row quick path. The remaining
+  policy gap is broader graph families rather than launch resource
+  partitioning, root seeding, completion-ring ownership, graph-size
+  reporting, or artifact validation;
 - broader scheduler error taxonomy beyond the current unsupported-`func_id`
   invalid-dependent-ID, dependent-range, fan-in-underflow,
   duplicate-dependent, self-dependent, initial-fan-in, and

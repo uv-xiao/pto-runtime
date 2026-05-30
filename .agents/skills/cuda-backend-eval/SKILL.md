@@ -2054,21 +2054,25 @@ Use `--dry-run` to print the commands without launching benchmarks. The paired
 benchmark default tensor descriptor is `16x16x16` so the scalar tensor DAG,
 explicit graph tensor DAG, WMMA tensor-core DAG, and cuBLAS rows can run
 together. The current committed summary keeps the full current-head
-`c183d1ad` capture plus compact current-head gates in
+`4e81fbff` capture plus compact current-head gates in
 `docs/nvidia-backend/evaluation-current.md`.
 The full current-head artifact under
-`tmp/cuda-backend/current-head-full-submit-groups-working/`
-`combined-current-c183d1ad/` validated `1278` A100/H200 samples after the
-submit-groups graph row joined the selected matrix. Full captures should
-validate `1278` samples with sizes `1024,65536,1048576`, three repeats, tensor
-descriptor `16x16x16`, task counts `2,6,12`, worker-grid values
-`32,64,128,256`, source-paper provenance, sanitized command examples, graph
-topology and TaskArgs metadata reports, tensor-throughput reports, generated
-node-link, named-callable, role-map, submit-groups graph metadata, and zero
+`tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/`
+`combined-current-4e81fbff/` validated `1296` A100/H200 samples after the
+parallel-chains graph row joined the selected matrix and benchmark DAG rows
+were changed to use a ready/completion queue capacity equal to task count.
+Full captures should validate `1296` samples with sizes
+`1024,65536,1048576`, three repeats, tensor descriptor `16x16x16`, task
+counts `2,6,12`, worker-grid values `32,64,128,256`, source-paper
+provenance, sanitized command examples, graph topology and TaskArgs metadata
+reports, tensor-throughput reports, generated node-link, named-callable,
+role-map, submit-groups, and parallel-chains graph metadata, and zero
 scheduler errors. The role-map row must report dispatch `1,1,1`, fan-in
 `0,1,1`, dependents `1,2`, and `graph_task_arg_key=role_map`; the
 submit-groups row must report dispatch `1,1,1`, fan-in `0,0,2`, dependents
-`2,2`, and `graph_task_arg_key=submit_groups`.
+`2,2`, and `graph_task_arg_key=submit_groups`; the parallel-chains row must
+report dispatch `1,2,1,2,1,1,2,1,1`, queue capacity `9`, fan-in
+`0,0,0,0,2,2,2,2,2`, and dependents `4,4,5,5,6,7,6,7,8,8`.
 
 Run the full paired-current gate with:
 
@@ -2076,7 +2080,7 @@ Run the full paired-current gate with:
 PYTHONPATH=$PWD:$PWD/python \
   python3 .agents/skills/cuda-backend-eval/scripts/cuda_pair_benchmark.py \
     --sync-remote-tree \
-    --output-root tmp/cuda-backend/current-head-full-submit-groups-working
+    --output-root tmp/cuda-backend/current-head-full-parallel-chains-working
 ```
 
 Use this compact paired gate after changing selected persistent graph

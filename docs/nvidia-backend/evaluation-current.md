@@ -1,11 +1,11 @@
 # CUDA Current Evaluation Capture
 
 This page summarizes the latest full paired A100/H200 CUDA backend capture
-from commit `c183d1ad`, plus compact current-head validation captures. The
+from commit `4e81fbff`, plus compact current-head validation captures. The
 full current-head capture is under
-`tmp/cuda-backend/current-head-full-submit-groups-working/`
-`combined-current-c183d1ad/`.
-The compact current-head gate before the full refresh remains the capture under
+`tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/`
+`combined-current-4e81fbff/`.
+The previous compact current-head gate remains the submit-groups capture under
 `tmp/cuda-backend/submit-groups-selected-benchmark-working/`
 `combined-current-193ccc4d/`, which validates the selected compact benchmark
 matrix after submit-group graph task-argument metadata joined the selected
@@ -28,21 +28,21 @@ The capture uses `nvcc` for target-specific PTX on both machines:
 - repeats: `3`
 - batch tasks: `2,6,12`
 - worker blocks per task: `32,64,128,256`
-- samples in combined JSON: `1278` in the latest full capture
+- samples in combined JSON: `1296` in the latest full capture
 
-The latest full capture validated `1278` samples after the submit-groups graph
-row joined the selected matrix. The previous `f99dc6b0` full capture remains
-useful as historical evidence, but it validated `1260` samples before that
-row was included.
+The latest full capture validated `1296` samples after the parallel-chains
+graph row joined the selected matrix and after benchmark DAG rows were changed
+to use a ready/completion queue capacity equal to their task count. The
+previous `c183d1ad` full capture remains useful as historical evidence, but it
+validated `1278` samples before that row was included.
+The previous `f99dc6b0` full capture remains useful as historical evidence,
+but it validated `1260` samples before the submit-groups row was included.
 The earlier `5424bcca` full capture remains useful as historical evidence,
 but it validated `1242` samples before the role-map row was included.
 The compact `193ccc4d` gate validates `100` samples after the submit-groups
 graph row joined the selected matrix.
 The compact `c3274430` gate validates `102` samples after
-`pto_persistent_dag_graph_parallel_chains` joined the selected matrix. The
-next full paired-current gate is expected to validate `1296` samples; the
-latest full capture above remains the latest full paired run until that
-refresh is captured.
+`pto_persistent_dag_graph_parallel_chains` joined the selected compact matrix.
 The older `9ec5511e` full capture remains useful as historical evidence, but
 it validated `1224` samples before the named-callable graph row was included.
 The older `cb300e82` full capture validated `1206` samples before the
@@ -68,6 +68,16 @@ node-link graph row joined the selected matrix.
 - `tmp/cuda-backend/current-head-full-submit-groups-working/combined-current-c183d1ad/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/current-head-full-submit-groups-working/combined-current-c183d1ad/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/current-head-full-submit-groups-working/combined-current-c183d1ad/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/a100-current-4e81fbff/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/a100-current-4e81fbff/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/h200-current-4e81fbff/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/h200-current-4e81fbff/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark.svg`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark-throughput.svg`
 - `tmp/cuda-backend/current-head-full-role-map-working/a100-current-f99dc6b0/cuda-benchmark.json`
 - `tmp/cuda-backend/current-head-full-role-map-working/a100-current-f99dc6b0/cuda-benchmark.md`
 - `tmp/cuda-backend/current-head-full-role-map-working/h200-current-f99dc6b0/cuda-benchmark.json`
@@ -408,66 +418,68 @@ node-link graph row joined the selected matrix.
 
 ## Latest Full Current-Head Capture
 
-The full paired capture at artifact label `c183d1ad` refreshes the broad
+The full paired capture at artifact label `4e81fbff` refreshes the broad
 A100/H200 benchmark matrix on the current branch head. It uses `compute_80`
 on A100, `compute_90` on H200, the default `16x16x16` tensor descriptor,
 three vector sizes, three repeats, same-work task counts `2,6,12`, and worker
 grid values `32,64,128,256`. This is the first full three-size capture after
-`pto_persistent_dag_graph_submit_groups` joined the selected benchmark
-matrix.
+`pto_persistent_dag_graph_parallel_chains` joined the selected benchmark
+matrix and after benchmark DAG rows started sizing their ready/completion
+queues to task count.
 
 Validation command:
 
 ```bash
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python .agents/skills/cuda-backend-eval/scripts/cuda_validate_capture.py \
-    tmp/cuda-backend/current-head-full-submit-groups-working/combined-current-c183d1ad/cuda-benchmark.json \
+    tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark.json \
     --preset paired-current
 ```
 
 The paired runner generated this validator with explicit required baselines,
 generated-dispatch IDs, tensor descriptors, graph fan-in/dependent arrays,
 TaskArgs-like graph metadata, graph node attrs/ops, named-callable metadata,
-scratch-reuse metadata, and tensor/core/cuBLAS report requirements. It
-accepted the combined JSON, Markdown, and SVG artifacts with `1278` samples
-after the submit-groups graph row joined the selected matrix.
+scratch-reuse metadata, parallel-chain graph metadata, and tensor/core/cuBLAS
+report requirements. It accepted the combined JSON, Markdown, and SVG
+artifacts with `1296` samples after the parallel-chains graph row joined the
+selected matrix.
 
 Launch baseline comparison from the same raw JSON:
 
 | GPU | N | PTO host ns | Compiler ns | Driver ns | Graph ns | Compiler/PTO | Graph/PTO |
 | --- | - | ----------- | ----------- | --------- | -------- | ------------ | --------- |
-| A100 | 1024 | 36864 | 37888 | 35840 | 24576 | 1.03x | 0.67x |
-| A100 | 65536 | 25440 | 25216 | 37856 | 25599 | 0.99x | 1.01x |
-| A100 | 1048576 | 22688 | 22528 | 22816 | 20511 | 0.99x | 0.90x |
-| H200 | 1024 | 29536 | 14752 | 21088 | 17696 | 0.50x | 0.60x |
-| H200 | 65536 | 14880 | 17024 | 23488 | 17535 | 1.14x | 1.18x |
-| H200 | 1048576 | 19680 | 19840 | 26591 | 19360 | 1.01x | 0.98x |
+| A100 | 1024 | 32768 | 34816 | 38911 | 17408 | 1.06x | 0.53x |
+| A100 | 65536 | 31615 | 29632 | 30239 | 19328 | 0.94x | 0.61x |
+| A100 | 1048576 | 26688 | 25056 | 28224 | 24863 | 0.94x | 0.93x |
+| H200 | 1024 | 31104 | 30112 | 21344 | 17408 | 0.97x | 0.56x |
+| H200 | 65536 | 18624 | 15712 | 23903 | 19071 | 0.84x | 1.02x |
+| H200 | 1048576 | 20544 | 19488 | 24288 | 18592 | 0.95x | 0.90x |
 
 Selected tensor throughput from the same raw JSON:
 
 | GPU | N | Shape | Scalar ns | Graph ns | Tensor-core ns | Graph tensor-core ns | cuBLAS ns | cuBLAS graph ns |
 | --- | - | ----- | --------- | -------- | -------------- | -------------------- | --------- | --------------- |
-| A100 | 1024 | 16x16x16 | 36864 | 36864 | 37888 | 38912 | 23552 | 10239 |
-| A100 | 65536 | 16x16x16 | 456032 | 456416 | 563648 | 564832 | 17408 | 9216 |
-| A100 | 1048576 | 16x16x16 | 7257312 | 7259744 | 8935968 | 8955744 | 54271 | 45056 |
-| H200 | 1024 | 16x16x16 | 34592 | 34720 | 34720 | 34784 | 23231 | 8895 |
-| H200 | 65536 | 16x16x16 | 456640 | 463328 | 445760 | 449984 | 23840 | 9312 |
-| H200 | 1048576 | 16x16x16 | 6989952 | 7071904 | 6788768 | 6896192 | 31360 | 18495 |
+| A100 | 1024 | 16x16x16 | 45056 | 43008 | 46080 | 46080 | 20479 | 10239 |
+| A100 | 65536 | 16x16x16 | 428256 | 429760 | 571808 | 571264 | 17408 | 9216 |
+| A100 | 1048576 | 16x16x16 | 6598848 | 6567104 | 8871712 | 8908288 | 54271 | 45056 |
+| H200 | 1024 | 16x16x16 | 42304 | 42048 | 41696 | 42432 | 21983 | 8832 |
+| H200 | 65536 | 16x16x16 | 422464 | 417920 | 337664 | 336320 | 25823 | 11199 |
+| H200 | 1048576 | 16x16x16 | 6276192 | 6300064 | 4982688 | 4933120 | 29920 | 18815 |
 
 Graph task-argument spelling medians:
 
 | GPU | N | Tag ns | Role ns | Compact ns | Pair ns | Role-map ns |
 | --- | - | ------ | ------- | ---------- | ------- | ----------- |
-| A100 | 1024 | 30720 | 30720 | 30720 | 29696 | 30720 |
-| A100 | 65536 | 218912 | 217120 | 214304 | 217568 | 216064 |
-| A100 | 1048576 | 3215072 | 3211552 | 3223936 | 3223104 | 3231808 |
-| H200 | 1024 | 29056 | 28576 | 27712 | 27936 | 29056 |
-| H200 | 65536 | 182912 | 184640 | 182560 | 184672 | 183296 |
-| H200 | 1048576 | 2668672 | 2686624 | 2663488 | 2687776 | 2668384 |
+| A100 | 1024 | 38912 | 37888 | 38912 | 37888 | 37888 |
+| A100 | 65536 | 227552 | 226048 | 223136 | 233440 | 223680 |
+| A100 | 1048576 | 3254784 | 3131680 | 3125504 | 3227232 | 3227136 |
+| H200 | 1024 | 35488 | 35328 | 34560 | 34880 | 34656 |
+| H200 | 65536 | 193792 | 192736 | 194176 | 192064 | 193024 |
+| H200 | 1048576 | 2695744 | 2671584 | 2694688 | 2670080 | 2697472 |
 
 Interpretation:
 
-- The host-schedule compiler path stays within roughly `0.89x-1.11x` of the
+- The host-schedule compiler path stays within roughly `0.84x-1.06x` of the
   hand-written host-schedule row, depending on GPU and vector size.
 - CUDA Graph replay is best for the tiny launch-dominated row, but is not a
   replacement for the persistent-device scheduler path because the host still
@@ -1108,12 +1120,12 @@ generated vector task bodies, not a tuned model-kernel benchmark.
 
 ## Parallel-Chains Selected Benchmark Row
 
-The current-head selected benchmark path now includes
+The current-head selected benchmark path includes
 `pto_persistent_dag_graph_parallel_chains`, the explicit nine-task graph
-descriptor used by the scheduler-scaling smoke. A compact paired A100/H200
-gate at artifact label `c3274430` validates that the selected-benchmark
-dispatcher includes the row in the normal 102-row report and that the paired
-validator requires its dispatch and graph topology metadata.
+descriptor used by the scheduler-scaling smoke. The full paired A100/H200
+gate at artifact label `4e81fbff` validates the row across all selected
+sizes and repeats in the normal 1296-row report. The earlier compact paired
+gate at artifact label `c3274430` remains the quick 102-row validation path.
 
 Artifacts:
 
@@ -1125,22 +1137,32 @@ Artifacts:
 - `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark-ratios.svg`
 - `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark-dag-deltas.svg`
 - `tmp/cuda-backend/parallel-chains-compact-current-working/combined-current-c3274430/cuda-benchmark-throughput.svg`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/a100-current-4e81fbff/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/h200-current-4e81fbff/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark.json`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark.md`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark.svg`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark-ratios.svg`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark-dag-deltas.svg`
+- `tmp/cuda-backend/current-head-full-parallel-chains-4e81fbff-working/combined-current-4e81fbff/cuda-benchmark-throughput.svg`
 
-Selected rows:
+Median selected rows:
 
-| GPU | PTX arch | Device ns | Host ns | Tasks | Dispatch |
-| --- | -------- | --------- | ------- | ----- | -------- |
-| A100 | `compute_80` | 70656 | 81848 | 9 | `1,2,1,2,1,1,2,1,1` |
-| H200 | `compute_90` | 65183 | 73939 | 9 | `1,2,1,2,1,1,2,1,1` |
+| GPU | N | PTX arch | Device ns | Host ns | Queue | Tasks | Dispatch |
+| --- | - | -------- | --------- | ------- | ----- | ----- | -------- |
+| A100 | 1024 | `compute_80` | 69632 | 82117 | 9 | 9 | `1,2,1,2,1,1,2,1,1` |
+| A100 | 1048576 | `compute_80` | 4621504 | 4632261 | 9 | 9 | `1,2,1,2,1,1,2,1,1` |
+| H200 | 1024 | `compute_90` | 63327 | 71737 | 9 | 9 | `1,2,1,2,1,1,2,1,1` |
+| H200 | 1048576 | `compute_90` | 3694336 | 3704184 | 9 | 9 | `1,2,1,2,1,1,2,1,1` |
 
-The combined report validated `102` rows with source-paper provenance,
+The full combined report validated `1296` rows with source-paper provenance,
 sanitized local/remote command examples, Markdown/SVG report files, tensor
 throughput rows, report-visible graph topology, and zero scheduler errors.
-The parallel-chains rows report fan-in
+The parallel-chains rows report queue capacity `9`, fan-in
 `0,0,0,0,2,2,2,2,2`, dependents `4,4,5,5,6,7,6,7,8,8`,
-and generated-dispatch PTX for `compute_80` and `compute_90`. The earlier
-single-row smoke under
-`tmp/cuda-backend/graph-parallel-chains-selected-working/` remains useful as
+and generated-dispatch PTX for `compute_80` and `compute_90`. The compact
+`c3274430` gate and the earlier single-row smoke under
+`tmp/cuda-backend/graph-parallel-chains-selected-working/` remain useful as
 a narrow dispatcher check; the paired scheduler-scaling captures above remain
 the better evidence for multi-scheduler behavior.
 
