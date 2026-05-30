@@ -376,10 +376,11 @@ instead of repeating raw generated-dispatch IDs on every task. This is still
 not full capture of a live PTO orchestrator graph, but it moves descriptor
 construction closer to the normal `submit_next_level(callable, TaskArgs, ...)`
 shape.
-Graph tasks may also carry `name` and use those names in outgoing
-`dependents` or incoming `depends_on` / `dependencies`. This preserves both
-edge-list styles while avoiding fragile numeric task IDs in descriptor specs.
-Each edge field may be a single task name/id or a list of task names/ids.
+Graph tasks may also carry `name`, or the schema aliases `id` and `task_id`,
+and use those names in outgoing `dependents` or incoming `depends_on` /
+`dependencies`. This preserves both edge-list styles while avoiding fragile
+numeric task IDs in descriptor specs. Each edge field may be a single task
+name/id or a list of task names/ids.
 The graph descriptor may also carry a top-level `edges` list, where each edge
 is either `{"from": <task>, "to": <task>}`, a dep-gen-style
 `{"pred": <task>, "succ": <task>}`, a two-item endpoint pair, or a string of
@@ -395,8 +396,8 @@ name. In the dictionary form, the key becomes the task `name` used by
 `graph.edges`, `dependents`, and `depends_on` / `dependencies`. `graph.nodes`
 is accepted as an alias for `graph.tasks` when the descriptor should use
 graph-node terminology; descriptors must not provide both fields. List-shaped
-nodes may use `id` as a `name` alias when the source graph schema calls node
-identity `id`.
+nodes may use `id` or `task_id` as a `name` alias when the source graph
+schema uses those fields for node identity.
 Graph nodes may also spell task arguments as top-level `inputs`, `outputs`,
 `output_existing`, `inouts`, and `scalars` fields. The adapter expands these
 node IO fields into the same role-keyed `task_args` lowering path before

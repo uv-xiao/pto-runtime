@@ -2030,6 +2030,16 @@ passed with `3 passed, 144 deselected` for the adjacent edge forms. The
 ctypes-backed `dep_gen_edge_graph_with_ctypes` scene passed on local A100 and
 remote H200 with `1 passed, 146 deselected`; the H200 run printed the known
 PTO-ISA SSH refresh warning first.
+Graph task identity now also accepts dep-gen-style `task_id` as a `name`/`id`
+alias, so `deps.json`-like task rows can be referenced directly from
+`pred`/`succ` edge dictionaries. The focused builder selector first failed
+with `unknown dependency task name: left`, then passed with
+`1 passed, 148 deselected`. The adjacent identity/edge selector passed with
+`4 passed, 145 deselected`. The ctypes-backed
+`dep_gen_task_id_graph_with_ctypes` scene passed on local A100 with
+`1 passed, 148 deselected` and on remote H200 with
+`1 passed, 148 deselected`; the H200 run printed the known PTO-ISA SSH
+refresh warning first.
 The same graph-shaped path now accepts `graph.tasks` as a dictionary keyed by
 task name, so descriptor specs can keep node names in one place and reference
 those names from top-level edges. The ctypes-backed
@@ -4636,9 +4646,10 @@ Needed:
   inference, explicit outgoing and incoming graph edges with scalar or
   list-valued named task dependencies, top-level graph edge lists including
   string `source -> target` entries and dep-gen-style `pred`/`succ` endpoint
-  dictionaries, adjacency dictionaries, `graph.links` aliases, `graph.nodes`
-  aliases, node `id` identity aliases, node-link `data` payloads, node-style
-  IO fields, dictionary-valued node IO port maps, node `op` callable aliases,
+  dictionaries, dep-gen-style `task_id` graph task identities, adjacency
+  dictionaries, `graph.links` aliases, `graph.nodes` aliases, node `id`
+  identity aliases, node-link `data` payloads, node-style IO fields,
+  dictionary-valued node IO port maps, node `op` callable aliases,
   callable metadata `callable_id` / `cid` aliases, and paired smoke including
   node-link `links` and dictionary-valued node IO port maps,
   tagged TaskArgs-like graph task lowering including `inout` producer

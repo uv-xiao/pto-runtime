@@ -1549,6 +1549,8 @@ graph descriptor with per-task `func_id`, `a`/`b`/`c`/`d`/`out`,
 fields instead of selecting one of the fixed tracer-bullet DAG adapters.
 Graph tasks may set `name` and then use task names in outgoing `dependents`
 or incoming `depends_on` / `dependencies`; integer task IDs still work.
+Dep-gen-style graph rows may use `task_id` as the same graph task identity
+field as `name` / `id`.
 Prefer named edges for new graph-descriptor tests because they are closer to
 normal named PTO task graphs and avoid renumbering errors when inserting
 tasks.
@@ -1568,6 +1570,15 @@ H200 real-data scene path with:
 PYTHONPATH=$PWD:$PWD/python \
   .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
     -q -k dep_gen_edge_graph_with_ctypes --platform cuda
+```
+
+After changing dep-gen-style task identity lowering, use the matching
+`task_id` selector:
+
+```bash
+PYTHONPATH=$PWD:$PWD/python \
+  .venv/bin/python -m pytest tests/ut/py/test_cuda_scene_test.py \
+    -q -k dep_gen_task_id_graph_with_ctypes --platform cuda
 ```
 
 For H200, sync the changed files or use the paired sync workflow first, then
